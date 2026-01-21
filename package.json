@@ -124,21 +124,6 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Path to an R executable to launch R background processes. Must be \"vanilla\" R, not radian etc.! Some variables defined in <https://code.visualstudio.com/docs/editor/variables-reference> such as `${userHome}`, `${workspaceFolder}`, `${fileWorkspaceFolder}`, and `${fileDirname}` are supported."
-        },
-        "krarkode.r.rBinaryPath.windows": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Path to an R executable to launch R background processes (Windows). Must be \"vanilla\" R, not radian etc.! Some variables defined in <https://code.visualstudio.com/docs/editor/variables-reference> such as `${userHome}`, `${workspaceFolder}`, `${fileWorkspaceFolder}`, and `${fileDirname}` are supported."
-        },
-        "krarkode.r.rBinaryPath.mac": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Path to an R executable to launch R background processes (macOS). Must be \"vanilla\" R, not radian etc.! Some variables defined in <https://code.visualstudio.com/docs/editor/variables-reference> such as `${userHome}`, `${workspaceFolder}`, `${fileWorkspaceFolder}`, and `${fileDirname}` are supported."
-        },
-        "krarkode.r.rBinaryPath.linux": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "Path to an R executable to launch R background processes (Linux). Must be \"vanilla\" R, not radian etc.! Some variables defined in <https://code.visualstudio.com/docs/editor/variables-reference> such as `${userHome}`, `${workspaceFolder}`, `${fileWorkspaceFolder}`, and `${fileDirname}` are supported."
         }
       }
     }

@@ -91,11 +91,6 @@ async function getRpathFromSystem(): Promise<string> {
     return rpath;
 }
 
-function getRPathConfigEntry(): string {
-    const platform = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux';
-    return `rBinaryPath.${platform}`;
-}
-
 export async function getRBinaryPath(quote = false): Promise<string | undefined> {
     let rpath: string | undefined = '';
 
@@ -104,16 +99,12 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
     rpath = config.get<string>('rBinaryPath');
     rpath &&= substituteVariables(rpath);
 
-    const configEntry = getRPathConfigEntry();
-    rpath ||= config.get<string>(configEntry);
-    rpath &&= substituteVariables(rpath);
-
     rpath ||= await getRpathFromSystem();
 
     rpath ||= undefined;
 
     if (!rpath) {
-        void vscode.window.showErrorMessage(`Cannot find R to use for Ark kernel. Change setting krarkode.r.${configEntry} to R path.`);
+        void vscode.window.showErrorMessage(`Cannot find R to use for Ark kernel. Change setting krarkode.r.rBinaryPath to R path.`);
     } else if (quote && /^[^'"].* .*[^'"]$/.exec(rpath)) {
         rpath = `"${rpath}"`;
     } else if (!quote) {
