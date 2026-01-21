@@ -1,4 +1,5 @@
 import { homedir } from 'os';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
@@ -38,6 +39,91 @@ export function substituteVariables(str: string): string {
         });
     }
     return result;
+}
+
+function getRfromEnvPath(platform: string): string {
+    let splitChar = ':';
+    let fileExtension = '';
+
+    if (platform === 'win32') {
+        splitChar = ';';
+        fileExtension = '.exe';
+    }
+
+    const osPaths: string[] = process.env.PATH ? process.env.PATH.split(splitChar) : [];
+    for (const osPath of osPaths) {
+        const osRPath: string = path.join(osPath, 'R' + fileExtension);
+        if (fs.existsSync(osRPath)) {
+            return osRPath;
+        }
+    }
+    return '';
+}
+
+async function getRpathFromSystem(): Promise<string> {
+    let rpath = '';
+    const platform: string = process.platform;
+
+    rpath ||= getRfromEnvPath(platform);
+
+    if (!rpath && platform === 'win32') {
+        try {
+            const regKey = require('winreg');
+            const key = new regKey({
+                hive: regKey.HKLM,
+                key: '\\Software\\R-Core\\R',
+            });
+            const item = await new Promise((resolve, reject) =>
+                key.get('InstallPath', (err: Error | null, result: { value: string }) => {
+                    if (err === null) {
+                        resolve(result);
+                    } else {
+                        reject(err);
+                    }
+                })
+            );
+            rpath = path.join((item as { value: string }).value, 'bin', 'R.exe');
+        } catch (e) {
+            rpath = '';
+        }
+    }
+
+    return rpath;
+}
+
+function getRPathConfigEntry(): string {
+    const platform = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'mac' : 'linux';
+    return `rBinaryPath.${platform}`;
+}
+
+export async function getRBinaryPath(quote = false): Promise<string | undefined> {
+    let rpath: string | undefined = '';
+
+    const config = vscode.workspace.getConfiguration('krarkode.r');
+
+    rpath = config.get<string>('rBinaryPath');
+    rpath &&= substituteVariables(rpath);
+
+    const configEntry = getRPathConfigEntry();
+    rpath ||= config.get<string>(configEntry);
+    rpath &&= substituteVariables(rpath);
+
+    rpath ||= await getRpathFromSystem();
+
+    rpath ||= undefined;
+
+    if (!rpath) {
+        void vscode.window.showErrorMessage(`Cannot find R to use for Ark kernel. Change setting krarkode.r.${configEntry} to R path.`);
+    } else if (quote && /^[^'"].* .*[^'"]$/.exec(rpath)) {
+        rpath = `"${rpath}"`;
+    } else if (!quote) {
+        rpath = rpath.replace(/^"(.*)"$/, '$1');
+        rpath = rpath.replace(/^'(.*)'$/, '$1');
+    } else if (process.platform === 'win32' && /^'.* .*'$/.exec(rpath)) {
+        rpath = rpath.replace(/^'(.*)'$/, '"$1"');
+    }
+
+    return rpath;
 }
 
 export function delay(ms: number): Promise<void> {

@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import type { ArkConsoleDriver, ArkSessionEntry } from './sessionRegistry';
+import { getRBinaryPath } from '../util';
 
 type ArkSessionMode = 'console' | 'notebook' | 'background';
 
@@ -555,7 +556,30 @@ export class ArkSessionManager {
             `ARK_CONNECTION_FILE=${shellEscape(connectionFile)}`,
         ];
 
+        const rHome = await this.resolveRHome();
+        if (rHome) {
+            envParts.push(`R_HOME=${shellEscape(rHome)}`);
+        }
+
         return `${envParts.join(' ')} ${kernelCommand}`;
+    }
+
+    private async resolveRHome(): Promise<string | undefined> {
+        const rPath = await getRBinaryPath();
+        if (!rPath) {
+            return undefined;
+        }
+
+        const result = await util.spawnAsync(rPath, ['RHOME'], { env: process.env });
+        const lines = (result.stdout || '')
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+        if (lines.length > 0) {
+            return lines[lines.length - 1];
+        }
+
+        return path.resolve(path.dirname(rPath), '..');
     }
 
     private async getFirstTmuxWindowTarget(sessionName: string): Promise<string | undefined> {
