@@ -1,11 +1,13 @@
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as net from 'net';
+import * as os from 'os';
 import * as path from 'path';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
 import {
     CloseAction,
+    DocumentFilter,
     ErrorAction,
     LanguageClient,
     LanguageClientOptions,
@@ -15,7 +17,18 @@ import {
 import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
-import type { ArkSessionEntry } from './sessionRegistry';
+
+interface ConnectionInfo {
+    shell_port: number;
+    iopub_port: number;
+    stdin_port: number;
+    control_port: number;
+    hb_port: number;
+    ip: string;
+    key: string;
+    transport: string;
+    signature_scheme: string;
+}
 
 interface SidecarMessage {
     event?: string;
@@ -24,34 +37,36 @@ interface SidecarMessage {
 }
 
 const DEFAULT_IP_ADDRESS = '127.0.0.1';
+const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
+const DEFAULT_SESSION_MODE = 'notebook';
 const DEFAULT_SIDECAR_TIMEOUT_MS = 15000;
 
 export class ArkLanguageService implements vscode.Disposable {
     private client: LanguageClient | undefined;
+    private readonly config: vscode.WorkspaceConfiguration;
+    private readonly outputChannel: vscode.OutputChannel;
+    private arkProcess: util.DisposableProcess | undefined;
     private sidecarProcess: cp.ChildProcessWithoutNullStreams | undefined;
+    private connectionDir: string | undefined;
     private connectionFile: string | undefined;
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark LSP');
-    private activeSessionName: string | undefined;
 
-    async startFromSession(entry: ArkSessionEntry | undefined): Promise<void> {
-        this.activeSessionName = entry?.name;
-        await this.restart(entry);
+    constructor() {
+        this.outputChannel = vscode.window.createOutputChannel('Ark LSP');
+        this.client = undefined;
+        this.config = vscode.workspace.getConfiguration('krarkode.ark');
+        void this.startLanguageService();
     }
 
-    async restart(entry?: ArkSessionEntry): Promise<void> {
+    public async restartWithSessionPaths(_rPath?: string, _libPaths?: string[]): Promise<void> {
+        await this.restart();
+    }
+
+    public async restart(): Promise<void> {
+        this.outputChannel.appendLine('Restarting Ark LSP...');
         await this.stopLanguageService();
-        if (!entry) {
-            return;
-        }
-        await this.startLanguageService(entry);
-    }
-
-    async restartActiveSession(): Promise<void> {
-        if (this.activeSessionName) {
-            await this.restart(sessionRegistry.findSession(this.activeSessionName));
-            return;
-        }
-        await this.restart(sessionRegistry.getActiveSession());
+        this.client = undefined;
+        await this.startLanguageService();
+        this.outputChannel.appendLine('Ark LSP restarted.');
     }
 
     dispose(): void {
@@ -59,25 +74,18 @@ export class ArkLanguageService implements vscode.Disposable {
         this.outputChannel.dispose();
     }
 
-    private async startLanguageService(entry: ArkSessionEntry): Promise<void> {
-        const connectionFile = entry.connectionFilePath;
-        if (!fs.existsSync(connectionFile)) {
-            void vscode.window.showErrorMessage(`Ark connection file not found: ${connectionFile}`);
-            return;
-        }
-        const alive = await this.checkConnectionFile(connectionFile);
-        if (!alive) {
-            void vscode.window.showWarningMessage('Ark connection file is not responding. Please restart the Ark session.');
-            return;
-        }
-
-        this.connectionFile = connectionFile;
+    private async startLanguageService(): Promise<void> {
+        const documentSelector: DocumentFilter[] = [
+            { language: 'r' },
+            { language: 'rmd' },
+        ];
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-        const selector = [{ language: 'r' }, { language: 'rmd' }];
+        const cwd = workspaceFolder ? workspaceFolder.uri.fsPath : os.homedir();
 
         try {
-            const port = await this.openArkLspComm(connectionFile);
-            this.client = await this.createClient(port, selector, workspaceFolder);
+            await this.startArkKernel(cwd);
+            const port = await this.openArkLspComm();
+            this.client = await this.createClient(port, documentSelector, workspaceFolder);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
             this.outputChannel.appendLine(`Ark LSP failed to start: ${message}`);
@@ -87,11 +95,80 @@ export class ArkLanguageService implements vscode.Disposable {
         }
     }
 
-    private async openArkLspComm(connectionFile: string): Promise<number> {
-        const ipAddress = (util.config().get<string>('krarkode.ark.ipAddress') || DEFAULT_IP_ADDRESS).trim() || DEFAULT_IP_ADDRESS;
-        const timeoutMs = util.config().get<number>('krarkode.ark.lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
+    private async startArkKernel(cwd: string): Promise<void> {
+        if (this.arkProcess) {
+            return;
+        }
+
+        // Try to reuse existing session from registry
+        const activeSession = sessionRegistry.getActiveSession();
+        if (activeSession && fs.existsSync(activeSession.connectionFilePath)) {
+            const alive = await this.checkConnectionFile(activeSession.connectionFilePath);
+            if (alive) {
+                this.connectionFile = activeSession.connectionFilePath;
+                this.outputChannel.appendLine(`Using Ark session connection file ${activeSession.connectionFilePath}`);
+                return;
+            }
+
+            this.outputChannel.appendLine(`Ark session connection file is stale: ${activeSession.connectionFilePath}`);
+            sessionRegistry.setActiveSessionName(undefined);
+        }
+
+        // Create new connection file and start Ark kernel
+        const connectionFile = await this.createConnectionFile();
+        this.connectionFile = connectionFile;
+
+        const arkPath = (this.config.get<string>('path') || '').trim() || 'ark';
+        const sessionMode = (this.config.get<string>('sessionMode') || DEFAULT_SESSION_MODE).trim();
+        const env = Object.assign({}, process.env, {
+            ARK_CONNECTION_FILE: connectionFile,
+        });
+        const rHome = await this.resolveRHome();
+        if (rHome) {
+            env.R_HOME = rHome;
+            this.outputChannel.appendLine(`Resolved R_HOME for Ark: ${rHome}`);
+        }
+
+        this.outputChannel.appendLine(`Starting Ark kernel with connection file ${connectionFile}`);
+        this.arkProcess = util.spawn(arkPath, ['--connection_file', connectionFile, '--session-mode', sessionMode], { cwd, env });
+        this.arkProcess.stdout?.on('data', (chunk: Buffer) => {
+            this.outputChannel.appendLine(chunk.toString().trim());
+        });
+        this.arkProcess.stderr?.on('data', (chunk: Buffer) => {
+            this.outputChannel.appendLine(chunk.toString().trim());
+        });
+        this.arkProcess.on('exit', (code, signal) => {
+            this.outputChannel.appendLine(`Ark kernel exited ${signal ? `from signal ${signal}` : `with exit code ${code ?? 'null'}`}`);
+        });
+    }
+
+    private async resolveRHome(): Promise<string | undefined> {
+        const rPath = await util.getRBinaryPath();
+        if (!rPath) {
+            return undefined;
+        }
+
+        const result = await util.spawnAsync(rPath, ['RHOME'], { env: process.env });
+        const lines = (result.stdout || '')
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+        if (lines.length > 0) {
+            return lines[lines.length - 1];
+        }
+
+        return path.resolve(path.dirname(rPath), '..');
+    }
+
+    private async openArkLspComm(): Promise<number> {
+        if (!this.connectionFile) {
+            throw new Error('Missing Ark connection file.');
+        }
+
+        const ipAddress = (this.config.get<string>('ipAddress') || DEFAULT_IP_ADDRESS).trim();
+        const timeoutMs = this.config.get<number>('lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
         const sidecarPath = this.resolveSidecarPath();
-        const args = ['--connection-file', connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)];
+        const args = ['--connection-file', this.connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)];
 
         this.outputChannel.appendLine(`Starting Ark sidecar: ${sidecarPath}`);
         const sidecar = cp.spawn(sidecarPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -105,7 +182,7 @@ export class ArkLanguageService implements vscode.Disposable {
 
     private async checkConnectionFile(connectionFile: string): Promise<boolean> {
         const sidecarPath = this.resolveSidecarPath();
-        const timeoutMs = util.config().get<number>('krarkode.ark.lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
+        const timeoutMs = this.config.get<number>('lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
         const args = ['--check', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
         const result = await util.spawnAsync(sidecarPath, args, { env: process.env });
         if (result.error || result.status !== 0) {
@@ -175,8 +252,58 @@ export class ArkLanguageService implements vscode.Disposable {
         });
     }
 
+    private async createConnectionFile(): Promise<string> {
+        const tempRoot = util.getTempDir();
+        const connectionDir = util.createTempDir(tempRoot, true);
+        this.connectionDir = connectionDir;
+        const connectionFile = path.join(connectionDir, 'ark-connection.json');
+        const ipAddress = (this.config.get<string>('ipAddress') || DEFAULT_IP_ADDRESS).trim();
+        const ports = await this.allocatePorts(ipAddress, 5);
+
+        const connectionInfo: ConnectionInfo = {
+            shell_port: ports[0],
+            iopub_port: ports[1],
+            stdin_port: ports[2],
+            control_port: ports[3],
+            hb_port: ports[4],
+            ip: ipAddress,
+            key: '',
+            transport: 'tcp',
+            signature_scheme: DEFAULT_SIGNATURE_SCHEME,
+        };
+
+        fs.writeFileSync(connectionFile, JSON.stringify(connectionInfo, null, 2));
+        return connectionFile;
+    }
+
+    private async allocatePorts(host: string, count: number): Promise<number[]> {
+        const ports: number[] = [];
+        for (let i = 0; i < count; i += 1) {
+            ports.push(await this.getAvailablePort(host));
+        }
+        return ports;
+    }
+
+    private async getAvailablePort(host: string): Promise<number> {
+        return await new Promise((resolve, reject) => {
+            const server = net.createServer();
+            server.once('error', (err) => {
+                reject(err);
+            });
+            server.listen(0, host, () => {
+                const address = server.address();
+                if (!address || typeof address === 'string') {
+                    server.close(() => reject(new Error('Failed to allocate port.')));
+                    return;
+                }
+                const port = address.port;
+                server.close(() => resolve(port));
+            });
+        });
+    }
+
     private resolveSidecarPath(): string {
-        const configured = (util.config().get<string>('krarkode.ark.sidecarPath') || '').trim();
+        const configured = (this.config.get<string>('sidecarPath') || '').trim();
         if (configured) {
             return configured;
         }
@@ -197,22 +324,23 @@ export class ArkLanguageService implements vscode.Disposable {
 
     private async createClient(
         port: number,
-        selector: vscode.DocumentFilter[],
+        selector: DocumentFilter[],
         workspaceFolder: vscode.WorkspaceFolder | undefined
     ): Promise<LanguageClient> {
-        const ipAddress = (util.config().get<string>('krarkode.ark.ipAddress') || DEFAULT_IP_ADDRESS).trim() || DEFAULT_IP_ADDRESS;
+        const ipAddress = (this.config.get<string>('ipAddress') || DEFAULT_IP_ADDRESS).trim();
+
         const tcpServerOptions = () => new Promise<StreamInfo>((resolve, reject) => {
             const socket = net.connect({ host: ipAddress, port }, () => {
                 resolve({ reader: socket, writer: socket });
             });
-            socket.on('error', (err: Error) => {
-                reject(err);
+            socket.on('error', (e: Error) => {
+                reject(e);
             });
         });
 
         const clientOptions: LanguageClientOptions = {
             documentSelector: selector,
-            workspaceFolder,
+            workspaceFolder: workspaceFolder,
             outputChannel: this.outputChannel,
             synchronize: {
                 configurationSection: 'krarkode.ark.lsp',
@@ -220,8 +348,16 @@ export class ArkLanguageService implements vscode.Disposable {
             },
             revealOutputChannelOn: RevealOutputChannelOn.Never,
             errorHandler: {
-                error: () => ({ action: ErrorAction.Continue }),
-                closed: () => ({ action: CloseAction.DoNotRestart }),
+                error: () => {
+                    return {
+                        action: ErrorAction.Continue
+                    };
+                },
+                closed: () => {
+                    return {
+                        action: CloseAction.DoNotRestart
+                    };
+                },
             },
         };
 
@@ -241,6 +377,20 @@ export class ArkLanguageService implements vscode.Disposable {
             this.sidecarProcess.kill('SIGKILL');
         }
         this.sidecarProcess = undefined;
+
+        if (this.arkProcess) {
+            this.arkProcess.dispose();
+            this.arkProcess = undefined;
+        }
+
+        if (this.connectionDir) {
+            try {
+                fs.rmSync(this.connectionDir, { recursive: true, force: true });
+            } catch {
+                // Ignore cleanup errors.
+            }
+            this.connectionDir = undefined;
+        }
         this.connectionFile = undefined;
 
         await Promise.allSettled(promises);

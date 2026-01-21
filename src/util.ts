@@ -1,8 +1,10 @@
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
+import { randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
+import { getExtensionContext } from './context';
 
 export interface SpawnResult {
     status: number | null;
@@ -163,4 +165,80 @@ function getActiveFileWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
         return undefined;
     }
     return vscode.workspace.getWorkspaceFolder(activeDocument.uri);
+}
+
+/**
+ * Get the temporary directory for the extension.
+ * Creates it if it doesn't exist.
+ */
+export function getTempDir(): string {
+    const extDir = getExtensionContext().globalStorageUri.fsPath;
+    const tempDir = path.join(extDir, 'tmp');
+    fs.mkdirSync(tempDir, { recursive: true });
+    return tempDir;
+}
+
+/**
+ * Create temporary directory. Will avoid name clashes. Caller must delete directory after use.
+ *
+ * @param root Parent folder.
+ * @param hidden If set to true, directory will be prefixed with a '.' (ignored on windows).
+ * @returns Path to the temporary directory.
+ */
+export function createTempDir(root: string, hidden?: boolean): string {
+    const hidePrefix = (!hidden || process.platform === 'win32') ? '' : '.';
+    let tempDir: string;
+    while (fs.existsSync(tempDir = path.join(root, `${hidePrefix}___temp_${randomBytes(8).toString('hex')}`))) { /* Name clash */ }
+    fs.mkdirSync(tempDir, { recursive: true });
+    return tempDir;
+}
+
+/**
+ * DisposableProcess type - a child process that can be disposed.
+ */
+export type DisposableProcess = cp.ChildProcessWithoutNullStreams & vscode.Disposable;
+
+/**
+ * Spawn a process that can be disposed.
+ * 
+ * @param command The command to run.
+ * @param args Arguments for the command.
+ * @param options Spawn options.
+ * @param onDisposed Optional callback when the process is disposed.
+ * @returns A DisposableProcess.
+ */
+export function spawn(
+    command: string,
+    args?: ReadonlyArray<string>,
+    options?: cp.CommonOptions,
+    onDisposed?: () => unknown
+): DisposableProcess {
+    const proc = cp.spawn(command, args, options) as DisposableProcess;
+    console.log(proc.pid ? `Process ${proc.pid} spawned` : 'Process failed to spawn');
+    
+    let running = true;
+    const exitHandler = () => {
+        running = false;
+        console.log(`Process ${proc.pid || ''} exited`);
+    };
+    proc.on('exit', exitHandler);
+    proc.on('error', exitHandler);
+    
+    proc.dispose = () => {
+        if (running) {
+            console.log(`Process ${proc.pid || ''} terminating`);
+            if (process.platform === 'win32') {
+                if (proc.pid !== undefined) {
+                    cp.spawnSync('taskkill', ['/pid', proc.pid.toString(), '/f', '/t']);
+                }
+            } else {
+                proc.kill('SIGKILL');
+            }
+        }
+        if (onDisposed) {
+            onDisposed();
+        }
+    };
+    
+    return proc;
 }
