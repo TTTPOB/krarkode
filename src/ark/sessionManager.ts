@@ -59,6 +59,7 @@ function renderShellTemplate(template: string, values: Record<string, string>): 
 
 export class ArkSessionManager {
     private readonly outputChannel = vscode.window.createOutputChannel('Ark');
+    private onActiveSessionChanged?: (entry: ArkSessionEntry | undefined) => void;
 
     registerCommands(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
@@ -70,6 +71,10 @@ export class ArkSessionManager {
 
     dispose(): void {
         this.outputChannel.dispose();
+    }
+
+    setActiveSessionHandler(handler: (entry: ArkSessionEntry | undefined) => void): void {
+        this.onActiveSessionChanged = handler;
     }
 
     private getArkPath(): string {
@@ -219,6 +224,7 @@ export class ArkSessionManager {
             void vscode.window.showInformationMessage('已生成 Ark connection file，请手动启动 Ark kernel 与 console。');
         }
         sessionRegistry.setActiveSessionName(sessionName);
+        this.onActiveSessionChanged?.(entry);
     }
 
     private async attachSession(): Promise<void> {
@@ -264,6 +270,7 @@ export class ArkSessionManager {
             });
 
             sessionRegistry.setActiveSessionName(sessionName);
+            this.onActiveSessionChanged?.(sessionRegistry.findSession(sessionName));
         } finally {
             if (fs.existsSync(announceFile)) {
                 fs.unlinkSync(announceFile);
@@ -303,6 +310,7 @@ export class ArkSessionManager {
         if (sessionRegistry.getActiveSessionName() === entry.name) {
             sessionRegistry.setActiveSessionName(undefined);
         }
+        this.onActiveSessionChanged?.(sessionRegistry.getActiveSession());
         void vscode.window.showInformationMessage(`Stopped Ark session "${entry.name}".`);
     }
 

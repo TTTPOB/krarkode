@@ -11,11 +11,14 @@
     "Other"
   ],
   "activationEvents": [
+    "onLanguage:r",
+    "onLanguage:rmd",
     "onCommand:ark.createSession",
     "onCommand:ark.attachSession",
-    "onCommand:ark.stopSession"
+    "onCommand:ark.stopSession",
+    "onCommand:ark.restartLanguageServer"
   ],
-  "main": "./dist/extension",
+  "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
@@ -31,6 +34,11 @@
       {
         "command": "ark.stopSession",
         "title": "Stop Ark Session",
+        "category": "Ark"
+      },
+      {
+        "command": "ark.restartLanguageServer",
+        "title": "Restart Ark Language Server",
         "category": "Ark"
       }
     ],
@@ -82,6 +90,26 @@
           "default": "{sessionsDir}/{name}/init-ark.R",
           "description": "Template for the Ark startup file path."
         },
+        "ark.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to start the Ark language server sidecar."
+        },
+        "ark.ipAddress": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "IP address Ark will bind for the language server."
+        },
+        "ark.lspTimeoutMs": {
+          "type": "number",
+          "default": 15000,
+          "description": "Timeout for Ark language server startup (ms)."
+        },
+        "ark.sidecarPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Ark sidecar executable. Leave empty to use bundled binaries."
+        },
         "ark.tmux.path": {
           "type": "string",
           "default": "tmux",
@@ -96,13 +124,17 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
     "vscode:prepublish": "pnpm run compile"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.75.0",
+    "esbuild": "^0.25.9",
     "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }
