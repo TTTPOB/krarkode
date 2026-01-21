@@ -1,0 +1,108 @@
+{
+  "name": "krarkode",
+  "displayName": "krarkode",
+  "description": "Ark-focused VS Code extension",
+  "version": "0.0.1",
+  "publisher": "tttpob",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:ark.createSession",
+    "onCommand:ark.attachSession",
+    "onCommand:ark.stopSession"
+  ],
+  "main": "./dist/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ark.createSession",
+        "title": "Create Ark Session",
+        "category": "Ark"
+      },
+      {
+        "command": "ark.attachSession",
+        "title": "Attach Ark Session",
+        "category": "Ark"
+      },
+      {
+        "command": "ark.stopSession",
+        "title": "Stop Ark Session",
+        "category": "Ark"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Ark",
+      "properties": {
+        "ark.path": {
+          "type": "string",
+          "default": "ark",
+          "description": "Path to the Ark executable. Leave empty to use PATH."
+        },
+        "ark.sessionMode": {
+          "type": "string",
+          "default": "console",
+          "enum": [
+            "console",
+            "notebook",
+            "background"
+          ],
+          "description": "Ark session mode to use when starting the kernel."
+        },
+        "ark.sessionsDir": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Root directory for Ark session metadata (connection file, announce file). Leave empty to use extension global storage."
+        },
+        "ark.console.driver": {
+          "type": "string",
+          "default": "tmux",
+          "enum": [
+            "tmux",
+            "external"
+          ],
+          "description": "Ark kernel driver. Use \"tmux\" to manage Ark kernels in a shared tmux session, or \"external\" for manual kernel management."
+        },
+        "ark.console.commandTemplate": {
+          "type": "string",
+          "default": "jupyter console --existing {connectionFile}",
+          "description": "Command template used to launch a console attached to an Ark connection file."
+        },
+        "ark.kernel.commandTemplate": {
+          "type": "string",
+          "default": "{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}",
+          "description": "Command template used to launch an Ark kernel."
+        },
+        "ark.kernel.startupFileTemplate": {
+          "type": "string",
+          "default": "{sessionsDir}/{name}/init-ark.R",
+          "description": "Template for the Ark startup file path."
+        },
+        "ark.tmux.path": {
+          "type": "string",
+          "default": "tmux",
+          "description": "Path to tmux executable. Leave empty to use PATH."
+        },
+        "ark.tmux.manageKernel": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to launch Ark kernel inside tmux when creating a session."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "pnpm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.4.0"
+  }
+}
