@@ -13,31 +13,31 @@
   "activationEvents": [
     "onLanguage:r",
     "onLanguage:rmd",
-    "onCommand:krarkode.createSession",
-    "onCommand:krarkode.attachSession",
-    "onCommand:krarkode.stopSession",
-    "onCommand:krarkode.restartLanguageServer"
+    "onCommand:krarkode.createArkSession",
+    "onCommand:krarkode.attachArkSession",
+    "onCommand:krarkode.stopArkSession",
+    "onCommand:krarkode.restartArkLanguageServer"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "krarkode.createSession",
+        "command": "krarkode.createArkSession",
         "title": "Create Ark Session",
         "category": "Krarkode"
       },
       {
-        "command": "krarkode.attachSession",
+        "command": "krarkode.attachArkSession",
         "title": "Attach Ark Session",
         "category": "Krarkode"
       },
       {
-        "command": "krarkode.stopSession",
+        "command": "krarkode.stopArkSession",
         "title": "Stop Ark Session",
         "category": "Krarkode"
       },
       {
-        "command": "krarkode.restartLanguageServer",
+        "command": "krarkode.restartArkLanguageServer",
         "title": "Restart Ark Language Server",
         "category": "Krarkode"
       }
@@ -46,12 +46,12 @@
       "type": "object",
       "title": "Krarkode",
       "properties": {
-        "krarkode.path": {
+        "krarkode.ark.path": {
           "type": "string",
           "default": "ark",
           "description": "Path to the Ark executable. Leave empty to use PATH."
         },
-        "krarkode.sessionMode": {
+        "krarkode.ark.sessionMode": {
           "type": "string",
           "default": "console",
           "enum": [
@@ -61,12 +61,12 @@
           ],
           "description": "Ark session mode to use when starting the kernel."
         },
-        "krarkode.sessionsDir": {
+        "krarkode.ark.sessionsDir": {
           "type": "string",
           "default": "",
           "markdownDescription": "Root directory for Ark session metadata (connection file, announce file). Leave empty to use extension global storage."
         },
-        "krarkode.console.driver": {
+        "krarkode.ark.console.driver": {
           "type": "string",
           "default": "tmux",
           "enum": [
@@ -75,47 +75,47 @@
           ],
           "description": "Ark kernel driver. Use \"tmux\" to manage Ark kernels in a shared tmux session, or \"external\" for manual kernel management."
         },
-        "krarkode.console.commandTemplate": {
+        "krarkode.ark.console.commandTemplate": {
           "type": "string",
           "default": "jupyter console --existing {connectionFile}",
           "description": "Command template used to launch a console attached to an Ark connection file."
         },
-        "krarkode.kernel.commandTemplate": {
+        "krarkode.ark.kernel.commandTemplate": {
           "type": "string",
           "default": "{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}",
           "description": "Command template used to launch an Ark kernel."
         },
-        "krarkode.kernel.startupFileTemplate": {
+        "krarkode.ark.kernel.startupFileTemplate": {
           "type": "string",
           "default": "{sessionsDir}/{name}/init-ark.R",
           "description": "Template for the Ark startup file path."
         },
-        "krarkode.lsp.enabled": {
+        "krarkode.ark.lsp.enabled": {
           "type": "boolean",
           "default": true,
           "description": "Whether to start the Ark language server sidecar."
         },
-        "krarkode.ipAddress": {
+        "krarkode.ark.ipAddress": {
           "type": "string",
           "default": "127.0.0.1",
           "description": "IP address Ark will bind for the language server."
         },
-        "krarkode.lspTimeoutMs": {
+        "krarkode.ark.lspTimeoutMs": {
           "type": "number",
           "default": 15000,
           "description": "Timeout for Ark language server startup (ms)."
         },
-        "krarkode.sidecarPath": {
+        "krarkode.ark.sidecarPath": {
           "type": "string",
           "default": "",
           "description": "Path to the Ark sidecar executable. Leave empty to use bundled binaries."
         },
-        "krarkode.tmux.path": {
+        "krarkode.ark.tmux.path": {
           "type": "string",
           "default": "tmux",
           "description": "Path to tmux executable. Leave empty to use PATH."
         },
-        "krarkode.tmux.manageKernel": {
+        "krarkode.ark.tmux.manageKernel": {
           "type": "boolean",
           "default": true,
           "description": "Whether to launch Ark kernel inside tmux when creating a session."

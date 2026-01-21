@@ -88,8 +88,8 @@ export class ArkLanguageService implements vscode.Disposable {
     }
 
     private async openArkLspComm(connectionFile: string): Promise<number> {
-        const ipAddress = (util.config().get<string>('krarkode.ipAddress') || DEFAULT_IP_ADDRESS).trim() || DEFAULT_IP_ADDRESS;
-        const timeoutMs = util.config().get<number>('krarkode.lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
+        const ipAddress = (util.config().get<string>('krarkode.ark.ipAddress') || DEFAULT_IP_ADDRESS).trim() || DEFAULT_IP_ADDRESS;
+        const timeoutMs = util.config().get<number>('krarkode.ark.lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
         const sidecarPath = this.resolveSidecarPath();
         const args = ['--connection-file', connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)];
 
@@ -105,7 +105,7 @@ export class ArkLanguageService implements vscode.Disposable {
 
     private async checkConnectionFile(connectionFile: string): Promise<boolean> {
         const sidecarPath = this.resolveSidecarPath();
-        const timeoutMs = util.config().get<number>('krarkode.lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
+        const timeoutMs = util.config().get<number>('krarkode.ark.lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
         const args = ['--check', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
         const result = await util.spawnAsync(sidecarPath, args, { env: process.env });
         if (result.error || result.status !== 0) {
@@ -176,7 +176,7 @@ export class ArkLanguageService implements vscode.Disposable {
     }
 
     private resolveSidecarPath(): string {
-        const configured = (util.config().get<string>('krarkode.sidecarPath') || '').trim();
+        const configured = (util.config().get<string>('krarkode.ark.sidecarPath') || '').trim();
         if (configured) {
             return configured;
         }
@@ -200,7 +200,7 @@ export class ArkLanguageService implements vscode.Disposable {
         selector: vscode.DocumentFilter[],
         workspaceFolder: vscode.WorkspaceFolder | undefined
     ): Promise<LanguageClient> {
-        const ipAddress = (util.config().get<string>('krarkode.ipAddress') || DEFAULT_IP_ADDRESS).trim() || DEFAULT_IP_ADDRESS;
+        const ipAddress = (util.config().get<string>('krarkode.ark.ipAddress') || DEFAULT_IP_ADDRESS).trim() || DEFAULT_IP_ADDRESS;
         const tcpServerOptions = () => new Promise<StreamInfo>((resolve, reject) => {
             const socket = net.connect({ host: ipAddress, port }, () => {
                 resolve({ reader: socket, writer: socket });
@@ -215,7 +215,7 @@ export class ArkLanguageService implements vscode.Disposable {
             workspaceFolder,
             outputChannel: this.outputChannel,
             synchronize: {
-                configurationSection: 'krarkode.lsp',
+                configurationSection: 'krarkode.ark.lsp',
                 fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{R,r}'),
             },
             revealOutputChannelOn: RevealOutputChannelOn.Never,

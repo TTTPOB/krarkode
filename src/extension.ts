@@ -12,14 +12,14 @@ export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
     sessionManager = new ArkSessionManager();
     sessionManager.registerCommands(context);
-    if (util.config().get<boolean>('krarkode.lsp.enabled') ?? true) {
+    if (util.config().get<boolean>('krarkode.ark.lsp.enabled') ?? true) {
         languageService = new ArkLanguageService();
         sessionManager.setActiveSessionHandler((entry) => {
             void languageService?.startFromSession(entry);
         });
         void languageService.startFromSession(sessionRegistry.getActiveSession());
         context.subscriptions.push(
-            vscode.commands.registerCommand('krarkode.restartLanguageServer', () => {
+            vscode.commands.registerCommand('krarkode.restartArkLanguageServer', () => {
                 if (!languageService) {
                     void vscode.window.showErrorMessage('Ark language server is not running.');
                     return;
