@@ -63,9 +63,9 @@ export class ArkSessionManager {
 
     registerCommands(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
-            vscode.commands.registerCommand('ark.createSession', () => this.createSession()),
-            vscode.commands.registerCommand('ark.attachSession', () => this.attachSession()),
-            vscode.commands.registerCommand('ark.stopSession', () => this.stopSession())
+            vscode.commands.registerCommand('krarkode.createSession', () => this.createSession()),
+            vscode.commands.registerCommand('krarkode.attachSession', () => this.attachSession()),
+            vscode.commands.registerCommand('krarkode.stopSession', () => this.stopSession())
         );
     }
 
@@ -78,11 +78,11 @@ export class ArkSessionManager {
     }
 
     private getArkPath(): string {
-        return (util.config().get<string>('ark.path') || '').trim() || DEFAULT_ARK_PATH;
+        return (util.config().get<string>('krarkode.path') || '').trim() || DEFAULT_ARK_PATH;
     }
 
     private getSessionMode(): ArkSessionMode {
-        const configured = (util.config().get<string>('ark.sessionMode') || DEFAULT_SESSION_MODE).trim() as ArkSessionMode;
+        const configured = (util.config().get<string>('krarkode.sessionMode') || DEFAULT_SESSION_MODE).trim() as ArkSessionMode;
         if (configured !== 'console') {
             void vscode.window.showWarningMessage('Ark console backend 仅支持 console 模式，已强制使用 console。');
             return 'console';
@@ -91,7 +91,7 @@ export class ArkSessionManager {
     }
 
     private getConsoleDriver(): ArkConsoleDriver {
-        const configured = (util.config().get<string>('ark.console.driver') || 'tmux').trim();
+        const configured = (util.config().get<string>('krarkode.console.driver') || 'tmux').trim();
         if (configured === 'external') {
             return 'external';
         }
@@ -99,22 +99,22 @@ export class ArkSessionManager {
     }
 
     private getConsoleCommandTemplate(): string {
-        return util.config().get<string>('ark.console.commandTemplate')
+        return util.config().get<string>('krarkode.console.commandTemplate')
             || 'jupyter console --existing {connectionFile}';
     }
 
     private getKernelCommandTemplate(): string {
-        return util.config().get<string>('ark.kernel.commandTemplate')
+        return util.config().get<string>('krarkode.kernel.commandTemplate')
             || '{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}';
     }
 
     private getStartupFileTemplate(): string {
-        return util.config().get<string>('ark.kernel.startupFileTemplate')
+        return util.config().get<string>('krarkode.kernel.startupFileTemplate')
             || '{sessionsDir}/{name}/init-ark.R';
     }
 
     private getTmuxPath(): string {
-        const configured = util.substituteVariables((util.config().get<string>('ark.tmux.path') || '').trim());
+        const configured = util.substituteVariables((util.config().get<string>('krarkode.tmux.path') || '').trim());
         return configured || DEFAULT_TMUX_PATH;
     }
 
@@ -128,7 +128,7 @@ export class ArkSessionManager {
     }
 
     private getManageKernel(): boolean {
-        return util.config().get<boolean>('ark.tmux.manageKernel') ?? true;
+        return util.config().get<boolean>('krarkode.tmux.manageKernel') ?? true;
     }
 
     private getActiveTerminal(): vscode.Terminal | undefined {
