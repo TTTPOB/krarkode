@@ -1,0 +1,11 @@
+[workspace]
+authors = ["tpob <tpob@tpob.xyz>"]
+channels = ["conda-forge"]
+name = "krarkode"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+r-base = "4.4.*"

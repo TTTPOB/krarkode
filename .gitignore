@@ -1,0 +1,4 @@
+repo_ref
+# pixi environments
+.pixi/*
+!.pixi/config.toml
