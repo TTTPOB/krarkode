@@ -50,6 +50,9 @@ export class ArkSidecarManager implements vscode.Disposable {
     private readonly _onDidReceivePlotData = new vscode.EventEmitter<PlotDataParams>();
     public readonly onDidReceivePlotData = this._onDidReceivePlotData.event;
 
+    private readonly _onDidStart = new vscode.EventEmitter<void>();
+    public readonly onDidStart = this._onDidStart.event;
+
     constructor(
         private readonly resolveSidecarPath: () => string,
         private readonly getTimeoutMs: () => number
@@ -115,6 +118,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidReceiveHttpgdUrl.dispose();
         this._onDidShowHtmlFile.dispose();
         this._onDidReceivePlotData.dispose();
+        this._onDidStart.dispose();
     }
 
     private start(connectionFile: string): void {
@@ -133,6 +137,7 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         if (proc.pid) {
             this.outputChannel.appendLine(`[ArkSidecarManager] Sidecar spawned with PID ${proc.pid}`);
+            this._onDidStart.fire();
         } else {
             this.outputChannel.appendLine(`[ArkSidecarManager] Sidecar spawn failed (no PID)`);
         }
