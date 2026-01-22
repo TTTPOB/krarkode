@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use runtimelib::{
     create_client_iopub_connection, CommId, CommMsg, CommOpen, Connection, ConnectionInfo,
-    ExecuteRequest, ExecutionState, JupyterMessage, JupyterMessageContent, Stdio, KernelInfoRequest,
+    ExecuteRequest, ExecutionState, JupyterMessage, JupyterMessageContent, Stdio,
 };
 use std::str::FromStr;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -251,7 +251,9 @@ async fn run_execute_request(
         .await
         .context("Failed to connect shell")?;
 
-    wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
+    // Note: We do NOT wait for IoPubWelcome here. Existing sessions do not
+    // resend the welcome message, and waiting for it can cause us to drop
+    // other messages or timeout unnecessarily.
 
     let execute_request = ExecuteRequest::new(code.to_string());
     let message = JupyterMessage::new(execute_request, None);
@@ -426,33 +428,10 @@ async fn run_check(
     session_id: &str,
     timeout_ms: u64,
 ) -> Result<()> {
-    let mut shell = create_shell_connection(connection, session_id)
-        .await
-        .context("Failed to connect shell")?;
-
-    let request = KernelInfoRequest {};
-    let message = JupyterMessage::new(request, None);
-    let msg_id = message.header.msg_id.clone();
-    shell.send(message).await.context("Failed to send kernel_info_request")?;
-
-    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-    loop {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .unwrap_or(Duration::from_millis(0));
-        if remaining.is_zero() {
-            return Err(anyhow!("Timed out waiting for kernel_info_reply"));
-        }
-        let msg = tokio::time::timeout(remaining, shell.read())
-            .await
-            .context("Timed out waiting for kernel_info_reply")??;
-
-        if msg.parent_header.as_ref().map(|h| h.msg_id.as_str()) == Some(&msg_id) {
-            if matches!(msg.content, JupyterMessageContent::KernelInfoReply(_)) {
-                break;
-            }
-        }
-    }
+    // Instead of parsing kernel_info_reply (which may have deserialization issues
+    // due to missing fields), we use a simple ping: execute `1` and wait for idle.
+    // If the kernel is alive, it will process the request and return to idle state.
+    run_execute_request(connection, session_id, "1", timeout_ms, true).await?;
 
     let payload = json!({
         "event": "alive",
