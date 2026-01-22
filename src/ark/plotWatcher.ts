@@ -81,31 +81,25 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     public sendCommMessage(commId: string, data: unknown): void {
         if (!this.proc) {
-            this.outputChannel.appendLine(`[sidecar] Cannot send comm: no process`);
             return;
         }
         const msg = { command: 'comm_msg', comm_id: commId, data };
         try {
-            const msgStr = JSON.stringify(msg);
-            this.outputChannel.appendLine(`[sidecar] Sending comm_msg to ${commId}: ${msgStr.slice(0, 200)}`);
-            this.proc.stdin.write(msgStr + '\n');
+            this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(`[sidecar] Failed to send comm message: ${error}`);
+            this.outputChannel.appendLine(`Failed to send comm message: ${error}`);
         }
     }
 
     public sendCommOpen(commId: string, targetName: string, data: unknown): void {
         if (!this.proc) {
-            this.outputChannel.appendLine(`[sidecar] Cannot send comm_open: no process`);
             return;
         }
         const msg = { command: 'comm_open', comm_id: commId, target_name: targetName, data };
         try {
-            const msgStr = JSON.stringify(msg);
-            this.outputChannel.appendLine(`[sidecar] Sending comm_open to ${commId} (${targetName}): ${msgStr.slice(0, 200)}`);
-            this.proc.stdin.write(msgStr + '\n');
+            this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(`[sidecar] Failed to send comm_open message: ${error}`);
+            this.outputChannel.appendLine(`Failed to send comm_open message: ${error}`);
         }
     }
 
@@ -125,30 +119,21 @@ export class ArkSidecarManager implements vscode.Disposable {
         const sidecarPath = this.resolveSidecarPath();
         const timeoutMs = this.getTimeoutMs();
         const args = ['--watch-plot', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
-        
-        this.outputChannel.appendLine(`[ArkSidecarManager] Spawning sidecar: ${sidecarPath} ${args.join(' ')}`);
-        
         const proc = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
         this.proc = proc;
 
         proc.on('error', (err) => {
-            this.outputChannel.appendLine(`[ArkSidecarManager] Failed to spawn sidecar: ${err.message}`);
+            this.outputChannel.appendLine(`Failed to spawn sidecar: ${err.message}`);
         });
 
         if (proc.pid) {
-            this.outputChannel.appendLine(`[ArkSidecarManager] Sidecar spawned with PID ${proc.pid}`);
             this._onDidStart.fire();
         } else {
-            this.outputChannel.appendLine(`[ArkSidecarManager] Sidecar spawn failed (no PID)`);
+            this.outputChannel.appendLine(`Sidecar spawn failed (no PID)`);
         }
 
         proc.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(`[sidecar-stderr] ${chunk.toString().trim()}`);
-        });
-
-        proc.stdout?.on('data', (chunk: Buffer) => {
-             // stdout lines are handled by readline, but log raw just in case
-             // this.outputChannel.appendLine(`[sidecar-stdout] ${chunk.toString().trim()}`);
+            this.outputChannel.appendLine(`[sidecar] ${chunk.toString().trim()}`);
         });
 
         const rl = readline.createInterface({ input: proc.stdout });

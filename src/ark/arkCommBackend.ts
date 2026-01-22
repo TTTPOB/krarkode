@@ -57,6 +57,7 @@ interface ArkRenderRequest {
         pixel_ratio: number;
         format: 'png' | 'svg';
     };
+    id?: string;
 }
 
 interface ArkRenderReply {
@@ -111,7 +112,6 @@ export class ArkCommBackend implements IPlotBackend {
         // Establish positron.ui comm connection to enable dynamic plots
         // This tells Ark that the UI is connected, so it should use dynamic plots instead of static images
         const uiCommId = `ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        this.outputChannel.appendLine(`[ArkComm] Initializing positron.ui comm: ${uiCommId}`);
         this.sidecarManager.sendCommOpen(uiCommId, 'positron.ui', {});
     }
 
@@ -145,8 +145,6 @@ export class ArkCommBackend implements IPlotBackend {
     }
 
     public async renderPlot(id: PlotId, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg'): Promise<PlotRenderResult> {
-        this.outputChannel.appendLine(`[ArkComm] renderPlot(${id}, ${size.width}x${size.height}, pixelRatio=${pixelRatio}, format=${format})`);
-
         return new Promise<{ data: string; mime_type: string }>((resolve, reject) => {
             const pending = this.pendingRenders.get(id);
             if (pending) {
@@ -155,19 +153,18 @@ export class ArkCommBackend implements IPlotBackend {
 
             this.pendingRenders.set(id, { resolve, reject });
 
-            const request: ArkRenderRequest = {
+            const request = {
                 method: 'render',
                 params: {
                     size: { width: size.width, height: size.height },
                     pixel_ratio: pixelRatio,
                     format: format,
                 },
+                id: id, // Required for Ark to treat this as an RPC request
             };
 
-            this.outputChannel.appendLine(`[ArkComm] Sending render request to sidecar for ${id}`);
             this.sidecarManager.sendCommMessage(id, request);
         }).then(({ data, mime_type }) => {
-            this.outputChannel.appendLine(`[ArkComm] Received render reply for ${id}: ${data.length} bytes, ${mime_type}`);
             return {
                 data,
                 mimeType: mime_type,
@@ -234,7 +231,6 @@ export class ArkCommBackend implements IPlotBackend {
     private handleMessage(e: { commId: string; data: unknown }): void {
         const pending = this.pendingRenders.get(e.commId);
         const data = e.data as Record<string, unknown> | undefined;
-        this.outputChannel.appendLine(`[ArkComm] handleMessage for ${e.commId}: ${JSON.stringify(data)?.slice(0, 200)}`);
 
         if (pending && data && data.method === 'RenderReply') {
             const reply = data as unknown as ArkRenderReply;

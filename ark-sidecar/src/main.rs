@@ -270,19 +270,14 @@ async fn run_plot_watcher(
     session_id: &str,
     timeout_ms: u64,
 ) -> Result<()> {
-    eprintln!("[sidecar] Starting plot watcher...");
     let mut iopub = create_client_iopub_connection(connection, "", session_id)
         .await
         .context("Failed to connect iopub")?;
-    eprintln!("[sidecar] Connected to iopub");
-
     let mut shell = create_shell_connection(connection, session_id)
         .await
         .context("Failed to connect shell")?;
-    eprintln!("[sidecar] Connected to shell");
 
     wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
-    eprintln!("[sidecar] Received iopub welcome");
 
     // Spawn a task to handle stdin commands (for sending RPC requests to backend)
     tokio::spawn(async move {
@@ -331,18 +326,14 @@ async fn run_plot_watcher(
 
     loop {
         let message = iopub.read().await.context("Failed to read iopub message")?;
-        eprintln!("[sidecar] iopub message type: {}", message.content.message_type());
         let payload = match &message.content {
             JupyterMessageContent::DisplayData(display) => {
-                eprintln!("[sidecar] DisplayData event");
                 build_plot_payload("display_data", &display.data, display.transient.as_ref())
             }
             JupyterMessageContent::UpdateDisplayData(update) => {
-                eprintln!("[sidecar] UpdateDisplayData event");
                 build_plot_payload("update_display_data", &update.data, Some(&update.transient))
             }
             JupyterMessageContent::StreamContent(stream) => {
-                eprintln!("[sidecar] StreamContent: name={:?}", stream.name);
                 if matches!(stream.name, Stdio::Stdout) && stream.text.starts_with("__VSCODE_R_HTTPGD_URL__=") {
                     let url = stream.text.trim().strip_prefix("__VSCODE_R_HTTPGD_URL__=").unwrap_or("");
                     Some(json!({
@@ -354,7 +345,6 @@ async fn run_plot_watcher(
                 }
             }
             JupyterMessageContent::CommOpen(comm_open) => {
-                eprintln!("[sidecar] CommOpen: target_name={}", comm_open.target_name);
                 if comm_open.target_name == PLOT_COMM_TARGET {
                     Some(json!({
                         "event": "comm_open",
@@ -374,7 +364,6 @@ async fn run_plot_watcher(
                 }
             }
             JupyterMessageContent::CommMsg(comm_msg) => {
-                eprintln!("[sidecar] CommMsg: comm_id={}, method={}", comm_msg.comm_id.0, comm_msg.data.get("method").and_then(|m| m.as_str()).unwrap_or("none"));
                 // Check if this is a UI comm message with show_html_file method
                 if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
                     if method == "show_html_file" {
@@ -400,16 +389,12 @@ async fn run_plot_watcher(
                 }
             }
             JupyterMessageContent::CommClose(comm_close) => {
-                eprintln!("[sidecar] CommClose: comm_id={}", comm_close.comm_id.0);
                 Some(json!({
                     "event": "comm_close",
                     "comm_id": comm_close.comm_id.0
                 }).to_string())
             }
-            _ => {
-                eprintln!("[sidecar] Unhandled message type: {}", message.content.message_type());
-                None
-            }
+            _ => None,
         };
 
         if let Some(payload) = payload {
@@ -509,12 +494,12 @@ async fn wait_for_iopub_welcome(
         let message = tokio::time::timeout(remaining, iopub.read())
             .await
             .map_err(|_| anyhow!("Timed out waiting for iopub_welcome"))??;
-        
-        eprintln!(
-            "[sidecar] iopub message while waiting for welcome: {}",
-            message.content.message_type()
-        );
-
+        if debug_enabled() {
+            log_debug(&format!(
+                "Sidecar: iopub message while waiting for welcome: {}",
+                message.content.message_type()
+            ));
+        }
         if matches!(message.content, JupyterMessageContent::IoPubWelcome(_)) {
             log_debug("Sidecar: received iopub_welcome");
             return Ok(());
