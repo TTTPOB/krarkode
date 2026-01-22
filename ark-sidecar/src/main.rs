@@ -277,9 +277,9 @@ async fn run_plot_watcher(
         .await
         .context("Failed to connect shell")?;
 
-    wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
-
     // Spawn a task to handle stdin commands (for sending RPC requests to backend)
+    // We do this BEFORE waiting for IOPub welcome, so that we can send comm_open (positron.ui)
+    // immediately. This ensures Ark knows about the UI even if IOPub is slow/flaky.
     tokio::spawn(async move {
         let stdin = tokio::io::stdin();
         let mut reader = BufReader::new(stdin).lines();
@@ -323,6 +323,8 @@ async fn run_plot_watcher(
             }
         }
     });
+
+    wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
 
     loop {
         let message = iopub.read().await.context("Failed to read iopub message")?;
