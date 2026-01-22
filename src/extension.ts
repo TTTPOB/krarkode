@@ -151,15 +151,10 @@ export function activate(context: vscode.ExtensionContext): void {
     variablesService = new VariablesService(sidecarManager);
     
     // Variables Manager (Webview)
-    try {
-        variablesManager = new VariablesManager(context.extensionUri, variablesService);
-        context.subscriptions.push(
-            vscode.window.registerWebviewViewProvider(VariablesManager.viewType, variablesManager)
-        );
-        console.log('VariablesManager registered successfully');
-    } catch (e) {
-        console.error('Failed to register VariablesManager:', e);
-    }
+    variablesManager = new VariablesManager(context.extensionUri, variablesService);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(VariablesManager.viewType, variablesManager)
+    );
 }
 
 export function deactivate(): void {
