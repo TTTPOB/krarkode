@@ -54,6 +54,11 @@ fn log_debug(message: &str) {
     }
 }
 
+fn is_comm_close_missing_data<E: std::fmt::Debug>(err: &E) -> bool {
+    let text = format!("{err:?}");
+    text.contains("comm_close") && text.contains("missing field `data`")
+}
+
 fn main() {
     if let Err(err) = run() {
         eprintln!("Ark sidecar error: {err}");
@@ -344,6 +349,11 @@ async fn run_plot_watcher(
                                         json.get("comm_id").and_then(|s| s.as_str()),
                                         json.get("data").and_then(|d| d.as_object()),
                                     ) {
+                                        eprintln!(
+                                            "Forwarding comm_msg to shell {}: {:?}",
+                                            comm_id,
+                                            data
+                                        );
                                         let comm_msg = CommMsg {
                                             comm_id: CommId(comm_id.to_string()),
                                             data: data.clone(),
@@ -359,6 +369,12 @@ async fn run_plot_watcher(
                                         json.get("target_name").and_then(|s| s.as_str()),
                                         json.get("data").and_then(|d| d.as_object()),
                                     ) {
+                                        eprintln!(
+                                            "Forwarding comm_open {} -> {} with data {:?}",
+                                            comm_id,
+                                            target_name,
+                                            data
+                                        );
                                         let comm_open = CommOpen {
                                             comm_id: CommId(comm_id.to_string()),
                                             target_name: target_name.to_string(),
@@ -394,8 +410,17 @@ async fn run_plot_watcher(
                 }
             }
             iopub_msg = iopub.read() => {
-
-                let message = iopub_msg.context("Failed to read iopub message")?;
+                let message = match iopub_msg {
+                    Ok(message) => message,
+                    Err(err) => {
+                        if is_comm_close_missing_data(&err) {
+                            eprintln!("Ignoring comm_close without data: {err:?}");
+                            continue;
+                        }
+                        eprintln!("IOPub read error: {err:?}");
+                        return Err(err).context("Failed to read iopub message");
+                    }
+                };
                 let payload = match &message.content {
                     JupyterMessageContent::DisplayData(display) => {
                         build_plot_payload("display_data", &display.data, display.transient.as_ref())
@@ -455,6 +480,7 @@ async fn run_plot_watcher(
                         }
                     }
                     JupyterMessageContent::CommMsg(comm_msg) => {
+                        eprintln!("IOPub comm_msg {}: {:?}", comm_msg.comm_id.0, comm_msg.data);
                         // Check for UI methods
                         if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
                             if method == "show_html_file" {
@@ -502,6 +528,7 @@ async fn run_plot_watcher(
                 if let Ok(message) = shell_msg {
                     // Handle shell replies. Specifically look for CommMsg replies (Variables list, etc.)
                     if let JupyterMessageContent::CommMsg(comm_msg) = &message.content {
+                        eprintln!("Shell comm_msg {}: {:?}", comm_msg.comm_id.0, comm_msg.data);
                         let payload = Some(json!({
                             "event": "comm_msg",
                             "comm_id": comm_msg.comm_id.0,

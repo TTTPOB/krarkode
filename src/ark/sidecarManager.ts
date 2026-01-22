@@ -1,4 +1,5 @@
 import * as cp from 'child_process';
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
@@ -12,6 +13,8 @@ interface SidecarEvent {
     url?: string;
     comm_id?: string;
 }
+
+const VARIABLES_COMM_TARGET = 'positron.variables';
 
 export interface ShowHtmlFileParams {
     path: string;
@@ -31,6 +34,7 @@ export class ArkSidecarManager implements vscode.Disposable {
     private rl: readline.Interface | undefined;
     private connectionFile: string | undefined;
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Sidecar');
+    private variablesCommId: string | undefined;
 
     private readonly _onDidOpenPlotComm = new vscode.EventEmitter<{ commId: string; data: unknown }>();
     public readonly onDidOpenPlotComm = this._onDidOpenPlotComm.event;
@@ -81,6 +85,7 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     public stop(): void {
         this.connectionFile = undefined;
+        this.variablesCommId = undefined;
         if (this.rl) {
             this.rl.close();
             this.rl = undefined;
@@ -125,6 +130,26 @@ export class ArkSidecarManager implements vscode.Disposable {
         } catch (error) {
             this.outputChannel.appendLine(`Failed to send comm_close message: ${error}`);
         }
+    }
+
+    public getVariablesCommId(): string | undefined {
+        return this.variablesCommId;
+    }
+
+    public ensureVariablesCommOpen(): string | undefined {
+        if (this.variablesCommId) {
+            return this.variablesCommId;
+        }
+
+        if (!this.proc) {
+            return undefined;
+        }
+
+        const commId = crypto.randomUUID();
+        this.variablesCommId = commId;
+        this.sendCommOpen(commId, VARIABLES_COMM_TARGET, {});
+        this._onDidOpenVariablesComm.fire({ commId });
+        return commId;
     }
 
     dispose(): void {
@@ -226,6 +251,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         if (msg.event === 'variables_comm_open') {
             if (msg.comm_id) {
+                if (!this.variablesCommId) {
+                    this.variablesCommId = msg.comm_id;
+                }
                 this._onDidOpenVariablesComm.fire({ commId: msg.comm_id });
             }
             return;
@@ -239,6 +267,9 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         if (msg.event === 'comm_msg') {
+            this.outputChannel.appendLine(
+                `Received comm_msg ${msg.comm_id ?? 'unknown'}: ${JSON.stringify(msg.data)}`
+            );
             if (msg.comm_id) {
                 this._onDidReceiveCommMessage.fire({ commId: msg.comm_id, data: msg.data });
             }
