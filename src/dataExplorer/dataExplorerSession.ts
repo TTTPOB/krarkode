@@ -6,10 +6,25 @@ import {
     BackendState,
     ColumnSortKey,
     ColumnSelection,
+    ColumnFilter,
+    ColumnProfileRequest,
+    ConvertedCode,
+    CodeSyntaxName,
+    DatasetImportOptions,
+    ExportDataSelectionParams,
+    ExportFormat,
+    FilterResult,
     FormatOptions,
+    OpenDatasetParams,
+    OpenDatasetResult,
+    RowFilter,
+    SearchSchemaParams,
+    SearchSchemaResult,
+    SetDatasetImportOptionsResult,
     TableData,
     TableRowLabels,
     TableSchema,
+    TableSelection,
 } from './protocol';
 
 type DataExplorerMessage = {
@@ -32,6 +47,15 @@ const REPLY_METHODS = {
     getDataValues: 'GetDataValuesReply',
     getRowLabels: 'GetRowLabelsReply',
     setSortColumns: 'SetSortColumnsReply',
+    searchSchema: 'SearchSchemaReply',
+    setColumnFilters: 'SetColumnFiltersReply',
+    setRowFilters: 'SetRowFiltersReply',
+    getColumnProfiles: 'GetColumnProfilesReply',
+    exportDataSelection: 'ExportDataSelectionReply',
+    convertToCode: 'ConvertToCodeReply',
+    suggestCodeSyntax: 'SuggestCodeSyntaxReply',
+    openDataset: 'OpenDatasetReply',
+    setDatasetImportOptions: 'SetDatasetImportOptionsReply',
 };
 
 export const DEFAULT_FORMAT_OPTIONS: FormatOptions = {
@@ -100,6 +124,65 @@ export class DataExplorerSession implements vscode.Disposable {
     async setSortColumns(sortKeys: ColumnSortKey[]): Promise<void> {
         await this.sendRpc<void>('set_sort_columns', REPLY_METHODS.setSortColumns, {
             sort_keys: sortKeys,
+        });
+    }
+
+    async searchSchema(filters: ColumnFilter[], sortOrder: string): Promise<SearchSchemaResult> {
+        return this.sendRpc<SearchSchemaResult>('search_schema', REPLY_METHODS.searchSchema, {
+            filters,
+            sort_order: sortOrder,
+        });
+    }
+
+    async setColumnFilters(filters: ColumnFilter[]): Promise<void> {
+        await this.sendRpc<void>('set_column_filters', REPLY_METHODS.setColumnFilters, {
+            filters,
+        });
+    }
+
+    async setRowFilters(filters: RowFilter[]): Promise<FilterResult> {
+        return this.sendRpc<FilterResult>('set_row_filters', REPLY_METHODS.setRowFilters, {
+            filters,
+        });
+    }
+
+    async getColumnProfiles(callbackId: string, profiles: ColumnProfileRequest[], formatOptions: FormatOptions): Promise<void> {
+        await this.sendRpc<void>('get_column_profiles', REPLY_METHODS.getColumnProfiles, {
+            callback_id: callbackId,
+            profiles,
+            format_options: formatOptions,
+        });
+    }
+
+    async exportDataSelection(selection: TableSelection, format: ExportFormat): Promise<{ data: string; format: ExportFormat }> {
+        return this.sendRpc<{ data: string; format: ExportFormat }>('export_data_selection', REPLY_METHODS.exportDataSelection, {
+            selection,
+            format,
+        });
+    }
+
+    async convertToCode(columnFilters: ColumnFilter[], rowFilters: RowFilter[], sortKeys: ColumnSortKey[], codeSyntaxName: CodeSyntaxName): Promise<ConvertedCode> {
+        return this.sendRpc<ConvertedCode>('convert_to_code', REPLY_METHODS.convertToCode, {
+            column_filters: columnFilters,
+            row_filters: rowFilters,
+            sort_keys: sortKeys,
+            code_syntax_name: codeSyntaxName,
+        });
+    }
+
+    async suggestCodeSyntax(): Promise<CodeSyntaxName> {
+        return this.sendRpc<CodeSyntaxName>('suggest_code_syntax', REPLY_METHODS.suggestCodeSyntax);
+    }
+
+    async openDataset(uri: string): Promise<OpenDatasetResult> {
+        return this.sendRpc<OpenDatasetResult>('open_dataset', REPLY_METHODS.openDataset, {
+            uri,
+        });
+    }
+
+    async setDatasetImportOptions(options: DatasetImportOptions): Promise<SetDatasetImportOptionsResult> {
+        return this.sendRpc<SetDatasetImportOptionsResult>('set_dataset_import_options', REPLY_METHODS.setDatasetImportOptions, {
+            options,
         });
     }
 
