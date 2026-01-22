@@ -23,6 +23,23 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "krarkode-activity-bar",
+          "title": "Ark",
+          "icon": "$(symbol-r)"
+        }
+      ]
+    },
+    "views": {
+      "krarkode-activity-bar": [
+        {
+          "id": "positronVariables",
+          "name": "Variables"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "krarkode.createArkSession",
@@ -198,7 +215,7 @@
     ]
   },
   "scripts": {
-    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
     "vscode:prepublish": "pnpm run compile"
   },

@@ -9,6 +9,8 @@ import { HtmlViewer } from './ark/htmlViewer';
 import { PlotManager } from './ark/plotManager';
 import { HelpService } from './help/helpService';
 import { HelpManager } from './help/helpManager';
+import { VariablesService } from './variables/variablesService';
+import { VariablesManager } from './variables/variablesManager';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 
@@ -21,6 +23,8 @@ let htmlViewer: HtmlViewer | undefined;
 let plotManager: PlotManager | undefined;
 let helpService: HelpService | undefined;
 let helpManager: HelpManager | undefined;
+let variablesService: VariablesService | undefined;
+let variablesManager: VariablesManager | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
@@ -141,6 +145,15 @@ export function activate(context: vscode.ExtensionContext): void {
         sidecarManager.onDidShowHelp((e) => {
             void helpService?.showHelpContent(e.content, e.kind, e.focus);
         })
+    );
+
+    // Variables Service
+    variablesService = new VariablesService(sidecarManager);
+    
+    // Variables Manager (Webview)
+    variablesManager = new VariablesManager(context.extensionUri, variablesService);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(VariablesManager.viewType, variablesManager)
     );
 }
 

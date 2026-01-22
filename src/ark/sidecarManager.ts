@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 
 interface SidecarEvent {
-    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help';
+    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help' | 'variables_comm_open' | 'data_explorer_comm_open';
     data?: unknown;
     display_id?: string | null;
     message?: string;
@@ -55,6 +55,12 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidOpenHelpComm = new vscode.EventEmitter<{ commId: string }>();
     public readonly onDidOpenHelpComm = this._onDidOpenHelpComm.event;
+
+    private readonly _onDidOpenVariablesComm = new vscode.EventEmitter<{ commId: string }>();
+    public readonly onDidOpenVariablesComm = this._onDidOpenVariablesComm.event;
+
+    private readonly _onDidOpenDataExplorerComm = new vscode.EventEmitter<{ commId: string; data: unknown }>();
+    public readonly onDidOpenDataExplorerComm = this._onDidOpenDataExplorerComm.event;
 
     private readonly _onDidShowHelp = new vscode.EventEmitter<{ content: string; kind: string; focus: boolean }>();
     public readonly onDidShowHelp = this._onDidShowHelp.event;
@@ -133,6 +139,8 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidReceivePlotData.dispose();
         this._onDidStart.dispose();
         this._onDidOpenHelpComm.dispose();
+        this._onDidOpenVariablesComm.dispose();
+        this._onDidOpenDataExplorerComm.dispose();
     }
 
     private start(connectionFile: string): void {
@@ -212,6 +220,20 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (msg.event === 'help_comm_open') {
             if (msg.comm_id) {
                 this._onDidOpenHelpComm.fire({ commId: msg.comm_id });
+            }
+            return;
+        }
+
+        if (msg.event === 'variables_comm_open') {
+            if (msg.comm_id) {
+                this._onDidOpenVariablesComm.fire({ commId: msg.comm_id });
+            }
+            return;
+        }
+
+        if (msg.event === 'data_explorer_comm_open') {
+            if (msg.comm_id) {
+                this._onDidOpenDataExplorerComm.fire({ commId: msg.comm_id, data: msg.data });
             }
             return;
         }

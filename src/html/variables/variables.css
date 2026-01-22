@@ -1,0 +1,112 @@
+body {
+    padding: 0;
+    margin: 0;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    background-color: var(--vscode-sideBar-background);
+}
+
+.toolbar {
+    padding: 5px;
+    border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+    background-color: var(--vscode-sideBar-background);
+}
+
+.filter-container input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+    background-color: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+}
+
+.filter-container input:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+}
+
+.group-header {
+    padding: 4px 8px;
+    font-weight: bold;
+    background-color: var(--vscode-sideBarSectionHeader-background);
+    color: var(--vscode-sideBarSectionHeader-foreground);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.group-header .codicon {
+    margin-right: 4px;
+}
+
+.variable-item {
+    display: flex;
+    align-items: center;
+    padding: 3px 8px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
+}
+
+.variable-item:hover {
+    background-color: var(--vscode-list-hoverBackground);
+}
+
+.variable-item.selected {
+    background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.var-icon {
+    margin-right: 6px;
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.var-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: 8px;
+    font-family: var(--vscode-editor-font-family);
+}
+
+.var-value {
+    flex: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.9;
+    margin-right: 8px;
+}
+
+.var-type {
+    flex: 0 0 auto;
+    opacity: 0.7;
+    font-size: 0.9em;
+    text-align: right;
+    margin-right: 4px;
+}
+
+.var-actions {
+    display: none;
+}
+
+.variable-item:hover .var-actions {
+    display: flex;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    padding: 2px;
+}
+
+.action-btn:hover {
+    color: var(--vscode-foreground);
+}

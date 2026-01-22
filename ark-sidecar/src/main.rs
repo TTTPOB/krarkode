@@ -20,6 +20,8 @@ const LSP_COMM_TARGET: &str = "positron.lsp";
 const PLOT_COMM_TARGET: &str = "positron.plot";
 const UI_COMM_TARGET: &str = "positron.ui";
 const HELP_COMM_TARGET: &str = "positron.help";
+const VARIABLES_COMM_TARGET: &str = "positron.variables";
+const DATA_EXPLORER_COMM_TARGET: &str = "positron.dataExplorer";
 const DEFAULT_TIMEOUT_MS: u64 = 15000;
 const SUPPORTED_SIGNATURE_SCHEME: &str = "hmac-sha256";
 
@@ -290,64 +292,13 @@ async fn run_plot_watcher(
     send_ui_comm_open(&mut shell, &ui_comm_id).await?;
     log_debug("Sidecar: sent UI comm_open.");
 
-    // Spawn a task to handle stdin commands (for sending RPC requests to backend)
-    // We do this BEFORE waiting for IOPub welcome, so that we can send comm_open (positron.ui)
-    // immediately. This ensures Ark knows about the UI even if IOPub is slow/flaky.
-    tokio::spawn(async move {
-        let stdin = tokio::io::stdin();
-        let mut reader = BufReader::new(stdin).lines();
+    // Open the Variables comm so Ark starts sending variable updates
+    let variables_comm_id = Uuid::new_v4().to_string();
+    send_variables_comm_open(&mut shell, &variables_comm_id).await?;
+    log_debug("Sidecar: sent variables comm_open.");
 
-        while let Ok(Some(line)) = reader.next_line().await {
-            if let Ok(json) = serde_json::from_str::<Value>(&line) {
-                if let Some(command) = json.get("command").and_then(|c| c.as_str()) {
-                    if command == "comm_msg" {
-                        if let (Some(comm_id), Some(data)) = (
-                            json.get("comm_id").and_then(|s| s.as_str()),
-                            json.get("data").and_then(|d| d.as_object()),
-                        ) {
-                            let comm_msg = CommMsg {
-                                comm_id: CommId(comm_id.to_string()),
-                                data: data.clone(),
-                            };
-                            let message = JupyterMessage::new(comm_msg, None);
-                            if let Err(e) = shell.send(message).await {
-                                eprintln!("Failed to send comm_msg: {}", e);
-                            }
-                        }
-                    } else if command == "comm_open" {
-                        if let (Some(comm_id), Some(target_name), Some(data)) = (
-                            json.get("comm_id").and_then(|s| s.as_str()),
-                            json.get("target_name").and_then(|s| s.as_str()),
-                            json.get("data").and_then(|d| d.as_object()),
-                        ) {
-                            let comm_open = CommOpen {
-                                comm_id: CommId(comm_id.to_string()),
-                                target_name: target_name.to_string(),
-                                data: data.clone(),
-                                target_module: None,
-                            };
-                            let message = JupyterMessage::new(comm_open, None);
-                            if let Err(e) = shell.send(message).await {
-                                eprintln!("Failed to send comm_open: {}", e);
-                            }
-                        }
-                    } else if command == "comm_close" {
-                        if let Some(comm_id) = json.get("comm_id").and_then(|s| s.as_str()) {
-                            let data = json.get("data").and_then(|d| d.as_object()).cloned().unwrap_or_default();
-                            let comm_close = runtimelib::CommClose {
-                                comm_id: CommId(comm_id.to_string()),
-                                data,
-                            };
-                            let message = JupyterMessage::new(comm_close, None);
-                            if let Err(e) = shell.send(message).await {
-                                eprintln!("Failed to send comm_close: {}", e);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
+    let stdin = tokio::io::stdin();
+    let mut reader = BufReader::new(stdin).lines();
 
     // We no longer wait for IOPub welcome. When attaching to an existing session,
     // the kernel might not send a welcome message, or it might have already sent it.
@@ -356,96 +307,191 @@ async fn run_plot_watcher(
     // wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
 
     loop {
-        let message = iopub.read().await.context("Failed to read iopub message")?;
-        let payload = match &message.content {
-            JupyterMessageContent::DisplayData(display) => {
-                build_plot_payload("display_data", &display.data, display.transient.as_ref())
-            }
-            JupyterMessageContent::UpdateDisplayData(update) => {
-                build_plot_payload("update_display_data", &update.data, Some(&update.transient))
-            }
-            JupyterMessageContent::StreamContent(stream) => {
-                if matches!(stream.name, Stdio::Stdout) && stream.text.starts_with("__VSCODE_R_HTTPGD_URL__=") {
-                    let url = stream.text.trim().strip_prefix("__VSCODE_R_HTTPGD_URL__=").unwrap_or("");
-                    Some(json!({
-                        "event": "httpgd_url",
-                        "url": url
-                    }).to_string())
-                } else {
-                    None
+        tokio::select! {
+            line = reader.next_line() => {
+                match line {
+                    Ok(Some(line)) => {
+                        if let Ok(json) = serde_json::from_str::<Value>(&line) {
+                            if let Some(command) = json.get("command").and_then(|c| c.as_str()) {
+                                if command == "comm_msg" {
+                                    if let (Some(comm_id), Some(data)) = (
+                                        json.get("comm_id").and_then(|s| s.as_str()),
+                                        json.get("data").and_then(|d| d.as_object()),
+                                    ) {
+                                        let comm_msg = CommMsg {
+                                            comm_id: CommId(comm_id.to_string()),
+                                            data: data.clone(),
+                                        };
+                                        let message = JupyterMessage::new(comm_msg, None);
+                                        if let Err(e) = shell.send(message).await {
+                                            eprintln!("Failed to send comm_msg: {}", e);
+                                        }
+                                    }
+                                } else if command == "comm_open" {
+                                    if let (Some(comm_id), Some(target_name), Some(data)) = (
+                                        json.get("comm_id").and_then(|s| s.as_str()),
+                                        json.get("target_name").and_then(|s| s.as_str()),
+                                        json.get("data").and_then(|d| d.as_object()),
+                                    ) {
+                                        let comm_open = CommOpen {
+                                            comm_id: CommId(comm_id.to_string()),
+                                            target_name: target_name.to_string(),
+                                            data: data.clone(),
+                                            target_module: None,
+                                        };
+                                        let message = JupyterMessage::new(comm_open, None);
+                                        if let Err(e) = shell.send(message).await {
+                                            eprintln!("Failed to send comm_open: {}", e);
+                                        }
+                                    }
+                                } else if command == "comm_close" {
+                                    if let Some(comm_id) = json.get("comm_id").and_then(|s| s.as_str()) {
+                                        let data = json.get("data").and_then(|d| d.as_object()).cloned().unwrap_or_default();
+                                        let comm_close = runtimelib::CommClose {
+                                            comm_id: CommId(comm_id.to_string()),
+                                            data,
+                                        };
+                                        let message = JupyterMessage::new(comm_close, None);
+                                        if let Err(e) = shell.send(message).await {
+                                            eprintln!("Failed to send comm_close: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Ok(None) => break Ok(()), // EOF
+                    Err(e) => {
+                         eprintln!("Error reading stdin: {}", e);
+                         break Ok(());
+                    }
                 }
             }
-            JupyterMessageContent::CommOpen(comm_open) => {
-                if comm_open.target_name == PLOT_COMM_TARGET {
-                    Some(json!({
-                        "event": "comm_open",
-                        "comm_id": comm_open.comm_id.0,
-                        "target_name": comm_open.target_name,
-                        "data": comm_open.data
-                    }).to_string())
-                } else if comm_open.target_name == UI_COMM_TARGET {
-                    Some(json!({
-                        "event": "ui_comm_open",
-                        "comm_id": comm_open.comm_id.0,
-                        "target_name": comm_open.target_name,
-                        "data": comm_open.data
-                    }).to_string())
-                } else if comm_open.target_name == HELP_COMM_TARGET {
-                    Some(json!({
-                        "event": "help_comm_open",
-                        "comm_id": comm_open.comm_id.0,
-                        "target_name": comm_open.target_name,
-                        "data": comm_open.data
-                    }).to_string())
-                } else {
-                    None
+            iopub_msg = iopub.read() => {
+
+                let message = iopub_msg.context("Failed to read iopub message")?;
+                let payload = match &message.content {
+                    JupyterMessageContent::DisplayData(display) => {
+                        build_plot_payload("display_data", &display.data, display.transient.as_ref())
+                    }
+                    JupyterMessageContent::UpdateDisplayData(update) => {
+                        build_plot_payload("update_display_data", &update.data, Some(&update.transient))
+                    }
+                    JupyterMessageContent::StreamContent(stream) => {
+                        if matches!(stream.name, Stdio::Stdout) && stream.text.starts_with("__VSCODE_R_HTTPGD_URL__=") {
+                            let url = stream.text.trim().strip_prefix("__VSCODE_R_HTTPGD_URL__=").unwrap_or("");
+                            Some(json!({
+                                "event": "httpgd_url",
+                                "url": url
+                            }).to_string())
+                        } else {
+                            None
+                        }
+                    }
+                    JupyterMessageContent::CommOpen(comm_open) => {
+                        if comm_open.target_name == PLOT_COMM_TARGET {
+                            Some(json!({
+                                "event": "comm_open",
+                                "comm_id": comm_open.comm_id.0,
+                                "target_name": comm_open.target_name,
+                                "data": comm_open.data
+                            }).to_string())
+                        } else if comm_open.target_name == UI_COMM_TARGET {
+                            Some(json!({
+                                "event": "ui_comm_open",
+                                "comm_id": comm_open.comm_id.0,
+                                "target_name": comm_open.target_name,
+                                "data": comm_open.data
+                            }).to_string())
+                        } else if comm_open.target_name == HELP_COMM_TARGET {
+                            Some(json!({
+                                "event": "help_comm_open",
+                                "comm_id": comm_open.comm_id.0,
+                                "target_name": comm_open.target_name,
+                                "data": comm_open.data
+                            }).to_string())
+                        } else if comm_open.target_name == VARIABLES_COMM_TARGET {
+                            Some(json!({
+                                "event": "variables_comm_open",
+                                "comm_id": comm_open.comm_id.0,
+                                "target_name": comm_open.target_name,
+                                "data": comm_open.data
+                            }).to_string())
+                        } else if comm_open.target_name == DATA_EXPLORER_COMM_TARGET {
+                            Some(json!({
+                                "event": "data_explorer_comm_open",
+                                "comm_id": comm_open.comm_id.0,
+                                "target_name": comm_open.target_name,
+                                "data": comm_open.data
+                            }).to_string())
+                        } else {
+                            None
+                        }
+                    }
+                    JupyterMessageContent::CommMsg(comm_msg) => {
+                        // Check for UI methods
+                        if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
+                            if method == "show_html_file" {
+                                Some(json!({
+                                    "event": "show_html_file",
+                                    "comm_id": comm_msg.comm_id.0,
+                                    "data": comm_msg.data
+                                }).to_string())
+                            } else if method == "show_help" {
+                                Some(json!({
+                                    "event": "show_help",
+                                    "comm_id": comm_msg.comm_id.0,
+                                    "data": comm_msg.data
+                                }).to_string())
+                            } else {
+                                // Other comm messages (e.g., plot render replies)
+                                Some(json!({
+                                    "event": "comm_msg",
+                                    "comm_id": comm_msg.comm_id.0,
+                                    "data": comm_msg.data
+                                }).to_string())
+                            }
+                        } else {
+                            Some(json!({
+                                "event": "comm_msg",
+                                "comm_id": comm_msg.comm_id.0,
+                                "data": comm_msg.data
+                            }).to_string())
+                        }
+                    }
+                    JupyterMessageContent::CommClose(comm_close) => {
+                        Some(json!({
+                            "event": "comm_close",
+                            "comm_id": comm_close.comm_id.0
+                        }).to_string())
+                    }
+                    _ => None,
+                };
+
+                if let Some(payload) = payload {
+                    println!("{payload}");
                 }
             }
-            JupyterMessageContent::CommMsg(comm_msg) => {
-                // Check for UI methods
-                if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
-                    if method == "show_html_file" {
-                        Some(json!({
-                            "event": "show_html_file",
-                            "comm_id": comm_msg.comm_id.0,
-                            "data": comm_msg.data
-                        }).to_string())
-                    } else if method == "show_help" {
-                        Some(json!({
-                            "event": "show_help",
-                            "comm_id": comm_msg.comm_id.0,
-                            "data": comm_msg.data
-                        }).to_string())
-                    } else {
-                        // Other comm messages (e.g., plot render replies)
-                        Some(json!({
+            shell_msg = shell.read() => {
+                if let Ok(message) = shell_msg {
+                    // Handle shell replies. Specifically look for CommMsg replies (Variables list, etc.)
+                    if let JupyterMessageContent::CommMsg(comm_msg) = &message.content {
+                        let payload = Some(json!({
                             "event": "comm_msg",
                             "comm_id": comm_msg.comm_id.0,
                             "data": comm_msg.data
-                        }).to_string())
+                        }).to_string());
+                        
+                        if let Some(payload) = payload {
+                            println!("{payload}");
+                        }
                     }
-                } else {
-                    Some(json!({
-                        "event": "comm_msg",
-                        "comm_id": comm_msg.comm_id.0,
-                        "data": comm_msg.data
-                    }).to_string())
                 }
             }
-            JupyterMessageContent::CommClose(comm_close) => {
-                Some(json!({
-                    "event": "comm_close",
-                    "comm_id": comm_close.comm_id.0
-                }).to_string())
-            }
-            _ => None,
-        };
-
-        if let Some(payload) = payload {
-            println!("{payload}");
         }
     }
 }
+
 
 async fn run_check(
     connection: &ConnectionInfo,
@@ -568,6 +614,20 @@ async fn send_ui_comm_open(
     };
     let message = JupyterMessage::new(comm_open, None);
     shell.send(message).await.context("Failed to send UI comm_open")
+}
+
+async fn send_variables_comm_open(
+    shell: &mut runtimelib::ClientShellConnection,
+    comm_id: &str,
+) -> Result<()> {
+    let comm_open = CommOpen {
+        comm_id: CommId(comm_id.to_string()),
+        target_name: VARIABLES_COMM_TARGET.to_string(),
+        data: Map::new(),
+        target_module: None,
+    };
+    let message = JupyterMessage::new(comm_open, None);
+    shell.send(message).await.context("Failed to send variables comm_open")
 }
 
 async fn create_shell_connection(
