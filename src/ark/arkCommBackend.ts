@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ArkSidecarManager } from './plotWatcher';
+import { ArkSidecarManager } from './sidecarManager';
 
 /**
  * PlotId is a string identifier for a plot (matches comm_id).

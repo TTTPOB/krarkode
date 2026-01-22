@@ -68,7 +68,8 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             this.view.webview.postMessage({
                 command: 'show-content',
                 html: entry.content,
-                title: entry.title
+                title: entry.title,
+                kind: entry.kind
             });
         }
     }
@@ -103,7 +104,7 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data: https:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data: https:; frame-src http://127.0.0.1:*; base-uri http://127.0.0.1:*;">
     <title>${HELP_VIEW_TITLE}</title>
     <style>
         * {
@@ -369,8 +370,13 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                         break;
                     case 'show-content':
                         if (contentDiv) {
-                            contentDiv.innerHTML = msg.html;
-                            // Re-bind links if necessary, or assume default behavior
+                            if (msg.kind === 'url') {
+                                // For URL content, use an iframe
+                                contentDiv.innerHTML = \`<iframe src="\${msg.html}" style="width: 100%; height: 100%; border: none;"></iframe>\`;
+                            } else {
+                                // For HTML content, inject directly
+                                contentDiv.innerHTML = msg.html;
+                            }
                         }
                         if (status) status.textContent = msg.title || 'Help';
                         break;

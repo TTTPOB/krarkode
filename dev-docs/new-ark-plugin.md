@@ -91,7 +91,7 @@
   - sidecar check
 
 ### 4.4 Plot 侧处理（基础版）
-- `src/ark/plotWatcher.ts`
+- `src/ark/sidecarManager.ts`
 - `src/plotViewer/backends/arkComm.ts`
 
 > 这些代码是“可运行/可测试”的现成实现，适合直接拷贝到新插件并进行清理。

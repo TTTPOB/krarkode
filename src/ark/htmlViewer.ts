@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as util from '../util';
-import type { ShowHtmlFileParams } from './plotWatcher';
+import type { ShowHtmlFileParams } from './sidecarManager';
 
 /**
  * HtmlViewer handles ShowHtmlFile events from Ark.

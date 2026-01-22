@@ -3,7 +3,7 @@ import { setExtensionContext } from './context';
 import { ArkSessionManager } from './ark/sessionManager';
 import { ArkLanguageService } from './ark/arkLanguageService';
 import { CodeExecutor } from './ark/codeExecutor';
-import { ArkSidecarManager } from './ark/plotWatcher';
+import { ArkSidecarManager } from './ark/sidecarManager';
 import { ArkCommBackend } from './ark/arkCommBackend';
 import { HtmlViewer } from './ark/htmlViewer';
 import { PlotManager } from './ark/plotManager';

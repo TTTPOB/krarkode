@@ -54,13 +54,31 @@ export class HelpService implements IKrarkodeHelpService {
     }
 
     public showHelpContent(content: string, kind: string, focus: boolean): void {
-        const titleMatch = content.match(/<title>(.*?)<\/title>/i);
-        const title = titleMatch ? titleMatch[1] : 'Help';
+        let title = 'Help';
+        if (kind === 'html') {
+            const titleMatch = content.match(/<title>(.*?)<\/title>/i);
+            if (titleMatch) {
+                title = titleMatch[1];
+            }
+        } else if (kind === 'url') {
+            // Try to derive title from URL
+            try {
+                const url = new URL(content);
+                const segments = url.pathname.split('/');
+                const lastSegment = segments[segments.length - 1];
+                if (lastSegment) {
+                    title = decodeURIComponent(lastSegment.replace(/\.html$/, ''));
+                }
+            } catch {
+                // Ignore invalid URL
+            }
+        }
         
         const entry = createHelpEntry(
             '',
             title,
             content,
+            kind,
             'help'
         );
         
@@ -76,6 +94,7 @@ export class HelpService implements IKrarkodeHelpService {
             '',
             'Welcome to Krarkode Help',
             undefined,
+            'html',
             'welcome'
         );
         this.pushHelpEntry(welcomeEntry);
