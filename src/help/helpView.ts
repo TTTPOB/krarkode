@@ -68,12 +68,14 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
     private getWebviewHtml(): string {
         const extensionUri = this.extensionUri.toString();
         const nonce = this.generateNonce();
+        const cspSource = this.view?.webview.cspSource;
 
         return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data: https:;">
     <title>${HELP_VIEW_TITLE}</title>
     <style>
         * {
@@ -236,113 +238,135 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
         </div>
     </div>
     <script nonce="${nonce}">
-        const vscode = acquireVsCodeApi();
-        const contentDiv = document.getElementById('content');
-        const btnBack = document.getElementById('btn-back');
-        const btnForward = document.getElementById('btn-forward');
-        const btnHome = document.getElementById('btn-home');
-        const btnFind = document.getElementById('btn-find');
-        const status = document.getElementById('status');
+        try {
+            const vscode = acquireVsCodeApi();
+            const contentDiv = document.getElementById('content');
+            const btnBack = document.getElementById('btn-back');
+            const btnForward = document.getElementById('btn-forward');
+            const btnHome = document.getElementById('btn-home');
+            const btnFind = document.getElementById('btn-find');
+            const status = document.getElementById('status');
 
-        const extensionUri = "${extensionUri}";
+            const extensionUri = "${extensionUri}";
 
-        function renderWelcomePage() {
-            contentDiv.innerHTML = \`
-                <div class="welcome-content">
-                    <h1>Krarkode Help</h1>
-                    <p>Welcome to the Krarkode Help Panel. Use the navigation buttons above or search for R function documentation.</p>
-                    
-                    <h2>Quick Actions</h2>
-                    <div class="quick-links">
-                        <div class="quick-link" onclick="executeCommand('krarkode.openConsole')">
-                            <h3>New R Session</h3>
-                            <p>Start a new Ark R session</p>
+            function renderWelcomePage() {
+                if (!contentDiv) return;
+                contentDiv.innerHTML = \`
+                    <div class="welcome-content">
+                        <h1>Krarkode Help</h1>
+                        <p>Welcome to the Krarkode Help Panel. Use the navigation buttons above or search for R function documentation.</p>
+                        
+                        <h2>Quick Actions</h2>
+                        <div class="quick-links">
+                            <div class="quick-link" onclick="executeCommand('krarkode.openArkConsole')">
+                                <h3>New R Session</h3>
+                                <p>Start a new Ark R session</p>
+                            </div>
+                            <div class="quick-link" onclick="executeCommand('krarkode.attachArkSession')">
+                                <h3>Attach to Session</h3>
+                                <p>Connect to an existing R session</p>
+                            </div>
+                            <div class="quick-link" onclick="searchHelp()">
+                                <h3>Search Help</h3>
+                                <p>Search R documentation</p>
+                            </div>
+                            <div class="quick-link" onclick="executeCommand('krarkode.plot.focus')">
+                                <h3>Plot Viewer</h3>
+                                <p>View and manage R plots</p>
+                            </div>
                         </div>
-                        <div class="quick-link" onclick="executeCommand('krarkode.attachSession')">
-                            <h3>Attach to Session</h3>
-                            <p>Connect to an existing R session</p>
-                        </div>
-                        <div class="quick-link" onclick="searchHelp()">
-                            <h3>Search Help</h3>
-                            <p>Search R documentation</p>
-                        </div>
-                        <div class="quick-link" onclick="executeCommand('krarkode.plot.focus')">
-                            <h3>Plot Viewer</h3>
-                            <p>View and manage R plots</p>
-                        </div>
+
+                        <h2>Keyboard Shortcuts</h2>
+                        <p><strong>Ctrl+Shift+H</strong> - Open Help Panel</p>
+                        <p><strong>F1</strong> - Look up help at cursor</p>
+                        <p><strong>Ctrl+Enter</strong> - Run selection/line in R file</p>
+
+                        <h2>Getting Help</h2>
+                        <p>To get help for an R function, place your cursor on the function name and press <strong>F1</strong>, or use the command palette to search for "Look Up Help at Cursor".</p>
                     </div>
-
-                    <h2>Keyboard Shortcuts</h2>
-                    <p><strong>Ctrl+Shift+H</strong> - Open Help Panel</p>
-                    <p><strong>F1</strong> - Look up help at cursor</p>
-                    <p><strong>Ctrl+Enter</strong> - Run selection/line in R file</p>
-
-                    <h2>Getting Help</h2>
-                    <p>To get help for an R function, place your cursor on the function name and press <strong>F1</strong>, or use the command palette to search for "Look Up Help at Cursor".</p>
-                </div>
-            \`;
-            status.textContent = 'Welcome';
-        }
-
-        function executeCommand(commandId) {
-            vscode.postMessage({ command: 'execute-command', id: commandId });
-        }
-
-        function searchHelp() {
-            const query = prompt('Enter R function or topic to search for:');
-            if (query && query.trim()) {
-                vscode.postMessage({ command: 'search-help', query: query.trim() });
+                \`;
+                if (status) status.textContent = 'Welcome';
             }
-        }
 
-        btnBack.addEventListener('click', () => {
-            vscode.postMessage({ command: 'positron-help-back' });
-        });
+            // Expose functions to global scope for onclick handlers
+            window.executeCommand = function(commandId) {
+                vscode.postMessage({ command: 'execute-command', id: commandId });
+            };
 
-        btnForward.addEventListener('click', () => {
-            vscode.postMessage({ command: 'positron-help-forward' });
-        });
-
-        btnHome.addEventListener('click', () => {
-            vscode.postMessage({ command: 'positron-help-home' });
-        });
-
-        btnFind.addEventListener('click', () => {
-            vscode.postMessage({ command: 'positron-help-find' });
-        });
-
-        window.addEventListener('message', (event) => {
-            const msg = event.data;
-            switch (msg.command) {
-                case 'update-navigation':
-                    btnBack.disabled = !msg.canGoBack;
-                    btnForward.disabled = !msg.canGoForward;
-                    break;
-                case 'navigate':
-                    status.textContent = msg.title || 'Loading...';
-                    break;
-                case 'positron-help-find':
-                    btnFind.click();
-                    break;
-                case 'show-content':
-                    contentDiv.innerHTML = msg.html;
-                    status.textContent = msg.title || 'Help';
-                    break;
-            }
-        });
-
-        document.addEventListener('keydown', (event) => {
-            if (event.ctrlKey || event.metaKey) {
-                if (event.key === 'f') {
-                    event.preventDefault();
-                    btnFind.click();
+            window.searchHelp = function() {
+                const query = prompt('Enter R function or topic to search for:');
+                if (query && query.trim()) {
+                    vscode.postMessage({ command: 'search-help', query: query.trim() });
                 }
-            }
-        });
+            };
 
-        // Initial load
-        renderWelcomePage();
-        vscode.postMessage({ command: 'view-ready' });
+            if (btnBack) {
+                btnBack.addEventListener('click', () => {
+                    vscode.postMessage({ command: 'positron-help-back' });
+                });
+            }
+
+            if (btnForward) {
+                btnForward.addEventListener('click', () => {
+                    vscode.postMessage({ command: 'positron-help-forward' });
+                });
+            }
+
+            if (btnHome) {
+                btnHome.addEventListener('click', () => {
+                    vscode.postMessage({ command: 'positron-help-home' });
+                });
+            }
+
+            if (btnFind) {
+                btnFind.addEventListener('click', () => {
+                    vscode.postMessage({ command: 'positron-help-find' });
+                });
+            }
+
+            window.addEventListener('message', (event) => {
+                const msg = event.data;
+                switch (msg.command) {
+                    case 'update-navigation':
+                        if (btnBack) btnBack.disabled = !msg.canGoBack;
+                        if (btnForward) btnForward.disabled = !msg.canGoForward;
+                        break;
+                    case 'navigate':
+                        if (status) status.textContent = msg.title || 'Loading...';
+                        break;
+                    case 'positron-help-find':
+                        if (btnFind) btnFind.click();
+                        break;
+                    case 'show-content':
+                        if (contentDiv) {
+                            contentDiv.innerHTML = msg.html;
+                            // Re-bind links if necessary, or assume default behavior
+                        }
+                        if (status) status.textContent = msg.title || 'Help';
+                        break;
+                }
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.ctrlKey || event.metaKey) {
+                    if (event.key === 'f') {
+                        event.preventDefault();
+                        if (btnFind) btnFind.click();
+                    }
+                }
+            });
+
+            // Initial load
+            renderWelcomePage();
+            vscode.postMessage({ command: 'view-ready' });
+        
+        } catch (e) {
+            console.error('Error initializing help view:', e);
+            const contentDiv = document.getElementById('content');
+            if (contentDiv) {
+                contentDiv.innerHTML = '<div style="color:red; padding: 20px;">Error initializing help view: ' + e.message + '</div>';
+            }
+        }
     </script>
 </body>
 </html>`;

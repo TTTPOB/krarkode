@@ -1,4 +1,4 @@
-export const HELP_VIEW_ID = 'krarkode.panel.help';
+export const HELP_VIEW_ID = 'krarkode.help';
 export const HELP_VIEW_TITLE = 'Help';
 export const HELP_CONTAINER_ID = 'krarkode.helpViewContainer';
 
