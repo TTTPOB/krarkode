@@ -37,7 +37,8 @@
       "krarkode-activity-bar": [
         {
           "id": "krarkodeVariables",
-          "name": "Variables"
+          "name": "Variables",
+          "type": "webview"
         }
       ]
     },
