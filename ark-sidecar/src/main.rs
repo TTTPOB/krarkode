@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use runtimelib::{
     create_client_iopub_connection, CommId, CommMsg, CommOpen, Connection, ConnectionInfo,
-    ExecuteRequest, ExecutionState, JupyterMessage, JupyterMessageContent, Stdio,
+    ExecuteRequest, ExecutionState, JupyterMessage, JupyterMessageContent, Stdio, KernelInfoRequest,
 };
 use std::str::FromStr;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -428,10 +428,45 @@ async fn run_check(
     session_id: &str,
     timeout_ms: u64,
 ) -> Result<()> {
-    // Instead of parsing kernel_info_reply (which may have deserialization issues
-    // due to missing fields), we use a simple ping: execute `1` and wait for idle.
-    // If the kernel is alive, it will process the request and return to idle state.
-    run_execute_request(connection, session_id, "1", timeout_ms, true).await?;
+    let mut shell = create_shell_connection(connection, session_id)
+        .await
+        .context("Failed to connect shell")?;
+
+    // Send kernel_info_request. If successful, the kernel is alive.
+    // We don't care about parsing the reply correctly - just getting any reply
+    // proves the kernel is responsive, even if it's busy executing other code.
+    let request = KernelInfoRequest {};
+    let message = JupyterMessage::new(request, None);
+    let msg_id = message.header.msg_id.clone();
+    shell.send(message).await.context("Failed to send kernel_info_request")?;
+
+    let deadline = Instant::now() + Duration::from_millis(timeout_ms);
+    loop {
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .unwrap_or(Duration::from_millis(0));
+        if remaining.is_zero() {
+            return Err(anyhow!("Timed out waiting for kernel response"));
+        }
+
+        match tokio::time::timeout(remaining, shell.read()).await {
+            Ok(Ok(msg)) => {
+                // Check if this is a response to our request
+                if msg.parent_header.as_ref().map(|h| h.msg_id.as_str()) == Some(&msg_id) {
+                    // We got a reply! Even if parsing fails, the kernel is alive.
+                    // Just break here - the kernel responded.
+                    break;
+                }
+                // Otherwise, keep waiting for our reply
+            }
+            Ok(Err(e)) => {
+                return Err(anyhow!("Error reading from shell: {}", e));
+            }
+            Err(_) => {
+                return Err(anyhow!("Timed out waiting for kernel response"));
+            }
+        }
+    }
 
     let payload = json!({
         "event": "alive",
