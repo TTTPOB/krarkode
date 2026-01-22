@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from './plotWatcher';
+import * as util from '../util';
 
 /**
  * PlotId is a string identifier for a plot (matches comm_id).
@@ -78,6 +79,9 @@ export class ArkCommBackend implements IPlotBackend {
     private readonly disposables: vscode.Disposable[] = [];
     private readonly plots = new Map<PlotId, PlotValidation>();
     private readonly pendingRenders = new Map<PlotId, { resolve: (result: { data: string; mime_type: string }) => void; reject: (err: unknown) => void }>();
+    
+    private plotPanel: vscode.WebviewPanel | undefined;
+    private readonly outputChannel = vscode.window.createOutputChannel('Ark Plot Comm');
 
     constructor(private readonly sidecarManager: ArkSidecarManager) {
     }
@@ -103,9 +107,12 @@ export class ArkCommBackend implements IPlotBackend {
         this.plots.clear();
         this.pendingRenders.forEach(p => p.reject(new Error('Backend disposed')));
         this.pendingRenders.clear();
+        this.plotPanel?.dispose();
+        this.plotPanel = undefined;
         this._onPlotsChanged.dispose();
         this._onConnectionChanged.dispose();
         this._onDeviceActiveChanged.dispose();
+        this.outputChannel.dispose();
     }
 
     public getPlots(): PlotValidation[] {
@@ -179,6 +186,9 @@ export class ArkCommBackend implements IPlotBackend {
         const plot: PlotValidation = { id: e.commId };
         this.plots.set(e.commId, plot);
         this._onPlotsChanged.fire(this.getPlots());
+        
+        // Auto-render the new plot
+        void this.autoRenderPlot(e.commId);
     }
 
     private handleClosePlot(e: { commId: string }): void {
@@ -199,6 +209,68 @@ export class ArkCommBackend implements IPlotBackend {
                 pending.reject(new Error('Invalid RenderReply: missing data'));
             }
             this.pendingRenders.delete(e.commId);
+        }
+    }
+
+    private async autoRenderPlot(plotId: PlotId): Promise<void> {
+        const configured = util.config().get<string>('krarkode.plot.viewColumn');
+        if (configured === 'Disable') {
+            return;
+        }
+
+        try {
+            // Request render with default size
+            const htmlContent = await this.getPlotContent(plotId, 800, 600, 1, 'png');
+            this.showPlotInPanel(plotId, htmlContent);
+        } catch (err) {
+            this.outputChannel.appendLine(`Failed to render plot ${plotId}: ${String(err)}`);
+        }
+    }
+
+    private showPlotInPanel(plotId: PlotId, htmlContent: string): void {
+        const configured = util.config().get<string>('krarkode.plot.viewColumn');
+        if (configured === 'Disable') {
+            return;
+        }
+
+        const viewColumn = this.asViewColumn(configured, vscode.ViewColumn.Two);
+
+        if (!this.plotPanel) {
+            this.plotPanel = vscode.window.createWebviewPanel(
+                'arkCommPlot',
+                'Ark Plot',
+                { preserveFocus: true, viewColumn },
+                { enableScripts: true, retainContextWhenHidden: true }
+            );
+            this.plotPanel.onDidDispose(() => {
+                this.plotPanel = undefined;
+            });
+        }
+
+        this.plotPanel.webview.html = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { margin: 0; padding: 0; background: var(--vscode-editor-background); display: flex; justify-content: center; align-items: center; height: 100vh; }
+        img { max-width: 100%; max-height: 100%; }
+    </style>
+</head>
+<body>
+    ${htmlContent}
+</body>
+</html>`;
+        this.plotPanel.reveal(viewColumn, true);
+    }
+
+    private asViewColumn(value: string | undefined, defaultColumn: vscode.ViewColumn): vscode.ViewColumn {
+        switch (value) {
+            case 'Active': return vscode.ViewColumn.Active;
+            case 'Beside': return vscode.ViewColumn.Beside;
+            case 'One': return vscode.ViewColumn.One;
+            case 'Two': return vscode.ViewColumn.Two;
+            case 'Three': return vscode.ViewColumn.Three;
+            default: return defaultColumn;
         }
     }
 }
