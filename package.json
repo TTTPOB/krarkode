@@ -230,6 +230,7 @@
   "dependencies": {
     "@tanstack/table-core": "^8.21.3",
     "@tanstack/virtual-core": "^3.13.18",
+    "echarts": "^5.6.0",
     "vscode-languageclient": "^9.0.1"
   }
 }

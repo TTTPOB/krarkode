@@ -661,7 +661,10 @@ class DataExplorerPanel implements vscode.Disposable {
                         <div class="filter-actions">
                             <button class="action" id="get-stats">Get Stats</button>
                         </div>
-                        <div class="stats-results" id="stats-results"></div>
+                        <div class="stats-results" id="stats-results">
+                            <pre id="stats-text"></pre>
+                            <div class="chart-container" id="histogram-chart"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal" id="code-modal">

@@ -11,6 +11,7 @@ import {
     observeElementOffset,
     observeElementRect,
 } from '@tanstack/virtual-core';
+import * as echarts from 'echarts';
 
 interface TableShape {
     num_rows: number;
@@ -140,6 +141,8 @@ const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
 const codeModal = document.getElementById('code-modal') as HTMLDivElement;
 const filterStatus = document.getElementById('filter-status') as HTMLDivElement;
 const statsResults = document.getElementById('stats-results') as HTMLDivElement;
+const statsText = document.getElementById('stats-text') as HTMLPreElement;
+const histogramContainer = document.getElementById('histogram-chart') as HTMLDivElement;
 const codePreview = document.getElementById('code-preview') as HTMLPreElement;
 const tableHeader = document.getElementById('table-header') as HTMLDivElement;
 const tableBody = document.getElementById('table-body') as HTMLDivElement;
@@ -165,6 +168,15 @@ let lastScrollLeft = 0;
 let headerRowElement: HTMLDivElement | undefined;
 let rowVirtualizerCleanup: (() => void) | undefined;
 let activeSort: SortState | null = null;
+let histogramChart: echarts.ECharts | null = null;
+
+function log(message: string, payload?: unknown): void {
+    if (payload !== undefined) {
+        console.log(`[dataExplorer] ${message}`, payload);
+    } else {
+        console.log(`[dataExplorer] ${message}`);
+    }
+}
 
 refreshButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'refresh' });
@@ -181,6 +193,11 @@ statsButton.addEventListener('click', () => {
     filterPanel.classList.remove('open');
     codeModal.classList.remove('open');
     populateStatsColumnSelect();
+    if (statsPanel.classList.contains('open')) {
+        requestAnimationFrame(() => {
+            histogramChart?.resize();
+        });
+    }
 });
 
 codeButton.addEventListener('click', () => {
@@ -290,7 +307,8 @@ function getColumnStats() {
         profileTypes.push('small_frequency_table');
     }
 
-    statsResults.textContent = 'Loading statistics...';
+    statsText.textContent = 'Loading statistics...';
+    clearHistogram();
     vscode.postMessage({ type: 'getColumnProfiles', columnIndex, profileTypes });
 }
 
@@ -338,13 +356,99 @@ function handleSearchSchemaResult(matches: number[]): void {
     filterStatus.textContent = `Found ${matches.length} matching columns.`;
 }
 
-function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfileResult[], errorMessage?: string): void {
-    if (errorMessage) {
-        statsResults.textContent = `Error: ${errorMessage}`;
+function ensureHistogramChart(): echarts.ECharts {
+    if (!histogramChart) {
+        histogramChart = echarts.init(histogramContainer);
+    }
+    return histogramChart;
+}
+
+function clearHistogram(): void {
+    histogramContainer.style.display = 'none';
+    histogramChart?.clear();
+}
+
+function renderHistogram(histogram: ColumnProfileResult['small_histogram'], columnLabel: string): void {
+    if (!histogram) {
+        clearHistogram();
         return;
     }
 
+    const edges = histogram.bin_edges ?? [];
+    const counts = histogram.bin_counts ?? [];
+    if (edges.length < 2 || counts.length === 0) {
+        clearHistogram();
+        return;
+    }
+
+    log('Rendering histogram', { columnLabel, bins: counts.length });
+
+    const labels = counts.map((_, index) => {
+        const start = edges[index] ?? '';
+        const end = edges[index + 1] ?? '';
+        return `${start} - ${end}`;
+    });
+
+    histogramContainer.style.display = 'block';
+    const chart = ensureHistogramChart();
+    const chartColor = getComputedStyle(document.body).getPropertyValue('--vscode-charts-blue').trim() || '#4e79a7';
+
+    chart.setOption({
+        title: {
+            text: `Histogram: ${columnLabel}`,
+            textStyle: {
+                fontSize: 12,
+                color: getComputedStyle(document.body).getPropertyValue('--vscode-foreground').trim() || '#cccccc',
+            },
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+        },
+        grid: { left: 40, right: 20, top: 30, bottom: 40 },
+        xAxis: {
+            type: 'category',
+            data: labels,
+            axisLabel: {
+                rotate: 30,
+                color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
+            },
+            axisLine: {
+                lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
+            },
+        },
+        yAxis: {
+            type: 'value',
+            axisLabel: {
+                color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
+            },
+            splitLine: {
+                lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
+            },
+        },
+        series: [
+            {
+                type: 'bar',
+                data: counts,
+                itemStyle: {
+                    color: chartColor,
+                },
+            },
+        ],
+    });
+    chart.resize();
+}
+
+function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfileResult[], errorMessage?: string): void {
+    if (errorMessage) {
+        statsText.textContent = `Error: ${errorMessage}`;
+        clearHistogram();
+        return;
+    }
+
+    log('Column profiles received', { columnIndex, profiles });
     const lines: string[] = [`Column ${columnIndex + 1} profiles:`];
+    let histogram: ColumnProfileResult['small_histogram'] | undefined;
     profiles.forEach((profile) => {
         if (profile.null_count !== undefined) {
             lines.push(`Null count: ${profile.null_count}`);
@@ -360,12 +464,8 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
             }
         }
         if (profile.small_histogram) {
-            lines.push('Histogram (first 10 bins):');
-            profile.small_histogram.bin_counts.slice(0, 10).forEach((count, idx) => {
-                const start = profile.small_histogram.bin_edges[idx];
-                const end = profile.small_histogram.bin_edges[idx + 1] ?? '';
-                lines.push(`  ${start} - ${end}: ${count}`);
-            });
+            histogram = profile.small_histogram;
+            lines.push(`Histogram bins: ${profile.small_histogram.bin_counts.length}`);
         }
         if (profile.small_frequency_table) {
             lines.push('Top values:');
@@ -379,7 +479,10 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
         }
     });
 
-    statsResults.textContent = lines.join('\n');
+    statsText.textContent = lines.join('\n');
+    statsResults.scrollTop = 0;
+    const columnLabel = schema.find((col) => col.column_index === columnIndex)?.column_name || `Column ${columnIndex + 1}`;
+    renderHistogram(histogram, columnLabel);
 }
 
 function handleExportResult(data: string, format: string): void {
@@ -410,7 +513,8 @@ function handleInit(message: InitMessage) {
     loadingBlocks.clear();
     activeSort = resolveSortState(state.sort_keys);
     filterStatus.textContent = '';
-    statsResults.textContent = '';
+    statsText.textContent = '';
+    clearHistogram();
     codePreview.textContent = '';
     (document.getElementById('column-search') as HTMLInputElement).value = '';
     (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';

@@ -200,7 +200,19 @@ body {
     background: var(--vscode-editor-background);
     border-radius: 3px;
     font-size: 0.9em;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#stats-text {
+    margin: 0;
     white-space: pre-wrap;
+}
+
+.chart-container {
+    width: 100%;
+    height: 220px;
 }
 
 .modal {
