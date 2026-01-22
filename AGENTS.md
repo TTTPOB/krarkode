@@ -9,6 +9,20 @@ positron repo: posit-dev/positron, locally available at repo_ref/positron
 ark repo: posit-dev/ark, locally available at repo_ref/ark
 vscode-R repo, where we have done some ark related work before this separate krarkode repo: tttpob/vscode-R, locally available at repo_ref/vscode-R
 
+## Architectural Notes (Critical)
+
+### Ark Dynamic Plots & Comm Protocol
+1. **Enabling Dynamic Plots**: Ark only enables dynamic plots (re-rendering on resize) if `positron.ui` comm is connected. The extension MUST send a `comm_open` message with `target_name: "positron.ui"` upon connection.
+2. **RPC Messages**: For Ark to recognize a `comm_msg` as an RPC request (e.g., for `render` method), the payload **MUST** contain an `id` field. Without this, Ark treats it as a standard data message and ignores the request.
+3. **Sidecar Responsibilities**: The sidecar acts as a bidirectional bridge. It must forward `comm_open` and `comm_msg` from stdin to the kernel shell socket.
+
+### R Code Generation
+*   **Use `jsonlite`**: When generating R scripts (e.g., `init-ark.R`) that embed JSON or complex strings, **ALWAYS** use `jsonlite::toJSON()` inside the R code or pre-serialize in TS. NEVER use manual string concatenation/escaping for JSON payloads in R, as it is prone to escaping errors.
+
+## Toolchain & Standards
+*   **Node**: Use `pnpm exec` or `pnpx` instead of `npx`.
+*   **TypeScript**: Keep webview sources as TypeScript (`src/html/**/*.ts`) and compile them via `tsconfig`. Do not write raw JS for complex webviews.
+
 - Ark sidecar smoke test
   - 通过 pixi 的 R 4.4 环境运行：`pixi run -- node scripts/ark-sidecar-lsp-test.js`
 
