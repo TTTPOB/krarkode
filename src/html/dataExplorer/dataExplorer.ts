@@ -82,6 +82,7 @@ let bodyInner: HTMLDivElement | undefined;
 let columnTemplate = '';
 let lastScrollLeft = 0;
 let headerRowElement: HTMLDivElement | undefined;
+let rowVirtualizerCleanup: (() => void) | undefined;
 
 refreshButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'refresh' });
@@ -122,6 +123,7 @@ function handleInit(message: InitMessage) {
     setupTable();
     setupVirtualizer();
     renderRows();
+    requestInitialBlock();
     requestVisibleBlocks();
 }
 
@@ -197,6 +199,9 @@ function setupVirtualizer() {
         tableBody.appendChild(bodyInner);
     }
 
+    rowVirtualizerCleanup?.();
+    rowVirtualizerCleanup = undefined;
+
     rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
         count: state.table_shape.num_rows,
         getScrollElement: () => tableBody,
@@ -210,6 +215,10 @@ function setupVirtualizer() {
             requestVisibleBlocks();
         },
     });
+
+    rowVirtualizerCleanup = rowVirtualizer._didMount();
+    rowVirtualizer._willUpdate();
+    rowVirtualizer.measure();
 }
 
 function buildColumnDefs(): ColumnDef<RowData>[] {
@@ -259,8 +268,9 @@ function renderHeader() {
     for (const column of schema) {
         const cell = document.createElement('div');
         cell.className = 'table-cell header-cell';
-        cell.title = column.column_name;
-        cell.textContent = column.column_label ?? column.column_name;
+        const headerLabel = column.column_label || column.column_name || `Col${column.column_index + 1}`;
+        cell.title = headerLabel;
+        cell.textContent = headerLabel;
         headerRow.appendChild(cell);
     }
 
@@ -273,6 +283,25 @@ function renderHeader() {
         ? ` (${rawRows}x${rawColumns} raw)`
         : '';
     tableMeta.textContent = `${num_rows}x${num_columns}${filteredText}`;
+}
+
+function requestInitialBlock(): void {
+    if (!state) {
+        return;
+    }
+    if (state.table_shape.num_rows === 0) {
+        return;
+    }
+    const endIndex = Math.min(state.table_shape.num_rows - 1, ROW_BLOCK_SIZE - 1);
+    if (loadedBlocks.has(0) || loadingBlocks.has(0)) {
+        return;
+    }
+    loadingBlocks.add(0);
+    vscode.postMessage({
+        type: 'requestRows',
+        startIndex: 0,
+        endIndex,
+    });
 }
 
 function updateHeaderScroll(scrollLeft: number): void {
