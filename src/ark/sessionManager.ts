@@ -66,8 +66,30 @@ export class ArkSessionManager {
         context.subscriptions.push(
             vscode.commands.registerCommand('krarkode.createArkSession', () => this.createSession()),
             vscode.commands.registerCommand('krarkode.attachArkSession', () => this.attachSession()),
+            vscode.commands.registerCommand('krarkode.openArkConsole', () => this.openConsole()),
             vscode.commands.registerCommand('krarkode.stopArkSession', () => this.stopSession())
         );
+    }
+
+    private async openConsole(): Promise<void> {
+        const registry = sessionRegistry.loadRegistry();
+        if (registry.length === 0) {
+            void vscode.window.showInformationMessage('No Ark sessions found. Use "Create Ark session" first.');
+            return;
+        }
+        const selected = await vscode.window.showQuickPick(registry.map((entry) => ({ label: entry.name })), {
+            placeHolder: 'Select an Ark session'
+        });
+        if (!selected) {
+            return;
+        }
+
+        const entry = registry.find((item) => item.name === selected.label);
+        if (!entry) {
+            return;
+        }
+
+        await this.openConsoleForEntry(entry);
     }
 
     dispose(): void {
