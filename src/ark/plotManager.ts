@@ -1,11 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { getExtensionContext } from '../context';
 import * as util from '../util';
 
-/**
- * Represents a single plot in history
- */
 interface PlotEntry {
     id: string;
     timestamp: number;
@@ -14,19 +12,16 @@ interface PlotEntry {
     displayId?: string;
 }
 
-/**
- * PlotManager provides a full-featured plot viewer with:
- * - Plot history navigation
- * - Zoom controls
- * - Resize support
- * - Save to file
- * - Open in browser
- */
+type PreviewLayout = 'multirow' | 'scroll' | 'hidden';
+
 export class PlotManager implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
     private readonly plots: PlotEntry[] = [];
     private currentIndex = -1;
     private currentZoom = 100;
+    private fitToWindow = true;
+    private fullWindow = false;
+    private previewLayout: PreviewLayout = 'multirow';
     private readonly maxHistory: number;
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Plot Manager');
 
@@ -34,9 +29,6 @@ export class PlotManager implements vscode.Disposable {
         this.maxHistory = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;
     }
 
-    /**
-     * Add a new plot to history and display it
-     */
     public addPlot(base64Data: string, mimeType: string = 'image/png', displayId?: string): void {
         const configured = util.config().get<string>('krarkode.plot.viewColumn');
         if (configured === 'Disable') {
@@ -51,22 +43,25 @@ export class PlotManager implements vscode.Disposable {
             displayId,
         };
 
-        // If displayId matches existing plot, update it instead of adding new
         if (displayId) {
-            const existingIndex = this.plots.findIndex(p => p.displayId === displayId);
+            const existingIndex = this.plots.findIndex(plot => plot.displayId === displayId);
             if (existingIndex >= 0) {
-                this.plots[existingIndex] = entry;
-                if (this.currentIndex === existingIndex) {
-                    this.updateWebview();
+                const existing = this.plots[existingIndex];
+                this.plots[existingIndex] = { ...entry, id: existing.id };
+                if (this.panel) {
+                    this.postWebviewMessage({
+                        message: 'updatePlot',
+                        plotId: existing.id,
+                        data: this.plotToHtml(this.plots[existingIndex]),
+                    });
+                    this.focusPlotByIndex(existingIndex);
                 }
                 return;
             }
         }
 
-        // Add new plot
         this.plots.push(entry);
-        
-        // Trim history if needed
+
         while (this.plots.length > this.maxHistory) {
             this.plots.shift();
             if (this.currentIndex > 0) {
@@ -74,59 +69,57 @@ export class PlotManager implements vscode.Disposable {
             }
         }
 
-        // Navigate to the new plot
         this.currentIndex = this.plots.length - 1;
+        const hadPanel = !!this.panel;
         this.showPanel();
-        this.updateWebview();
+
+        if (this.panel && hadPanel) {
+            this.postWebviewMessage({
+                message: 'addPlot',
+                plotId: entry.id,
+                data: this.plotToHtml(entry),
+                isActive: true,
+            });
+            this.focusPlotByIndex(this.currentIndex);
+        }
+        this.updateWebviewState();
     }
 
-    /**
-     * Get current plot count
-     */
     public getPlotCount(): number {
         return this.plots.length;
     }
 
-    /**
-     * Clear all plots
-     */
     public clearHistory(): void {
         this.plots.length = 0;
         this.currentIndex = -1;
-        this.updateWebview();
+        this.renderWebview();
     }
 
-    /**
-     * Navigate to previous plot
-     */
     public previousPlot(): void {
         if (this.currentIndex > 0) {
             this.currentIndex--;
-            this.updateWebview();
+            this.focusPlotByIndex(this.currentIndex);
         }
     }
 
-    /**
-     * Navigate to next plot
-     */
     public nextPlot(): void {
         if (this.currentIndex < this.plots.length - 1) {
             this.currentIndex++;
-            this.updateWebview();
+            this.focusPlotByIndex(this.currentIndex);
         }
     }
 
-    /**
-     * Set zoom level
-     */
     public setZoom(zoom: number): void {
         this.currentZoom = Math.max(10, Math.min(500, zoom));
-        this.updateWebview();
+        this.fitToWindow = false;
+        this.postWebviewMessage({
+            message: 'setZoom',
+            zoom: this.currentZoom,
+            fit: false,
+        });
+        this.updateWebviewState();
     }
 
-    /**
-     * Save current plot to file
-     */
     public async savePlot(): Promise<void> {
         if (this.currentIndex < 0 || this.currentIndex >= this.plots.length) {
             void vscode.window.showWarningMessage('No plot to save');
@@ -135,7 +128,7 @@ export class PlotManager implements vscode.Disposable {
 
         const plot = this.plots[this.currentIndex];
         const ext = plot.mimeType === 'image/svg+xml' ? 'svg' : 'png';
-        
+
         const uri = await vscode.window.showSaveDialog({
             defaultUri: vscode.Uri.file(`plot-${this.currentIndex + 1}.${ext}`),
             filters: {
@@ -157,9 +150,6 @@ export class PlotManager implements vscode.Disposable {
         }
     }
 
-    /**
-     * Open current plot in browser
-     */
     public async openInBrowser(): Promise<void> {
         if (this.currentIndex < 0 || this.currentIndex >= this.plots.length) {
             void vscode.window.showWarningMessage('No plot to open');
@@ -168,15 +158,14 @@ export class PlotManager implements vscode.Disposable {
 
         const plot = this.plots[this.currentIndex];
         const ext = plot.mimeType === 'image/svg+xml' ? 'svg' : 'png';
-        
-        // Create temp file
+
         const tempDir = path.join(require('os').tmpdir(), 'krarkode-plots');
         await fs.promises.mkdir(tempDir, { recursive: true });
         const tempFile = path.join(tempDir, `plot-${Date.now()}.${ext}`);
-        
+
         const buffer = Buffer.from(plot.base64Data, 'base64');
         await fs.promises.writeFile(tempFile, buffer);
-        
+
         await vscode.env.openExternal(vscode.Uri.file(tempFile));
     }
 
@@ -202,6 +191,9 @@ export class PlotManager implements vscode.Disposable {
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true,
+                    localResourceRoots: [
+                        vscode.Uri.joinPath(getExtensionContext().extensionUri, 'html', 'plotViewer'),
+                    ],
                 }
             );
 
@@ -209,8 +201,10 @@ export class PlotManager implements vscode.Disposable {
                 this.panel = undefined;
             });
 
-            // Handle messages from webview
-            this.panel.webview.onDidReceiveMessage((message: { command: string; value?: number }) => {
+            this.panel.webview.onDidReceiveMessage((message: { message: string; command?: string; plotId?: string; value?: number }) => {
+                if (message.message !== 'command' || !message.command) {
+                    return;
+                }
                 switch (message.command) {
                     case 'previous':
                         this.previousPlot();
@@ -228,7 +222,13 @@ export class PlotManager implements vscode.Disposable {
                         this.setZoom(100);
                         break;
                     case 'zoomFit':
-                        this.setZoom(0); // 0 means fit to container
+                        this.fitToWindow = true;
+                        this.postWebviewMessage({
+                            message: 'setZoom',
+                            zoom: this.currentZoom,
+                            fit: true,
+                        });
+                        this.updateWebviewState();
                         break;
                     case 'save':
                         void this.savePlot();
@@ -240,219 +240,221 @@ export class PlotManager implements vscode.Disposable {
                         this.clearHistory();
                         break;
                     case 'goTo':
-                        if (typeof message.value === 'number') {
-                            this.currentIndex = Math.max(0, Math.min(this.plots.length - 1, message.value));
-                            this.updateWebview();
+                        if (message.plotId) {
+                            const index = this.plots.findIndex(plot => plot.id === message.plotId);
+                            if (index >= 0) {
+                                this.currentIndex = index;
+                                this.focusPlotByIndex(this.currentIndex);
+                            }
                         }
+                        break;
+                    case 'hide':
+                        if (message.plotId) {
+                            this.hidePlot(message.plotId);
+                        }
+                        break;
+                    case 'toggleFullWindow':
+                        this.fullWindow = !this.fullWindow;
+                        this.postWebviewMessage({
+                            message: 'toggleFullWindow',
+                            useFullWindow: this.fullWindow,
+                        });
+                        this.updateWebviewState();
+                        break;
+                    case 'toggleLayout':
+                        this.cyclePreviewLayout();
                         break;
                 }
             });
+
+            this.renderWebview();
         }
 
         this.panel.reveal(viewColumn, true);
+        this.updateWebviewState();
     }
 
-    private updateWebview(): void {
+    private renderWebview(): void {
         if (!this.panel) {
             return;
         }
 
-        const plot = this.plots[this.currentIndex];
-        const hasPlot = plot !== undefined;
-        const hasPrevious = this.currentIndex > 0;
-        const hasNext = this.currentIndex < this.plots.length - 1;
-
-        this.panel.webview.html = this.renderHtml({
-            hasPlot,
-            hasPrevious,
-            hasNext,
-            currentIndex: this.currentIndex,
-            totalPlots: this.plots.length,
-            zoom: this.currentZoom,
-            imageData: plot ? `data:${plot.mimeType};base64,${plot.base64Data}` : '',
-        });
+        this.panel.webview.html = this.renderHtml();
+        this.updateWebviewState();
+        if (this.currentIndex >= 0) {
+            this.focusPlotByIndex(this.currentIndex);
+        }
     }
 
-    private renderHtml(state: {
-        hasPlot: boolean;
-        hasPrevious: boolean;
-        hasNext: boolean;
-        currentIndex: number;
-        totalPlots: number;
-        zoom: number;
-        imageData: string;
-    }): string {
-        const { hasPlot, hasPrevious, hasNext, currentIndex, totalPlots, zoom, imageData } = state;
-        
-        const zoomStyle = zoom === 0 
-            ? 'max-width: 100%; max-height: calc(100vh - 60px); object-fit: contain;'
-            : `width: ${zoom}%; height: auto;`;
+    private renderHtml(): string {
+        const webview = this.panel?.webview;
+        if (!webview) {
+            return '';
+        }
+
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'html', 'plotViewer', 'dist', 'index.js')
+        );
+        const styleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'html', 'plotViewer', 'style.css')
+        );
+
+        const plotsHtml = this.plots
+            .map((plot, index) => this.renderSmallPlot(plot, index === this.currentIndex))
+            .join('');
+        const activePlot = this.plots[this.currentIndex];
+        const activePlotHtml = activePlot ? this.plotToHtml(activePlot) : '';
+
+        const csp = `default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource}; script-src ${webview.cspSource};`;
 
         return `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        :root {
-            --bg: var(--vscode-editor-background);
-            --fg: var(--vscode-editor-foreground);
-            --button-bg: var(--vscode-button-background);
-            --button-fg: var(--vscode-button-foreground);
-            --button-hover: var(--vscode-button-hoverBackground);
-            --border: var(--vscode-panel-border);
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            padding: 0;
-            background: var(--bg);
-            color: var(--fg);
-            font-family: var(--vscode-font-family);
-            font-size: var(--vscode-font-size);
-            overflow: hidden;
-        }
-        .toolbar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
-            border-bottom: 1px solid var(--border);
-            background: var(--bg);
-            flex-wrap: wrap;
-        }
-        .toolbar-group {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .toolbar-separator {
-            width: 1px;
-            height: 20px;
-            background: var(--border);
-            margin: 0 4px;
-        }
-        button {
-            background: var(--button-bg);
-            color: var(--button-fg);
-            border: none;
-            padding: 4px 8px;
-            cursor: pointer;
-            border-radius: 3px;
-            font-size: 12px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        button:hover:not(:disabled) {
-            background: var(--button-hover);
-        }
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .nav-info {
-            font-size: 12px;
-            min-width: 80px;
-            text-align: center;
-        }
-        .zoom-info {
-            font-size: 11px;
-            min-width: 50px;
-            text-align: center;
-        }
-        .plot-container {
-            height: calc(100vh - 50px);
-            overflow: auto;
-            display: flex;
-            justify-content: center;
-            align-items: ${zoom === 0 ? 'center' : 'flex-start'};
-            padding: 10px;
-        }
-        .plot-image {
-            ${zoomStyle}
-            display: block;
-        }
-        .no-plot {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: calc(100vh - 50px);
-            color: var(--vscode-descriptionForeground);
-            font-style: italic;
-        }
-    </style>
+    <meta http-equiv="Content-Security-Policy" content="${csp}">
+    <link href="${styleUri}" rel="stylesheet">
 </head>
 <body>
-    <div class="toolbar">
+    <div id="toolbar">
         <div class="toolbar-group">
-            <button onclick="send('previous')" ${!hasPrevious ? 'disabled' : ''} title="Previous plot (Left Arrow)">
-                ◀ Prev
-            </button>
-            <span class="nav-info">${hasPlot ? `${currentIndex + 1} / ${totalPlots}` : '0 / 0'}</span>
-            <button onclick="send('next')" ${!hasNext ? 'disabled' : ''} title="Next plot (Right Arrow)">
-                Next ▶
-            </button>
+            <button data-cmd="previous" title="Previous plot (Left Arrow)">◀ Prev</button>
+            <span class="nav-info">0 / 0</span>
+            <button data-cmd="next" title="Next plot (Right Arrow)">Next ▶</button>
         </div>
-        
         <div class="toolbar-separator"></div>
-        
         <div class="toolbar-group">
-            <button onclick="send('zoomOut')" ${!hasPlot ? 'disabled' : ''} title="Zoom out (-)">−</button>
-            <span class="zoom-info">${zoom === 0 ? 'Fit' : zoom + '%'}</span>
-            <button onclick="send('zoomIn')" ${!hasPlot ? 'disabled' : ''} title="Zoom in (+)">+</button>
-            <button onclick="send('zoomReset')" ${!hasPlot ? 'disabled' : ''} title="Reset zoom to 100%">100%</button>
-            <button onclick="send('zoomFit')" ${!hasPlot ? 'disabled' : ''} title="Fit to window">Fit</button>
+            <button data-cmd="zoomOut" title="Zoom out (-)">−</button>
+            <span class="zoom-info">Fit</span>
+            <button data-cmd="zoomIn" title="Zoom in (+)">+</button>
+            <button data-cmd="zoomReset" title="Reset zoom to 100%">100%</button>
+            <button data-cmd="zoomFit" title="Fit to window">Fit</button>
         </div>
-        
         <div class="toolbar-separator"></div>
-        
         <div class="toolbar-group">
-            <button onclick="send('save')" ${!hasPlot ? 'disabled' : ''} title="Save plot to file">💾 Save</button>
-            <button onclick="send('openInBrowser')" ${!hasPlot ? 'disabled' : ''} title="Open in browser">🌐 Browser</button>
+            <button data-cmd="toggleLayout" title="Toggle thumbnail layout">Layout</button>
+            <button data-cmd="toggleFullWindow" title="Toggle full window">Full</button>
         </div>
-        
         <div class="toolbar-separator"></div>
-        
         <div class="toolbar-group">
-            <button onclick="send('clear')" ${!hasPlot ? 'disabled' : ''} title="Clear all plots">🗑 Clear</button>
+            <button data-cmd="save" title="Save plot to file">Save</button>
+            <button data-cmd="clear" title="Clear all plots">Clear</button>
         </div>
     </div>
-    
-    ${hasPlot 
-        ? `<div class="plot-container"><img class="plot-image" src="${imageData}" alt="Plot ${currentIndex + 1}"></div>`
-        : `<div class="no-plot">No plots yet. Run some R code that generates plots.</div>`
-    }
-    
-    <script>
-        const vscode = acquireVsCodeApi();
-        
-        function send(command, value) {
-            vscode.postMessage({ command, value });
-        }
-        
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft') {
-                send('previous');
-            } else if (e.key === 'ArrowRight') {
-                send('next');
-            } else if (e.key === '+' || e.key === '=') {
-                send('zoomIn');
-            } else if (e.key === '-') {
-                send('zoomOut');
-            } else if (e.key === '0') {
-                send('zoomReset');
-            } else if (e.key === 'f' || e.key === 'F') {
-                send('zoomFit');
-            } else if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                send('save');
-            }
-        });
-    </script>
+    <div id="largePlot" class="${this.fitToWindow ? 'fit-to-window' : ''}">
+        ${activePlotHtml}
+    </div>
+    <div id="handler"></div>
+    <div id="smallPlots" class="${this.previewLayout}">
+        ${plotsHtml}
+    </div>
+    <script src="${scriptUri}"></script>
 </body>
 </html>`;
+    }
+
+    private renderSmallPlot(plot: PlotEntry, isActive: boolean): string {
+        return `<div class="wrapper${isActive ? ' active' : ''}" data-plot-id="${plot.id}">
+    <div class="plotContent">${this.plotToHtml(plot)}</div>
+    <button class="hidePlot" title="Hide plot">×</button>
+</div>`;
+    }
+
+    private plotToHtml(plot: PlotEntry): string {
+        const dataUri = `data:${plot.mimeType};base64,${plot.base64Data}`;
+        return `<img src="${dataUri}" alt="Plot ${plot.id}">`;
+    }
+
+    private focusPlotByIndex(index: number): void {
+        const plot = this.plots[index];
+        if (!plot) {
+            return;
+        }
+
+        this.postWebviewMessage({
+            message: 'focusPlot',
+            plotId: plot.id,
+        });
+        this.updateWebviewState();
+    }
+
+    private hidePlot(plotId: string): void {
+        const index = this.plots.findIndex(plot => plot.id === plotId);
+        if (index < 0) {
+            return;
+        }
+
+        this.plots.splice(index, 1);
+        if (this.currentIndex >= this.plots.length) {
+            this.currentIndex = this.plots.length - 1;
+        } else if (index < this.currentIndex) {
+            this.currentIndex -= 1;
+        }
+
+        this.postWebviewMessage({
+            message: 'hidePlot',
+            plotId,
+        });
+
+        if (this.currentIndex >= 0) {
+            this.focusPlotByIndex(this.currentIndex);
+        } else {
+            this.postWebviewMessage({
+                message: 'focusPlot',
+                plotId: '',
+            });
+        }
+
+        this.updateWebviewState();
+    }
+
+    private cyclePreviewLayout(): void {
+        switch (this.previewLayout) {
+            case 'multirow':
+                this.previewLayout = 'scroll';
+                break;
+            case 'scroll':
+                this.previewLayout = 'hidden';
+                break;
+            case 'hidden':
+                this.previewLayout = 'multirow';
+                break;
+        }
+
+        this.postWebviewMessage({
+            message: 'setLayout',
+            layout: this.previewLayout,
+        });
+        this.updateWebviewState();
+    }
+
+    private updateWebviewState(): void {
+        if (!this.panel) {
+            return;
+        }
+
+        const hasPrevious = this.currentIndex > 0;
+        const hasNext = this.currentIndex < this.plots.length - 1;
+        this.postWebviewMessage({
+            message: 'updateState',
+            currentIndex: this.currentIndex,
+            totalPlots: this.plots.length,
+            zoom: this.currentZoom,
+            fit: this.fitToWindow,
+            hasPrevious,
+            hasNext,
+            fullWindow: this.fullWindow,
+            layout: this.previewLayout,
+        });
+        this.postWebviewMessage({
+            message: 'setZoom',
+            zoom: this.currentZoom,
+            fit: this.fitToWindow,
+        });
+    }
+
+    private postWebviewMessage(message: Record<string, unknown>): void {
+        void this.panel?.webview.postMessage(message);
     }
 
     private asViewColumn(value: string | undefined, defaultColumn: vscode.ViewColumn): vscode.ViewColumn {
