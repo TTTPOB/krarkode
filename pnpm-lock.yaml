@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@tanstack/table-core':
+        specifier: ^8.21.3
+        version: 8.21.3
+      '@tanstack/virtual-core':
+        specifier: ^3.13.18
+        version: 3.13.18
       vscode-languageclient:
         specifier: ^9.0.1
         version: 9.0.1
@@ -183,6 +189,13 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@tanstack/table-core@8.21.3':
+    resolution: {integrity: sha512-ldZXEhOBb8Is7xLs01fR3YEc3DERiz5silj8tnGkFZytt1abEvl/GhUmCE0PMLaMPTa3Jk4HbKmRlHmu+gCftg==}
+    engines: {node: '>=12'}
+
+  '@tanstack/virtual-core@3.13.18':
+    resolution: {integrity: sha512-Mx86Hqu1k39icq2Zusq+Ey2J6dDWTjDvEv43PJtRCoEYTLyfaPnxIQ6iy7YAOK0NV/qOEmZQ/uCufrppZxTgcg==}
+
   '@types/node@20.19.30':
     resolution: {integrity: sha512-WJtwWJu7UdlvzEAUm484QNg5eAoq5QR08KDNx7g45Usrs2NtOPiX8ugDqmKdXkyL03rBqU5dYNYVQetEpBHq2g==}
 
@@ -310,6 +323,10 @@ snapshots:
 
   '@esbuild/win32-x64@0.25.12':
     optional: true
+
+  '@tanstack/table-core@8.21.3': {}
+
+  '@tanstack/virtual-core@3.13.18': {}
 
   '@types/node@20.19.30':
     dependencies:

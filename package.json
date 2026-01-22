@@ -11,7 +11,7 @@
     "Programming Languages",
     "Other"
   ],
-      "activationEvents": [
+  "activationEvents": [
     "onLanguage:r",
     "onLanguage:rmd",
     "onCommand:krarkode.createArkSession",
@@ -184,7 +184,7 @@
         "category": "Help"
       }
     ],
-        "keybindings": [
+    "keybindings": [
       {
         "command": "krarkode.runSelection",
         "key": "ctrl+enter",
@@ -217,7 +217,7 @@
     ]
   },
   "scripts": {
-    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && esbuild src/html/dataExplorer/dataExplorer.ts --bundle --outfile=dist/html/dataExplorer/dataExplorer.js --format=iife && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
     "vscode:prepublish": "pnpm run compile"
   },
@@ -228,6 +228,8 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
+    "@tanstack/table-core": "^8.21.3",
+    "@tanstack/virtual-core": "^3.13.18",
     "vscode-languageclient": "^9.0.1"
   }
 }
