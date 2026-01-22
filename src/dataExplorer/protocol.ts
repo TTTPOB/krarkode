@@ -8,7 +8,10 @@ export interface BackendState {
     table_shape: TableShape;
     table_unfiltered_shape: TableShape;
     has_row_labels: boolean;
-    supported_features?: unknown;
+    column_filters?: unknown[];
+    row_filters?: unknown[];
+    sort_keys?: ColumnSortKey[];
+    supported_features?: SupportedFeatures;
     connected?: boolean;
     error_message?: string;
 }
@@ -20,6 +23,22 @@ export interface ColumnSchema {
     type_name: string;
     type_display: string;
     description?: string;
+}
+
+export type SupportStatus = 'supported' | 'unsupported';
+
+export interface ColumnSortKey {
+    column_index: number;
+    ascending: boolean;
+}
+
+export interface SetSortColumnsFeatures {
+    support_status?: SupportStatus;
+}
+
+export interface SupportedFeatures {
+    set_sort_columns?: SetSortColumnsFeatures;
+    [key: string]: unknown;
 }
 
 export interface TableSchema {

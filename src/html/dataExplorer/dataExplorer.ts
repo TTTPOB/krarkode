@@ -22,6 +22,8 @@ interface BackendState {
     table_shape: TableShape;
     table_unfiltered_shape: TableShape;
     has_row_labels: boolean;
+    sort_keys?: ColumnSortKey[];
+    supported_features?: SupportedFeatures;
 }
 
 interface ColumnSchema {
@@ -31,6 +33,22 @@ interface ColumnSchema {
     type_name: string;
     type_display: string;
     description?: string;
+}
+
+type SupportStatus = 'supported' | 'unsupported';
+
+interface ColumnSortKey {
+    column_index: number;
+    ascending: boolean;
+}
+
+interface SetSortColumnsFeatures {
+    support_status?: SupportStatus;
+}
+
+interface SupportedFeatures {
+    set_sort_columns?: SetSortColumnsFeatures;
+    [key: string]: unknown;
 }
 
 type ColumnValue = string | number;
@@ -45,6 +63,13 @@ interface RowsMessage {
 interface InitMessage {
     state: BackendState;
     schema: ColumnSchema[];
+}
+
+type SortDirection = 'asc' | 'desc';
+
+interface SortState {
+    columnIndex: number;
+    direction: SortDirection;
 }
 
 interface RowData {
@@ -83,6 +108,7 @@ let columnTemplate = '';
 let lastScrollLeft = 0;
 let headerRowElement: HTMLDivElement | undefined;
 let rowVirtualizerCleanup: (() => void) | undefined;
+let activeSort: SortState | null = null;
 
 refreshButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'refresh' });
@@ -119,6 +145,7 @@ function handleInit(message: InitMessage) {
     rowLabelCache.clear();
     loadedBlocks.clear();
     loadingBlocks.clear();
+    activeSort = resolveSortState(state.sort_keys);
     renderHeader();
     setupTable();
     setupVirtualizer();
@@ -247,6 +274,7 @@ function renderHeader() {
         return;
     }
 
+    const sortSupported = isSortSupported();
     const columnCount = schema.length;
     const totalWidth = ROW_LABEL_WIDTH + columnCount * COLUMN_WIDTH;
     columnTemplate = `${ROW_LABEL_WIDTH}px ${Array.from({ length: columnCount })
@@ -270,12 +298,24 @@ function renderHeader() {
         cell.className = 'table-cell header-cell';
         const headerLabel = column.column_label || column.column_name || `Col${column.column_index + 1}`;
         cell.title = headerLabel;
-        cell.textContent = headerLabel;
+        const label = document.createElement('span');
+        label.className = 'header-label';
+        label.textContent = headerLabel;
+        cell.appendChild(label);
+        const indicator = document.createElement('span');
+        indicator.className = 'sort-indicator';
+        cell.appendChild(indicator);
+        cell.dataset.columnIndex = String(column.column_index);
+        if (sortSupported) {
+            cell.classList.add('sortable');
+            cell.addEventListener('click', () => handleHeaderSort(column.column_index));
+        }
         headerRow.appendChild(cell);
     }
 
     tableHeader.appendChild(headerRow);
     updateHeaderScroll(tableBody.scrollLeft);
+    updateHeaderSortIndicators();
     tableTitle.textContent = state.display_name || 'Data Explorer';
     const { num_rows, num_columns } = state.table_shape;
     const { num_rows: rawRows, num_columns: rawColumns } = state.table_unfiltered_shape;
@@ -283,6 +323,62 @@ function renderHeader() {
         ? ` (${rawRows}x${rawColumns} raw)`
         : '';
     tableMeta.textContent = `${num_rows}x${num_columns}${filteredText}`;
+}
+
+function handleHeaderSort(columnIndex: number): void {
+    if (!isSortSupported()) {
+        return;
+    }
+    activeSort = getNextSort(columnIndex);
+    updateHeaderSortIndicators();
+    vscode.postMessage({
+        type: 'setSort',
+        sortKey: activeSort
+            ? { columnIndex: activeSort.columnIndex, direction: activeSort.direction }
+            : null,
+    });
+}
+
+function getNextSort(columnIndex: number): SortState | null {
+    if (!activeSort || activeSort.columnIndex !== columnIndex) {
+        return { columnIndex, direction: 'asc' };
+    }
+    if (activeSort.direction === 'asc') {
+        return { columnIndex, direction: 'desc' };
+    }
+    return null;
+}
+
+function resolveSortState(sortKeys?: ColumnSortKey[]): SortState | null {
+    if (!sortKeys || sortKeys.length === 0) {
+        return null;
+    }
+    const primary = sortKeys[0];
+    return {
+        columnIndex: primary.column_index,
+        direction: primary.ascending ? 'asc' : 'desc',
+    };
+}
+
+function updateHeaderSortIndicators(): void {
+    if (!headerRowElement) {
+        return;
+    }
+    const headerCells = headerRowElement.querySelectorAll<HTMLDivElement>('.header-cell.sortable');
+    headerCells.forEach((cell) => {
+        const columnIndex = Number(cell.dataset.columnIndex);
+        const indicator = cell.querySelector<HTMLSpanElement>('.sort-indicator');
+        cell.classList.remove('sorted-asc', 'sorted-desc');
+        if (activeSort && columnIndex === activeSort.columnIndex) {
+            const directionClass = activeSort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc';
+            cell.classList.add(directionClass);
+            if (indicator) {
+                indicator.textContent = activeSort.direction === 'asc' ? '^' : 'v';
+            }
+        } else if (indicator) {
+            indicator.textContent = '';
+        }
+    });
 }
 
 function requestInitialBlock(): void {
@@ -406,6 +502,14 @@ function formatColumnValue(value: ColumnValue): string {
         return formatSpecialValue(value);
     }
     return value ?? '';
+}
+
+function isSortSupported(): boolean {
+    const status = state?.supported_features?.set_sort_columns?.support_status;
+    if (!status) {
+        return true;
+    }
+    return status === 'supported';
 }
 
 function formatSpecialValue(code: number): string {

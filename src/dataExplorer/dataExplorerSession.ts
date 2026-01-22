@@ -4,6 +4,7 @@ import { ArkSidecarManager } from '../ark/sidecarManager';
 import {
     ArraySelection,
     BackendState,
+    ColumnSortKey,
     ColumnSelection,
     FormatOptions,
     TableData,
@@ -30,6 +31,7 @@ const REPLY_METHODS = {
     getSchema: 'GetSchemaReply',
     getDataValues: 'GetDataValuesReply',
     getRowLabels: 'GetRowLabelsReply',
+    setSortColumns: 'SetSortColumnsReply',
 };
 
 export const DEFAULT_FORMAT_OPTIONS: FormatOptions = {
@@ -92,6 +94,12 @@ export class DataExplorerSession implements vscode.Disposable {
         return this.sendRpc<TableRowLabels>('get_row_labels', REPLY_METHODS.getRowLabels, {
             selection,
             format_options: formatOptions,
+        });
+    }
+
+    async setSortColumns(sortKeys: ColumnSortKey[]): Promise<void> {
+        await this.sendRpc<void>('set_sort_columns', REPLY_METHODS.setSortColumns, {
+            sort_keys: sortKeys,
         });
     }
 

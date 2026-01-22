@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
-import { BackendState, ColumnSelection, TableSchema } from './protocol';
+import { BackendState, ColumnSelection, ColumnSortKey, TableSchema } from './protocol';
 
 type RowRangeRequest = {
     startIndex: number;
@@ -16,6 +16,7 @@ class DataExplorerPanel implements vscode.Disposable {
     private schema: TableSchema | undefined;
     private pendingRange: RowRangeRequest | undefined;
     private requestInFlight = false;
+    private sortInFlight = false;
     private disposed = false;
 
     constructor(
@@ -119,7 +120,72 @@ class DataExplorerPanel implements vscode.Disposable {
                     });
                 }
                 return;
+            case 'setSort': {
+                const sortKey = this.parseSortKey(message.sortKey);
+                void this.applySort(sortKey);
+                return;
+            }
         }
+    }
+
+    private parseSortKey(value: unknown): { columnIndex: number; direction: 'asc' | 'desc' } | null {
+        if (!value || typeof value !== 'object') {
+            return null;
+        }
+        const candidate = value as { columnIndex?: unknown; direction?: unknown };
+        if (typeof candidate.columnIndex !== 'number') {
+            return null;
+        }
+        if (candidate.direction !== 'asc' && candidate.direction !== 'desc') {
+            return null;
+        }
+        return { columnIndex: candidate.columnIndex, direction: candidate.direction };
+    }
+
+    private async applySort(sortKey: { columnIndex: number; direction: 'asc' | 'desc' } | null): Promise<void> {
+        if (!this.state) {
+            return;
+        }
+        if (!this.isSortSupported()) {
+            this.log('Sort request ignored; backend does not support set_sort_columns.');
+            return;
+        }
+        if (this.sortInFlight) {
+            this.log('Sort request ignored; sort already in flight.');
+            return;
+        }
+
+        const sortKeys: ColumnSortKey[] = sortKey
+            ? [{ column_index: sortKey.columnIndex, ascending: sortKey.direction === 'asc' }]
+            : [];
+
+        const description = sortKey
+            ? `column ${sortKey.columnIndex} ${sortKey.direction}`
+            : 'cleared';
+        this.log(`Applying sort: ${description}.`);
+
+        this.sortInFlight = true;
+        try {
+            await this.session.setSortColumns(sortKeys);
+            await this.initialize();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to apply sort: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        } finally {
+            this.sortInFlight = false;
+        }
+    }
+
+    private isSortSupported(): boolean {
+        const supportStatus = this.state?.supported_features?.set_sort_columns?.support_status;
+        if (!supportStatus) {
+            return true;
+        }
+        return supportStatus === 'supported';
     }
 
     private async enqueueRowRequest(range: RowRangeRequest): Promise<void> {

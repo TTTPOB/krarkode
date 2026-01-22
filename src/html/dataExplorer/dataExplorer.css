@@ -89,6 +89,31 @@ body {
     border-right: 1px solid var(--vscode-editorWidget-border);
 }
 
+.table-cell.header-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.table-cell.header-cell.sortable {
+    cursor: pointer;
+}
+
+.table-cell.header-cell.sortable:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.table-cell.header-cell.sorted-asc,
+.table-cell.header-cell.sorted-desc {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+}
+
+.sort-indicator {
+    font-size: 0.85em;
+    opacity: 0.85;
+}
+
 .table-cell:last-child {
     border-right: none;
 }
