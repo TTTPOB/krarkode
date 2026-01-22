@@ -239,6 +239,18 @@
             "Disable"
           ],
           "description": "View column for plot viewer. Set to 'Disable' to disable the plot viewer."
+        },
+        "krarkode.html.viewColumn": {
+          "type": "string",
+          "default": "Two",
+          "enum": [
+            "Active",
+            "Beside",
+            "One",
+            "Two",
+            "Three"
+          ],
+          "description": "View column for HTML viewer (ShowHtmlFile destination=viewer)."
         }
       }
     }

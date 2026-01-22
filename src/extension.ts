@@ -5,6 +5,7 @@ import { ArkLanguageService } from './ark/arkLanguageService';
 import { CodeExecutor } from './ark/codeExecutor';
 import { ArkSidecarManager } from './ark/plotWatcher';
 import { ArkCommBackend } from './ark/arkCommBackend';
+import { HtmlViewer } from './ark/htmlViewer';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 
@@ -13,6 +14,7 @@ let languageService: ArkLanguageService | undefined;
 let codeExecutor: CodeExecutor | undefined;
 let sidecarManager: ArkSidecarManager | undefined;
 let plotBackend: ArkCommBackend | undefined;
+let htmlViewer: HtmlViewer | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
@@ -28,6 +30,17 @@ export function activate(context: vscode.ExtensionContext): void {
     plotBackend = new ArkCommBackend(sidecarManager);
     void plotBackend.connect();
     context.subscriptions.push(plotBackend);
+    
+    // Create HTML viewer for ShowHtmlFile events
+    htmlViewer = new HtmlViewer();
+    context.subscriptions.push(htmlViewer);
+    
+    // Connect sidecar events to HTML viewer
+    context.subscriptions.push(
+        sidecarManager.onDidShowHtmlFile((params) => {
+            void htmlViewer?.showHtmlFile(params);
+        })
+    );
     
     sessionManager = new ArkSessionManager();
     sessionManager.registerCommands(context);
@@ -69,6 +82,8 @@ export function deactivate(): void {
     languageService = undefined;
     codeExecutor?.dispose();
     codeExecutor = undefined;
+    htmlViewer?.dispose();
+    htmlViewer = undefined;
     plotBackend?.dispose();
     plotBackend = undefined;
     sidecarManager?.dispose();
