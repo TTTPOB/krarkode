@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getExtensionContext } from '../context';
+import type { PlotRenderResult } from './arkCommBackend';
 import * as util from '../util';
 
 interface PlotEntry {
@@ -10,9 +11,17 @@ interface PlotEntry {
     base64Data: string;
     mimeType: string;
     displayId?: string;
+    renderable?: boolean;
+    renderFormat?: 'png' | 'svg';
 }
 
 type PreviewLayout = 'multirow' | 'scroll' | 'hidden';
+
+export interface DynamicPlotSource {
+    readonly onDidOpenPlot: vscode.Event<{ plotId: string; preRender?: PlotRenderResult }>;
+    readonly onDidClosePlot: vscode.Event<{ plotId: string }>;
+    renderPlot(id: string, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg'): Promise<PlotRenderResult>;
+}
 
 export class PlotManager implements vscode.Disposable {
     private panel: vscode.WebviewPanel | undefined;
@@ -22,11 +31,22 @@ export class PlotManager implements vscode.Disposable {
     private fitToWindow = true;
     private fullWindow = false;
     private previewLayout: PreviewLayout = 'multirow';
+    private renderSource?: DynamicPlotSource;
+    private renderTimeout?: NodeJS.Timeout;
+    private lastRenderSize: { width: number; height: number; dpr: number } | undefined;
+    private readonly disposables: vscode.Disposable[] = [];
     private readonly maxHistory: number;
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Plot Manager');
 
-    constructor() {
+    constructor(renderSource?: DynamicPlotSource) {
         this.maxHistory = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;
+        this.renderSource = renderSource;
+        if (renderSource) {
+            this.disposables.push(
+                renderSource.onDidOpenPlot((event) => this.addDynamicPlot(event.plotId, event.preRender)),
+                renderSource.onDidClosePlot((event) => this.removePlot(event.plotId))
+            );
+        }
     }
 
     public addPlot(base64Data: string, mimeType: string = 'image/png', displayId?: string): void {
@@ -41,6 +61,8 @@ export class PlotManager implements vscode.Disposable {
             base64Data,
             mimeType,
             displayId,
+            renderable: false,
+            renderFormat: mimeType === 'image/svg+xml' ? 'svg' : 'png',
         };
 
         if (displayId) {
@@ -85,6 +107,50 @@ export class PlotManager implements vscode.Disposable {
         this.updateWebviewState();
     }
 
+    private addDynamicPlot(plotId: string, preRender?: PlotRenderResult): void {
+        const configured = util.config().get<string>('krarkode.plot.viewColumn');
+        if (configured === 'Disable') {
+            return;
+        }
+
+        const mimeType = preRender?.mimeType ?? 'image/png';
+        const entry: PlotEntry = {
+            id: plotId,
+            timestamp: Date.now(),
+            base64Data: preRender?.data ?? '',
+            mimeType,
+            renderable: true,
+            renderFormat: preRender?.format ?? (mimeType === 'image/svg+xml' ? 'svg' : 'png'),
+        };
+
+        this.plots.push(entry);
+
+        while (this.plots.length > this.maxHistory) {
+            this.plots.shift();
+            if (this.currentIndex > 0) {
+                this.currentIndex--;
+            }
+        }
+
+        this.currentIndex = this.plots.length - 1;
+        const hadPanel = !!this.panel;
+        this.showPanel();
+
+        if (this.panel && hadPanel) {
+            this.postWebviewMessage({
+                message: 'addPlot',
+                plotId: entry.id,
+                data: this.plotToHtml(entry),
+                isActive: true,
+            });
+            this.focusPlotByIndex(this.currentIndex);
+        }
+        this.updateWebviewState();
+        if (!preRender?.data) {
+            this.scheduleRender(true);
+        }
+    }
+
     public getPlotCount(): number {
         return this.plots.length;
     }
@@ -92,6 +158,10 @@ export class PlotManager implements vscode.Disposable {
     public clearHistory(): void {
         this.plots.length = 0;
         this.currentIndex = -1;
+        if (this.renderTimeout) {
+            clearTimeout(this.renderTimeout);
+            this.renderTimeout = undefined;
+        }
         this.renderWebview();
     }
 
@@ -118,6 +188,7 @@ export class PlotManager implements vscode.Disposable {
             fit: false,
         });
         this.updateWebviewState();
+        this.scheduleRender(true);
     }
 
     public async savePlot(): Promise<void> {
@@ -172,6 +243,12 @@ export class PlotManager implements vscode.Disposable {
     public dispose(): void {
         this.panel?.dispose();
         this.panel = undefined;
+        if (this.renderTimeout) {
+            clearTimeout(this.renderTimeout);
+            this.renderTimeout = undefined;
+        }
+        this.disposables.forEach(disposable => disposable.dispose());
+        this.disposables.length = 0;
         this.outputChannel.dispose();
     }
 
@@ -201,7 +278,18 @@ export class PlotManager implements vscode.Disposable {
                 this.panel = undefined;
             });
 
-            this.panel.webview.onDidReceiveMessage((message: { message: string; command?: string; plotId?: string; value?: number }) => {
+            this.panel.webview.onDidReceiveMessage((message: { message: string; command?: string; plotId?: string; value?: number; width?: number; height?: number; dpr?: number; userTriggered?: boolean }) => {
+                if (message.message === 'resize') {
+                    if (typeof message.width === 'number' && typeof message.height === 'number') {
+                        this.handleResize({
+                            width: message.width,
+                            height: message.height,
+                            dpr: typeof message.dpr === 'number' ? message.dpr : 1,
+                            userTriggered: !!message.userTriggered,
+                        });
+                    }
+                    return;
+                }
                 if (message.message !== 'command' || !message.command) {
                     return;
                 }
@@ -229,6 +317,7 @@ export class PlotManager implements vscode.Disposable {
                             fit: true,
                         });
                         this.updateWebviewState();
+                        this.scheduleRender(true);
                         break;
                     case 'save':
                         void this.savePlot();
@@ -361,6 +450,9 @@ export class PlotManager implements vscode.Disposable {
     }
 
     private plotToHtml(plot: PlotEntry): string {
+        if (!plot.base64Data) {
+            return '<div class="no-plot">Rendering plot...</div>';
+        }
         const dataUri = `data:${plot.mimeType};base64,${plot.base64Data}`;
         return `<img src="${dataUri}" alt="Plot ${plot.id}">`;
     }
@@ -376,9 +468,14 @@ export class PlotManager implements vscode.Disposable {
             plotId: plot.id,
         });
         this.updateWebviewState();
+        this.scheduleRender(true);
     }
 
     private hidePlot(plotId: string): void {
+        this.removePlot(plotId);
+    }
+
+    private removePlot(plotId: string): void {
         const index = this.plots.findIndex(plot => plot.id === plotId);
         if (index < 0) {
             return;
@@ -426,6 +523,84 @@ export class PlotManager implements vscode.Disposable {
             layout: this.previewLayout,
         });
         this.updateWebviewState();
+    }
+
+    private handleResize(payload: { width: number; height: number; dpr: number; userTriggered: boolean }): void {
+        this.lastRenderSize = {
+            width: payload.width,
+            height: payload.height,
+            dpr: payload.dpr,
+        };
+        this.scheduleRender(payload.userTriggered);
+    }
+
+    private scheduleRender(userTriggered: boolean): void {
+        if (!this.isActivePlotRenderable()) {
+            return;
+        }
+
+        if (this.renderTimeout) {
+            clearTimeout(this.renderTimeout);
+        }
+
+        const delay = userTriggered ? 0 : 150;
+        if (delay === 0) {
+            void this.renderActivePlot();
+            return;
+        }
+
+        this.renderTimeout = setTimeout(() => {
+            this.renderTimeout = undefined;
+            void this.renderActivePlot();
+        }, delay);
+    }
+
+    private isActivePlotRenderable(): boolean {
+        const plot = this.plots[this.currentIndex];
+        return !!this.renderSource && !!plot?.renderable;
+    }
+
+    private async renderActivePlot(): Promise<void> {
+        if (!this.renderSource) {
+            return;
+        }
+
+        const plot = this.plots[this.currentIndex];
+        if (!plot?.renderable) {
+            return;
+        }
+
+        const renderSize = this.lastRenderSize ?? { width: 800, height: 600, dpr: 1 };
+        const scale = this.fitToWindow ? 1 : this.currentZoom / 100;
+        const pixelRatio = Math.max(0.1, renderSize.dpr * scale);
+        const format = plot.renderFormat ?? (plot.mimeType === 'image/svg+xml' ? 'svg' : 'png');
+        const plotId = plot.id;
+
+        try {
+            const result = await this.renderSource.renderPlot(
+                plotId,
+                {
+                    width: Math.max(1, Math.round(renderSize.width)),
+                    height: Math.max(1, Math.round(renderSize.height)),
+                },
+                pixelRatio,
+                format
+            );
+            const updated = this.plots.find((entry) => entry.id === plotId);
+            if (!updated) {
+                return;
+            }
+            updated.base64Data = result.data;
+            updated.mimeType = result.mimeType;
+            updated.renderFormat = result.format;
+            this.postWebviewMessage({
+                message: 'updatePlot',
+                plotId,
+                data: this.plotToHtml(updated),
+            });
+        } catch (err) {
+            this.outputChannel.appendLine(`Failed to render plot ${plotId}: ${String(err)}`);
+        }
     }
 
     private updateWebviewState(): void {

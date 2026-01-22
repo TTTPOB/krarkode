@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from './plotWatcher';
-import * as util from '../util';
 
 /**
  * PlotId is a string identifier for a plot (matches comm_id).
@@ -22,6 +21,12 @@ export interface PlotRenderer {
     name: string;
     descr: string;
     ext: string;
+}
+
+export interface PlotRenderResult {
+    data: string;
+    mimeType: string;
+    format: 'png' | 'svg';
 }
 
 /**
@@ -76,11 +81,16 @@ export class ArkCommBackend implements IPlotBackend {
     private readonly _onDeviceActiveChanged = new vscode.EventEmitter<void>();
     public readonly onDeviceActiveChanged = this._onDeviceActiveChanged.event;
 
+    private readonly _onDidOpenPlot = new vscode.EventEmitter<{ plotId: PlotId; preRender?: PlotRenderResult }>();
+    public readonly onDidOpenPlot = this._onDidOpenPlot.event;
+
+    private readonly _onDidClosePlot = new vscode.EventEmitter<{ plotId: PlotId }>();
+    public readonly onDidClosePlot = this._onDidClosePlot.event;
+
     private readonly disposables: vscode.Disposable[] = [];
     private readonly plots = new Map<PlotId, PlotValidation>();
     private readonly pendingRenders = new Map<PlotId, { resolve: (result: { data: string; mime_type: string }) => void; reject: (err: unknown) => void }>();
     
-    private plotPanel: vscode.WebviewPanel | undefined;
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Plot Comm');
 
     constructor(private readonly sidecarManager: ArkSidecarManager) {
@@ -107,11 +117,11 @@ export class ArkCommBackend implements IPlotBackend {
         this.plots.clear();
         this.pendingRenders.forEach(p => p.reject(new Error('Backend disposed')));
         this.pendingRenders.clear();
-        this.plotPanel?.dispose();
-        this.plotPanel = undefined;
         this._onPlotsChanged.dispose();
         this._onConnectionChanged.dispose();
         this._onDeviceActiveChanged.dispose();
+        this._onDidOpenPlot.dispose();
+        this._onDidClosePlot.dispose();
         this.outputChannel.dispose();
     }
 
@@ -120,8 +130,13 @@ export class ArkCommBackend implements IPlotBackend {
     }
 
     public async getPlotContent(id: PlotId, width: number, height: number, zoom: number, renderer: string): Promise<string> {
+        const format = (renderer === 'svg' || renderer === 'svgp') ? 'svg' : 'png';
+        const result = await this.renderPlot(id, { width, height }, zoom, format);
+        return `<img src="data:${result.mimeType};base64,${result.data}" style="max-width: 100%; max-height: 100%;" />`;
+    }
+
+    public async renderPlot(id: PlotId, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg'): Promise<PlotRenderResult> {
         return new Promise<{ data: string; mime_type: string }>((resolve, reject) => {
-            // Cancel any previous pending render for this plot
             const pending = this.pendingRenders.get(id);
             if (pending) {
                 pending.reject(new Error('Cancelled by new render request'));
@@ -129,29 +144,21 @@ export class ArkCommBackend implements IPlotBackend {
 
             this.pendingRenders.set(id, { resolve, reject });
 
-            // renderer can be 'svg', 'svgp', 'png'
-            const format = (renderer === 'svg' || renderer === 'svgp') ? 'svg' : 'png';
-
             const request: ArkRenderRequest = {
                 method: 'render',
                 params: {
-                    size: { width, height },
-                    pixel_ratio: zoom,
-                    format: format
-                }
+                    size: { width: size.width, height: size.height },
+                    pixel_ratio: pixelRatio,
+                    format: format,
+                },
             };
-            
+
             this.sidecarManager.sendCommMessage(id, request);
-        }).then(({ data, mime_type }) => {
-             if (mime_type === 'image/svg+xml') {
-                 // data is base64 encoded SVG
-                 // We can display it using data URI or decode it.
-                 // Data URI is safer and easier.
-                 return `<img src="data:${mime_type};base64,${data}" style="max-width: 100%; max-height: 100%;" />`;
-             } else {
-                 return `<img src="data:${mime_type};base64,${data}" style="max-width: 100%; max-height: 100%;" />`;
-             }
-        });
+        }).then(({ data, mime_type }) => ({
+            data,
+            mimeType: mime_type,
+            format: mime_type === 'image/svg+xml' ? 'svg' : 'png',
+        }));
     }
 
     public getRenderers(): PlotRenderer[] {
@@ -186,9 +193,19 @@ export class ArkCommBackend implements IPlotBackend {
         const plot: PlotValidation = { id: e.commId };
         this.plots.set(e.commId, plot);
         this._onPlotsChanged.fire(this.getPlots());
-        
-        // Auto-render the new plot
-        void this.autoRenderPlot(e.commId);
+
+        const payload = e.data as Record<string, unknown> | undefined;
+        const preRenderData = payload?.pre_render as Record<string, unknown> | undefined;
+        let preRender: PlotRenderResult | undefined;
+        if (preRenderData && typeof preRenderData.data === 'string' && typeof preRenderData.mime_type === 'string') {
+            preRender = {
+                data: preRenderData.data,
+                mimeType: preRenderData.mime_type,
+                format: preRenderData.mime_type === 'image/svg+xml' ? 'svg' : 'png',
+            };
+        }
+
+        this._onDidOpenPlot.fire({ plotId: e.commId, preRender });
     }
 
     private handleClosePlot(e: { commId: string }): void {
@@ -196,6 +213,7 @@ export class ArkCommBackend implements IPlotBackend {
             this.plots.delete(e.commId);
             this._onPlotsChanged.fire(this.getPlots());
         }
+        this._onDidClosePlot.fire({ plotId: e.commId });
     }
 
     private handleMessage(e: { commId: string; data: unknown }): void {
@@ -210,57 +228,6 @@ export class ArkCommBackend implements IPlotBackend {
             }
             this.pendingRenders.delete(e.commId);
         }
-    }
-
-    private async autoRenderPlot(plotId: PlotId): Promise<void> {
-        const configured = util.config().get<string>('krarkode.plot.viewColumn');
-        if (configured === 'Disable') {
-            return;
-        }
-
-        try {
-            // Request render with default size
-            const htmlContent = await this.getPlotContent(plotId, 800, 600, 1, 'png');
-            this.showPlotInPanel(plotId, htmlContent);
-        } catch (err) {
-            this.outputChannel.appendLine(`Failed to render plot ${plotId}: ${String(err)}`);
-        }
-    }
-
-    private showPlotInPanel(plotId: PlotId, htmlContent: string): void {
-        const configured = util.config().get<string>('krarkode.plot.viewColumn');
-        if (configured === 'Disable') {
-            return;
-        }
-
-        const viewColumn = this.asViewColumn(configured, vscode.ViewColumn.Two);
-
-        if (!this.plotPanel) {
-            this.plotPanel = vscode.window.createWebviewPanel(
-                'arkCommPlot',
-                'Ark Plot',
-                { preserveFocus: true, viewColumn },
-                { enableScripts: true, retainContextWhenHidden: true }
-            );
-            this.plotPanel.onDidDispose(() => {
-                this.plotPanel = undefined;
-            });
-        }
-
-        this.plotPanel.webview.html = `<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body { margin: 0; padding: 0; background: var(--vscode-editor-background); display: flex; justify-content: center; align-items: center; height: 100vh; }
-        img { max-width: 100%; max-height: 100%; }
-    </style>
-</head>
-<body>
-    ${htmlContent}
-</body>
-</html>`;
-        this.plotPanel.reveal(viewColumn, true);
     }
 
     private asViewColumn(value: string | undefined, defaultColumn: vscode.ViewColumn): vscode.ViewColumn {

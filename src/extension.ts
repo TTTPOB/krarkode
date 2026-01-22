@@ -38,7 +38,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(htmlViewer);
     
     // Create plot manager for display_data plots
-    plotManager = new PlotManager();
+    plotManager = new PlotManager(plotBackend);
     context.subscriptions.push(plotManager);
     
     // Connect sidecar events to HTML viewer
