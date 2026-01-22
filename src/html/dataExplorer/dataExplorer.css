@@ -1,0 +1,104 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-editor-foreground);
+    background-color: var(--vscode-editor-background);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    background: var(--vscode-sideBar-background);
+}
+
+.toolbar .title {
+    font-weight: 600;
+}
+
+.toolbar .meta {
+    opacity: 0.7;
+    font-size: 0.9em;
+}
+
+.toolbar .action {
+    margin-left: auto;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.toolbar .action:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.table-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.table-header {
+    overflow: hidden;
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    background: var(--vscode-sideBarSectionHeader-background);
+}
+
+.table-body {
+    flex: 1;
+    overflow: auto;
+    background: var(--vscode-editor-background);
+}
+
+.table-body-inner {
+    position: relative;
+}
+
+.table-row {
+    position: absolute;
+    display: grid;
+    align-items: center;
+    min-height: 24px;
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    background: var(--vscode-editor-background);
+}
+
+.table-row.header-row {
+    position: relative;
+    border-bottom: none;
+    font-weight: 600;
+    background: var(--vscode-sideBarSectionHeader-background);
+}
+
+.table-cell {
+    padding: 2px 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-right: 1px solid var(--vscode-editorWidget-border);
+}
+
+.table-cell:last-child {
+    border-right: none;
+}
+
+.table-cell.row-label {
+    text-align: right;
+    color: var(--vscode-descriptionForeground);
+    font-family: var(--vscode-editor-font-family);
+}
+
+.cell-special {
+    color: var(--vscode-debugConsole-warningForeground);
+}
