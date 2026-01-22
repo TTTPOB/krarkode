@@ -368,6 +368,17 @@ export class ArkSessionManager {
             }
         }
 
+        // Clean up session directory
+        try {
+            const sessionsDir = sessionRegistry.getSessionsDir();
+            const sessionDir = path.join(sessionsDir, entry.name);
+            if (fs.existsSync(sessionDir)) {
+                fs.rmSync(sessionDir, { recursive: true, force: true });
+            }
+        } catch (err) {
+            this.outputChannel.appendLine(`Failed to remove session directory: ${err}`);
+        }
+
         const nextRegistry = registry.filter((item) => item.name !== entry.name);
         sessionRegistry.saveRegistry(nextRegistry);
         
