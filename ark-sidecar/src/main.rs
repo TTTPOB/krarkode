@@ -318,6 +318,18 @@ async fn run_plot_watcher(
                                 eprintln!("Failed to send comm_open: {}", e);
                             }
                         }
+                    } else if command == "comm_close" {
+                        if let Some(comm_id) = json.get("comm_id").and_then(|s| s.as_str()) {
+                            let data = json.get("data").and_then(|d| d.as_object()).cloned().unwrap_or_default();
+                            let comm_close = runtimelib::CommClose {
+                                comm_id: CommId(comm_id.to_string()),
+                                data,
+                            };
+                            let message = JupyterMessage::new(comm_close, None);
+                            if let Err(e) = shell.send(message).await {
+                                eprintln!("Failed to send comm_close: {}", e);
+                            }
+                        }
                     }
                 }
             }

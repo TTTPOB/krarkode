@@ -94,6 +94,8 @@ export class ArkCommBackend implements IPlotBackend {
     
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Plot Comm');
 
+    private uiCommId: string | undefined;
+
     constructor(private readonly sidecarManager: ArkSidecarManager) {
     }
 
@@ -109,10 +111,17 @@ export class ArkCommBackend implements IPlotBackend {
     }
 
     private initializeComm(): void {
+        // Close existing UI comm if present to avoid leaks
+        if (this.uiCommId) {
+            this.sidecarManager.sendCommClose(this.uiCommId);
+            this.uiCommId = undefined;
+        }
+
         // Establish positron.ui comm connection to enable dynamic plots
         // This tells Ark that the UI is connected, so it should use dynamic plots instead of static images
         const uiCommId = `ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         this.sidecarManager.sendCommOpen(uiCommId, 'positron.ui', {});
+        this.uiCommId = uiCommId;
     }
 
     public disconnect(): void {

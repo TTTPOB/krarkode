@@ -103,6 +103,18 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
     }
 
+    public sendCommClose(commId: string, data: unknown = {}): void {
+        if (!this.proc) {
+            return;
+        }
+        const msg = { command: 'comm_close', comm_id: commId, data };
+        try {
+            this.proc.stdin.write(JSON.stringify(msg) + '\n');
+        } catch (error) {
+            this.outputChannel.appendLine(`Failed to send comm_close message: ${error}`);
+        }
+    }
+
     dispose(): void {
         this.stop();
         this.outputChannel.dispose();
