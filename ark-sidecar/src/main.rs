@@ -306,6 +306,23 @@ async fn run_plot_watcher(
                                 eprintln!("Failed to send comm_msg: {}", e);
                             }
                         }
+                    } else if command == "comm_open" {
+                        if let (Some(comm_id), Some(target_name), Some(data)) = (
+                            json.get("comm_id").and_then(|s| s.as_str()),
+                            json.get("target_name").and_then(|s| s.as_str()),
+                            json.get("data").and_then(|d| d.as_object()),
+                        ) {
+                            let comm_open = CommOpen {
+                                comm_id: CommId(comm_id.to_string()),
+                                target_name: target_name.to_string(),
+                                data: data.clone(),
+                                target_module: None,
+                            };
+                            let message = JupyterMessage::new(comm_open, None);
+                            if let Err(e) = shell.send(message).await {
+                                eprintln!("Failed to send comm_open: {}", e);
+                            }
+                        }
                     }
                 }
             }
@@ -492,12 +509,12 @@ async fn wait_for_iopub_welcome(
         let message = tokio::time::timeout(remaining, iopub.read())
             .await
             .map_err(|_| anyhow!("Timed out waiting for iopub_welcome"))??;
-        if debug_enabled() {
-            log_debug(&format!(
-                "Sidecar: iopub message while waiting for welcome: {}",
-                message.content.message_type()
-            ));
-        }
+        
+        eprintln!(
+            "[sidecar] iopub message while waiting for welcome: {}",
+            message.content.message_type()
+        );
+
         if matches!(message.content, JupyterMessageContent::IoPubWelcome(_)) {
             log_debug("Sidecar: received iopub_welcome");
             return Ok(());

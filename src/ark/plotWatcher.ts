@@ -91,6 +91,21 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
     }
 
+    public sendCommOpen(commId: string, targetName: string, data: unknown): void {
+        if (!this.proc) {
+            this.outputChannel.appendLine(`[sidecar] Cannot send comm_open: no process`);
+            return;
+        }
+        const msg = { command: 'comm_open', comm_id: commId, target_name: targetName, data };
+        try {
+            const msgStr = JSON.stringify(msg);
+            this.outputChannel.appendLine(`[sidecar] Sending comm_open to ${commId} (${targetName}): ${msgStr.slice(0, 200)}`);
+            this.proc.stdin.write(msgStr + '\n');
+        } catch (error) {
+            this.outputChannel.appendLine(`[sidecar] Failed to send comm_open message: ${error}`);
+        }
+    }
+
     dispose(): void {
         this.stop();
         this.outputChannel.dispose();

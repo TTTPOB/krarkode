@@ -104,6 +104,11 @@ export class ArkCommBackend implements IPlotBackend {
         );
         // Initial sync if needed? Usually we wait for events.
         this._onConnectionChanged.fire();
+
+        // Establish positron.ui comm connection to enable dynamic plots
+        // This tells Ark that the UI is connected, so it should use dynamic plots instead of static images
+        const uiCommId = `ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        this.sidecarManager.sendCommOpen(uiCommId, 'positron.ui', {});
     }
 
     public disconnect(): void {
