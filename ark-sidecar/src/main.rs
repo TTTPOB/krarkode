@@ -221,7 +221,7 @@ async fn run_lsp(
         .await
         .context("Failed to connect shell")?;
 
-    wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
+    // wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
 
     let comm_id = Uuid::new_v4().to_string();
     send_comm_open(&mut shell, &comm_id, ip_address).await?;
