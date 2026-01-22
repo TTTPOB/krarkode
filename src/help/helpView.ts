@@ -69,7 +69,8 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                 command: 'show-content',
                 html: entry.content,
                 title: entry.title,
-                kind: entry.kind
+                kind: entry.kind,
+                scrollPosition: entry.scrollPosition
             });
         }
     }
@@ -342,6 +343,18 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                 }
             });
 
+            // Scroll handling
+            let scrollTimeout;
+            contentDiv.addEventListener('scroll', () => {
+                if (scrollTimeout) clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    vscode.postMessage({ 
+                        command: 'positron-help-scroll', 
+                        scrollTop: contentDiv.scrollTop 
+                    });
+                }, 200);
+            });
+
             window.addEventListener('message', (event) => {
                 const msg = event.data;
                 switch (msg.command) {
@@ -363,6 +376,13 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                             } else {
                                 // For HTML content, inject directly
                                 contentDiv.innerHTML = msg.html;
+                            }
+                            
+                            // Restore scroll position
+                            if (typeof msg.scrollPosition === 'number') {
+                                contentDiv.scrollTop = msg.scrollPosition;
+                            } else {
+                                contentDiv.scrollTop = 0;
                             }
                         }
                         if (status) status.textContent = msg.title || 'Help';
@@ -399,11 +419,16 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
 </html>`;
     }
 
-    private handleMessage(message: { command: string; title?: string; url?: string; query?: string }): void {
+    private handleMessage(message: { command: string; title?: string; url?: string; query?: string; scrollTop?: number }): void {
         switch (message.command) {
             case 'view-ready':
                 if (this.isFirstLoad) {
                     this.isFirstLoad = false;
+                }
+                break;
+            case 'positron-help-scroll':
+                if (typeof message.scrollTop === 'number' && this.helpService.currentHelpEntry) {
+                    this.helpService.currentHelpEntry.scrollPosition = message.scrollTop;
                 }
                 break;
             case 'positron-help-back':

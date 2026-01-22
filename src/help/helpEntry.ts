@@ -1,4 +1,6 @@
 export class HelpEntry {
+    public scrollPosition = 0;
+
     constructor(
         public readonly sourceUrl: string,
         public readonly title: string | undefined,
