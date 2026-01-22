@@ -1,7 +1,16 @@
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
-import { BackendState, ColumnSelection, ColumnSortKey, TableSchema } from './protocol';
+import {
+    BackendState,
+    ColumnFilter,
+    ColumnProfileRequest,
+    ColumnSelection,
+    ColumnSortKey,
+    ExportFormat,
+    RowFilter,
+    TableSchema,
+} from './protocol';
 
 type RowRangeRequest = {
     startIndex: number;
@@ -17,6 +26,8 @@ class DataExplorerPanel implements vscode.Disposable {
     private pendingRange: RowRangeRequest | undefined;
     private requestInFlight = false;
     private sortInFlight = false;
+    private filterInFlight = false;
+    private exportInFlight = false;
     private disposed = false;
 
     constructor(
@@ -125,6 +136,42 @@ class DataExplorerPanel implements vscode.Disposable {
                 void this.applySort(sortKey);
                 return;
             }
+            case 'searchSchema': {
+                const filters = message.filters as ColumnFilter[];
+                const sortOrder = message.sortOrder as string;
+                void this.searchSchema(filters, sortOrder);
+                return;
+            }
+            case 'setColumnFilters': {
+                const filters = message.filters as ColumnFilter[];
+                void this.applyColumnFilters(filters);
+                return;
+            }
+            case 'setRowFilters': {
+                const filters = message.filters as RowFilter[];
+                void this.applyRowFilters(filters);
+                return;
+            }
+            case 'getColumnProfiles': {
+                const columnIndex = message.columnIndex as number;
+                const profileTypes = message.profileTypes as string[];
+                void this.getColumnProfiles(columnIndex, profileTypes);
+                return;
+            }
+            case 'exportData': {
+                const format = message.format as ExportFormat;
+                void this.exportData(format);
+                return;
+            }
+            case 'convertToCode': {
+                const syntax = message.syntax as string;
+                void this.convertToCode(syntax);
+                return;
+            }
+            case 'suggestCodeSyntax': {
+                void this.suggestCodeSyntax();
+                return;
+            }
         }
     }
 
@@ -186,6 +233,187 @@ class DataExplorerPanel implements vscode.Disposable {
             return true;
         }
         return supportStatus === 'supported';
+    }
+
+    private async searchSchema(filters: ColumnFilter[], sortOrder: string): Promise<void> {
+        if (!this.state) {
+            return;
+        }
+        this.log(`Searching schema with ${filters.length} filters, sort: ${sortOrder}`);
+        try {
+            const result = await this.session.searchSchema(filters, sortOrder);
+            void this.panel.webview.postMessage({
+                type: 'searchSchemaResult',
+                matches: result.matches,
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to search schema: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        }
+    }
+
+    private async applyColumnFilters(filters: ColumnFilter[]): Promise<void> {
+        if (!this.state) {
+            return;
+        }
+        if (this.filterInFlight) {
+            this.log('Column filter request ignored; filter already in flight.');
+            return;
+        }
+        this.log(`Applying ${filters.length} column filters.`);
+        this.filterInFlight = true;
+        try {
+            await this.session.setColumnFilters(filters);
+            await this.initialize();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to apply column filters: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        } finally {
+            this.filterInFlight = false;
+        }
+    }
+
+    private async applyRowFilters(filters: RowFilter[]): Promise<void> {
+        if (!this.state) {
+            return;
+        }
+        if (this.filterInFlight) {
+            this.log('Row filter request ignored; filter already in flight.');
+            return;
+        }
+        this.log(`Applying ${filters.length} row filters.`);
+        this.filterInFlight = true;
+        try {
+            const result = await this.session.setRowFilters(filters);
+            this.log(`Row filter applied, ${result.selected_num_rows} rows selected.`);
+            await this.initialize();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to apply row filters: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        } finally {
+            this.filterInFlight = false;
+        }
+    }
+
+    private async getColumnProfiles(columnIndex: number, profileTypes: string[]): Promise<void> {
+        if (!this.state) {
+            return;
+        }
+        this.log(`Getting column profiles for column ${columnIndex}: ${profileTypes.join(', ')}`);
+        const callbackId = `profile_${Date.now()}`;
+        const profiles: ColumnProfileRequest[] = [{
+            column_index: columnIndex,
+            profiles: profileTypes.map((pt) => ({ profile_type: pt as never })),
+        }];
+        try {
+            await this.session.getColumnProfiles(callbackId, profiles, DEFAULT_FORMAT_OPTIONS);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to get column profiles: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        }
+    }
+
+    private async exportData(format: ExportFormat): Promise<void> {
+        if (!this.state) {
+            return;
+        }
+        if (this.exportInFlight) {
+            this.log('Export request ignored; export already in flight.');
+            return;
+        }
+        this.log(`Exporting data as ${format}.`);
+        this.exportInFlight = true;
+        try {
+            const selection = {
+                kind: 'row_range' as const,
+                selection: {
+                    first_index: 0,
+                    last_index: this.state.table_shape.num_rows - 1,
+                },
+            };
+            const result = await this.session.exportDataSelection(selection, format);
+            this.log(`Export complete, ${result.data.length} characters.`);
+            void this.panel.webview.postMessage({
+                type: 'exportResult',
+                data: result.data,
+                format: result.format,
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to export data: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        } finally {
+            this.exportInFlight = false;
+        }
+    }
+
+    private async convertToCode(syntax: string): Promise<void> {
+        if (!this.state) {
+            return;
+        }
+        this.log(`Converting current view to ${syntax} code.`);
+        try {
+            const columnFilters = this.state.column_filters ?? [];
+            const rowFilters = this.state.row_filters ?? [];
+            const sortKeys = this.state.sort_keys ?? [];
+            const result = await this.session.convertToCode(
+                columnFilters,
+                rowFilters,
+                sortKeys,
+                { code_syntax_name: syntax }
+            );
+            const code = result.converted_code.join('\n');
+            this.log(`Converted to ${syntax}, ${code.length} characters.`);
+            void this.panel.webview.postMessage({
+                type: 'convertToCodeResult',
+                code,
+                syntax,
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to convert to code: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        }
+    }
+
+    private async suggestCodeSyntax(): Promise<void> {
+        this.log('Requesting code syntax suggestion.');
+        try {
+            const result = await this.session.suggestCodeSyntax();
+            void this.panel.webview.postMessage({
+                type: 'suggestCodeSyntaxResult',
+                syntax: result.code_syntax_name,
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.log(`Failed to suggest code syntax: ${message}`);
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message,
+            });
+        }
     }
 
     private async enqueueRowRequest(range: RowRangeRequest): Promise<void> {
@@ -274,7 +502,97 @@ class DataExplorerPanel implements vscode.Disposable {
                 <div class="toolbar">
                     <div class="title" id="table-title">Data Explorer</div>
                     <div class="meta" id="table-meta"></div>
-                    <button class="action" id="refresh-btn">Refresh</button>
+                    <div class="toolbar-actions">
+                        <button class="action" id="filter-btn" title="Filter Columns">Filter</button>
+                        <button class="action" id="stats-btn" title="Column Statistics">Stats</button>
+                        <div class="dropdown">
+                            <button class="action" id="export-btn">Export ▾</button>
+                            <div class="dropdown-content" id="export-dropdown">
+                                <button data-format="csv">Export as CSV</button>
+                                <button data-format="tsv">Export as TSV</button>
+                                <button data-format="html">Export as HTML</button>
+                            </div>
+                        </div>
+                        <button class="action" id="code-btn" title="Convert to Code">Code</button>
+                        <button class="action" id="refresh-btn">Refresh</button>
+                    </div>
+                </div>
+                <div class="side-panel" id="filter-panel">
+                    <div class="panel-header">
+                        <span>Column Filter</span>
+                        <button class="close-btn" id="close-filter">&times;</button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="filter-section">
+                            <label>Search Columns</label>
+                            <input type="text" id="column-search" placeholder="Column name...">
+                        </div>
+                        <div class="filter-section">
+                            <label>Sort Order</label>
+                            <select id="sort-order">
+                                <option value="original">Original</option>
+                                <option value="ascending_name">Name (A-Z)</option>
+                                <option value="descending_name">Name (Z-A)</option>
+                                <option value="ascending_type">Type (A-Z)</option>
+                                <option value="descending_type">Type (Z-A)</option>
+                            </select>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="action" id="apply-filter">Apply</button>
+                            <button class="action secondary" id="clear-filter">Clear</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="side-panel" id="stats-panel">
+                    <div class="panel-header">
+                        <span>Column Statistics</span>
+                        <button class="close-btn" id="close-stats">&times;</button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="stats-section">
+                            <label>Select Column</label>
+                            <select id="stats-column">
+                                <option value="">Choose column...</option>
+                            </select>
+                        </div>
+                        <div class="stats-section">
+                            <label>Statistics</label>
+                            <div class="checkbox-group">
+                                <label><input type="checkbox" id="stat-null-count" checked> Null Count</label>
+                                <label><input type="checkbox" id="stat-summary"> Summary Stats</label>
+                                <label><input type="checkbox" id="stat-histogram"> Histogram</label>
+                                <label><input type="checkbox" id="stat-frequency"> Frequency</label>
+                            </div>
+                        </div>
+                        <div class="filter-actions">
+                            <button class="action" id="get-stats">Get Stats</button>
+                        </div>
+                        <div class="stats-results" id="stats-results"></div>
+                    </div>
+                </div>
+                <div class="modal" id="code-modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <span>Convert to Code</span>
+                            <button class="close-btn" id="close-code">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="code-section">
+                                <label>Syntax</label>
+                                <select id="code-syntax">
+                                    <option value="pandas">Python (pandas)</option>
+                                    <option value="polars">Python (polars)</option>
+                                    <option value="dplyr">R (dplyr)</option>
+                                    <option value="data.table">R (data.table)</option>
+                                </select>
+                            </div>
+                            <div class="code-actions">
+                                <button class="action" id="convert-code">Convert</button>
+                                <button class="action secondary" id="copy-code">Copy to Clipboard</button>
+                            </div>
+                            <pre id="code-preview"></pre>
+                        </div>
+                    </div>
                 </div>
                 <div class="table-container">
                     <div class="table-header" id="table-header"></div>

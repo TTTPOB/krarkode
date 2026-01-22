@@ -24,6 +24,8 @@ interface BackendState {
     has_row_labels: boolean;
     sort_keys?: ColumnSortKey[];
     supported_features?: SupportedFeatures;
+    column_filters?: ColumnFilter[];
+    row_filters?: RowFilter[];
 }
 
 interface ColumnSchema {
@@ -42,11 +44,34 @@ interface ColumnSortKey {
     ascending: boolean;
 }
 
+interface ColumnFilter {
+    filter_type: 'text_search' | 'match_data_types';
+    params: {
+        search_type?: string;
+        term?: string;
+        case_sensitive?: boolean;
+        display_types?: string[];
+    };
+}
+
+interface RowFilter {
+    filter_id: string;
+    filter_type: string;
+    column_schema: ColumnSchema;
+    condition: 'and' | 'or';
+    params?: Record<string, unknown>;
+}
+
 interface SetSortColumnsFeatures {
     support_status?: SupportStatus;
 }
 
+interface SearchSchemaFeatures {
+    support_status?: SupportStatus;
+}
+
 interface SupportedFeatures {
+    search_schema?: SearchSchemaFeatures;
     set_sort_columns?: SetSortColumnsFeatures;
     [key: string]: unknown;
 }
@@ -85,6 +110,13 @@ const vscode = acquireVsCodeApi();
 const tableTitle = document.getElementById('table-title') as HTMLDivElement;
 const tableMeta = document.getElementById('table-meta') as HTMLDivElement;
 const refreshButton = document.getElementById('refresh-btn') as HTMLButtonElement;
+const filterButton = document.getElementById('filter-btn') as HTMLButtonElement;
+const statsButton = document.getElementById('stats-btn') as HTMLButtonElement;
+const exportButton = document.getElementById('export-btn') as HTMLButtonElement;
+const codeButton = document.getElementById('code-btn') as HTMLButtonElement;
+const filterPanel = document.getElementById('filter-panel') as HTMLDivElement;
+const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
+const codeModal = document.getElementById('code-modal') as HTMLDivElement;
 const tableHeader = document.getElementById('table-header') as HTMLDivElement;
 const tableBody = document.getElementById('table-body') as HTMLDivElement;
 
@@ -114,6 +146,123 @@ refreshButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'refresh' });
 });
 
+filterButton.addEventListener('click', () => {
+    filterPanel.classList.toggle('open');
+    statsPanel.classList.remove('open');
+    codeModal.classList.remove('open');
+});
+
+statsButton.addEventListener('click', () => {
+    statsPanel.classList.toggle('open');
+    filterPanel.classList.remove('open');
+    codeModal.classList.remove('open');
+    populateStatsColumnSelect();
+});
+
+codeButton.addEventListener('click', () => {
+    codeModal.classList.toggle('open');
+    filterPanel.classList.remove('open');
+    statsPanel.classList.remove('open');
+});
+
+document.getElementById('close-filter')?.addEventListener('click', () => {
+    filterPanel.classList.remove('open');
+});
+
+document.getElementById('close-stats')?.addEventListener('click', () => {
+    statsPanel.classList.remove('open');
+});
+
+document.getElementById('close-code')?.addEventListener('click', () => {
+    codeModal.classList.remove('open');
+});
+
+document.getElementById('apply-filter')?.addEventListener('click', () => {
+    applyColumnFilter();
+});
+
+document.getElementById('clear-filter')?.addEventListener('click', () => {
+    (document.getElementById('column-search') as HTMLInputElement).value = '';
+    (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
+    applyColumnFilter();
+});
+
+document.getElementById('get-stats')?.addEventListener('click', () => {
+    getColumnStats();
+});
+
+document.getElementById('convert-code')?.addEventListener('click', () => {
+    const syntax = (document.getElementById('code-syntax') as HTMLSelectElement).value;
+    vscode.postMessage({ type: 'convertToCode', syntax });
+});
+
+document.getElementById('copy-code')?.addEventListener('click', () => {
+    const code = (document.getElementById('code-preview') as HTMLPreElement).textContent;
+    if (code) {
+        navigator.clipboard.writeText(code);
+    }
+});
+
+document.querySelectorAll('#export-dropdown button').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+        const format = (e.target as HTMLElement).dataset.format as 'csv' | 'tsv' | 'html';
+        vscode.postMessage({ type: 'exportData', format });
+    });
+});
+
+function populateStatsColumnSelect() {
+    const select = document.getElementById('stats-column') as HTMLSelectElement;
+    select.innerHTML = '<option value="">Choose column...</option>';
+    schema.forEach((col) => {
+        const option = document.createElement('option');
+        option.value = String(col.column_index);
+        option.textContent = col.column_name || `Col${col.column_index + 1}`;
+        select.appendChild(option);
+    });
+}
+
+function applyColumnFilter() {
+    const searchTerm = (document.getElementById('column-search') as HTMLInputElement).value;
+    const sortOrder = (document.getElementById('sort-order') as HTMLSelectElement).value;
+
+    const filters: ColumnFilter[] = [];
+    if (searchTerm) {
+        filters.push({
+            filter_type: 'text_search',
+            params: {
+                search_type: 'contains',
+                term: searchTerm,
+                case_sensitive: false,
+            },
+        });
+    }
+
+    vscode.postMessage({ type: 'searchSchema', filters, sortOrder });
+}
+
+function getColumnStats() {
+    const columnIndex = parseInt((document.getElementById('stats-column') as HTMLSelectElement).value, 10);
+    if (isNaN(columnIndex)) {
+        return;
+    }
+
+    const profileTypes: string[] = [];
+    if ((document.getElementById('stat-null-count') as HTMLInputElement).checked) {
+        profileTypes.push('null_count');
+    }
+    if ((document.getElementById('stat-summary') as HTMLInputElement).checked) {
+        profileTypes.push('summary_stats');
+    }
+    if ((document.getElementById('stat-histogram') as HTMLInputElement).checked) {
+        profileTypes.push('small_histogram');
+    }
+    if ((document.getElementById('stat-frequency') as HTMLInputElement).checked) {
+        profileTypes.push('small_frequency_table');
+    }
+
+    vscode.postMessage({ type: 'getColumnProfiles', columnIndex, profileTypes });
+}
+
 tableBody.addEventListener('scroll', () => {
     if (tableBody.scrollLeft !== lastScrollLeft) {
         updateHeaderScroll(tableBody.scrollLeft);
@@ -133,10 +282,47 @@ window.addEventListener('message', (event) => {
         case 'error':
             showError(message.message as string);
             break;
+        case 'searchSchemaResult':
+            handleSearchSchemaResult(message.matches);
+            break;
+        case 'exportResult':
+            handleExportResult(message.data, message.format);
+            break;
+        case 'convertToCodeResult':
+            handleConvertToCodeResult(message.code, message.syntax);
+            break;
+        case 'suggestCodeSyntaxResult':
+            handleSuggestCodeSyntaxResult(message.syntax);
+            break;
     }
 });
 
 vscode.postMessage({ type: 'ready' });
+
+function handleSearchSchemaResult(matches: number[]): void {
+    filterPanel.classList.remove('open');
+    showError(`Found ${matches.length} matching columns.`);
+}
+
+function handleExportResult(data: string, format: string): void {
+    const blob = new Blob([data], { type: format === 'html' ? 'text/html' : 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `export.${format === 'csv' ? 'csv' : format === 'tsv' ? 'tsv' : 'html'}`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function handleConvertToCodeResult(code: string, syntax: string): void {
+    const preview = document.getElementById('code-preview') as HTMLPreElement;
+    preview.textContent = code || '(No code generated)';
+}
+
+function handleSuggestCodeSyntaxResult(syntax: string): void {
+    const select = document.getElementById('code-syntax') as HTMLSelectElement;
+    select.value = syntax;
+}
 
 function handleInit(message: InitMessage) {
     state = message.state;
