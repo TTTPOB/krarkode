@@ -20,12 +20,17 @@ export interface ShowHtmlFileParams {
     height: number;
 }
 
+export interface PlotDataParams {
+    base64Data: string;
+    mimeType: string;
+    displayId?: string;
+}
+
 export class ArkSidecarManager implements vscode.Disposable {
     private proc: cp.ChildProcessWithoutNullStreams | undefined;
     private rl: readline.Interface | undefined;
     private connectionFile: string | undefined;
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Sidecar');
-    private readonly viewer = new ArkPlotViewer();
 
     private readonly _onDidOpenPlotComm = new vscode.EventEmitter<{ commId: string; data: unknown }>();
     public readonly onDidOpenPlotComm = this._onDidOpenPlotComm.event;
@@ -41,6 +46,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidShowHtmlFile = new vscode.EventEmitter<ShowHtmlFileParams>();
     public readonly onDidShowHtmlFile = this._onDidShowHtmlFile.event;
+
+    private readonly _onDidReceivePlotData = new vscode.EventEmitter<PlotDataParams>();
+    public readonly onDidReceivePlotData = this._onDidReceivePlotData.event;
 
     constructor(
         private readonly resolveSidecarPath: () => string,
@@ -83,12 +91,12 @@ export class ArkSidecarManager implements vscode.Disposable {
     dispose(): void {
         this.stop();
         this.outputChannel.dispose();
-        this.viewer.dispose();
         this._onDidOpenPlotComm.dispose();
         this._onDidReceiveCommMessage.dispose();
         this._onDidClosePlotComm.dispose();
         this._onDidReceiveHttpgdUrl.dispose();
         this._onDidShowHtmlFile.dispose();
+        this._onDidReceivePlotData.dispose();
     }
 
     private start(connectionFile: string): void {
@@ -180,7 +188,11 @@ export class ArkSidecarManager implements vscode.Disposable {
             return;
         }
 
-        this.viewer.updatePlot(base64, msg.display_id ?? undefined);
+        this._onDidReceivePlotData.fire({
+            base64Data: base64,
+            mimeType: 'image/png',
+            displayId: msg.display_id ?? undefined,
+        });
     }
 
     private async normalizePngData(payload: string): Promise<string | undefined> {
@@ -207,104 +219,5 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         return payload.replace(/\s+/g, '');
-    }
-}
-
-class ArkPlotViewer implements vscode.Disposable {
-    private panels = new Map<string, vscode.WebviewPanel>();
-    private readonly defaultDisplayId = 'latest';
-
-    public updatePlot(base64: string, displayId?: string): void {
-        const configured = util.config().get<string>('krarkode.plot.viewColumn');
-        if (configured === 'Disable') {
-            return;
-        }
-
-        const id = displayId ?? this.defaultDisplayId;
-        const panel = this.getOrCreatePanel(id);
-        panel.webview.html = this.renderHtml(base64);
-        panel.reveal(this.getViewColumn(), true);
-    }
-
-    dispose(): void {
-        for (const panel of this.panels.values()) {
-            panel.dispose();
-        }
-        this.panels.clear();
-    }
-
-    private getViewColumn(): vscode.ViewColumn {
-        const configured = util.config().get<string>('krarkode.plot.viewColumn');
-        return this.asViewColumn(configured, vscode.ViewColumn.Two);
-    }
-
-    private asViewColumn(value: string | undefined, defaultColumn: vscode.ViewColumn): vscode.ViewColumn {
-        switch (value) {
-            case 'Active':
-                return vscode.ViewColumn.Active;
-            case 'Beside':
-                return vscode.ViewColumn.Beside;
-            case 'One':
-                return vscode.ViewColumn.One;
-            case 'Two':
-                return vscode.ViewColumn.Two;
-            case 'Three':
-                return vscode.ViewColumn.Three;
-            default:
-                return defaultColumn;
-        }
-    }
-
-    private getOrCreatePanel(displayId: string): vscode.WebviewPanel {
-        const existing = this.panels.get(displayId);
-        if (existing) {
-            return existing;
-        }
-        const viewColumn = this.getViewColumn();
-        const title = displayId === this.defaultDisplayId ? 'Ark Plot' : `Ark Plot (${displayId})`;
-        const panel = vscode.window.createWebviewPanel(
-            'arkPlot',
-            title,
-            {
-                preserveFocus: true,
-                viewColumn,
-            },
-            {
-                enableScripts: true,
-                enableFindWidget: true,
-                retainContextWhenHidden: true,
-            }
-        );
-        panel.onDidDispose(() => {
-            this.panels.delete(displayId);
-        });
-        this.panels.set(displayId, panel);
-        return panel;
-    }
-
-    private renderHtml(base64: string): string {
-        return `<!doctype html>
-<html>
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: var(--vscode-editor-background);
-        }
-        img {
-            display: block;
-            max-width: 100%;
-            max-height: 100vh;
-            margin: 0 auto;
-        }
-    </style>
-</head>
-<body>
-    <img src="data:image/png;base64,${base64}" />
-</body>
-</html>`;
     }
 }

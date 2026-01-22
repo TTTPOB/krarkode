@@ -6,6 +6,7 @@ import { CodeExecutor } from './ark/codeExecutor';
 import { ArkSidecarManager } from './ark/plotWatcher';
 import { ArkCommBackend } from './ark/arkCommBackend';
 import { HtmlViewer } from './ark/htmlViewer';
+import { PlotManager } from './ark/plotManager';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 
@@ -15,6 +16,7 @@ let codeExecutor: CodeExecutor | undefined;
 let sidecarManager: ArkSidecarManager | undefined;
 let plotBackend: ArkCommBackend | undefined;
 let htmlViewer: HtmlViewer | undefined;
+let plotManager: PlotManager | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
@@ -35,11 +37,31 @@ export function activate(context: vscode.ExtensionContext): void {
     htmlViewer = new HtmlViewer();
     context.subscriptions.push(htmlViewer);
     
+    // Create plot manager for display_data plots
+    plotManager = new PlotManager();
+    context.subscriptions.push(plotManager);
+    
     // Connect sidecar events to HTML viewer
     context.subscriptions.push(
         sidecarManager.onDidShowHtmlFile((params) => {
             void htmlViewer?.showHtmlFile(params);
         })
+    );
+    
+    // Connect sidecar plot data events to plot manager
+    context.subscriptions.push(
+        sidecarManager.onDidReceivePlotData((params) => {
+            plotManager?.addPlot(params.base64Data, params.mimeType, params.displayId);
+        })
+    );
+    
+    // Register plot commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('krarkode.plot.previous', () => plotManager?.previousPlot()),
+        vscode.commands.registerCommand('krarkode.plot.next', () => plotManager?.nextPlot()),
+        vscode.commands.registerCommand('krarkode.plot.save', () => plotManager?.savePlot()),
+        vscode.commands.registerCommand('krarkode.plot.openInBrowser', () => plotManager?.openInBrowser()),
+        vscode.commands.registerCommand('krarkode.plot.clear', () => plotManager?.clearHistory())
     );
     
     sessionManager = new ArkSessionManager();
@@ -84,6 +106,8 @@ export function deactivate(): void {
     codeExecutor = undefined;
     htmlViewer?.dispose();
     htmlViewer = undefined;
+    plotManager?.dispose();
+    plotManager = undefined;
     plotBackend?.dispose();
     plotBackend = undefined;
     sidecarManager?.dispose();

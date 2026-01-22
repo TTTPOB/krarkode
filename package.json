@@ -107,6 +107,31 @@
         "command": "krarkode.view",
         "title": "View()",
         "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.plot.previous",
+        "title": "Previous Plot",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.plot.next",
+        "title": "Next Plot",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.plot.save",
+        "title": "Save Current Plot",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.plot.openInBrowser",
+        "title": "Open Plot in Browser",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.plot.clear",
+        "title": "Clear Plot History",
+        "category": "Krarkode"
       }
     ],
     "keybindings": [
@@ -239,6 +264,13 @@
             "Disable"
           ],
           "description": "View column for plot viewer. Set to 'Disable' to disable the plot viewer."
+        },
+        "krarkode.plot.maxHistory": {
+          "type": "number",
+          "default": 50,
+          "minimum": 1,
+          "maximum": 500,
+          "description": "Maximum number of plots to keep in history."
         },
         "krarkode.html.viewColumn": {
           "type": "string",
