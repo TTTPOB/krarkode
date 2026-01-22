@@ -324,7 +324,11 @@ async fn run_plot_watcher(
         }
     });
 
-    wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
+    // We no longer wait for IOPub welcome. When attaching to an existing session,
+    // the kernel might not send a welcome message, or it might have already sent it.
+    // Also, waiting for it might cause us to drop other important messages (like plot data)
+    // that arrive in the meantime. We just start listening.
+    // wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
 
     loop {
         let message = iopub.read().await.context("Failed to read iopub message")?;
