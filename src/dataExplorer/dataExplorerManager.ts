@@ -783,37 +783,19 @@ class DataExplorerPanel implements vscode.Disposable {
 export class DataExplorerManager implements vscode.Disposable {
     private readonly panels = new Map<string, DataExplorerPanel>();
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Data Explorer');
-    private readonly commIds = new Set<string>();
-    private readonly disposables: vscode.Disposable[] = [];
 
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly sidecarManager: ArkSidecarManager
-    ) {
-        this.disposables.push(
-            this.sidecarManager.onDidReceiveCommMessage((e) => {
-                if (!this.commIds.has(e.commId)) {
-                    return;
-                }
-                if (this.panels.has(e.commId)) {
-                    return;
-                }
-                this.outputChannel.appendLine(`Opening data explorer for comm ${e.commId} after first message.`);
-                const panel = new DataExplorerPanel(this.extensionUri, this.sidecarManager, e.commId, this.outputChannel);
-                this.panels.set(e.commId, panel);
-            })
-        );
-    }
+    ) {}
 
-    registerComm(commId: string): void {
-        if (this.commIds.has(commId)) {
+    open(commId: string, data?: unknown): void {
+        if (!isDataExplorerMetadata(data)) {
+            this.outputChannel.appendLine(
+                `Ignoring data explorer comm_open ${commId}; missing dataset metadata.`
+            );
             return;
         }
-        this.outputChannel.appendLine(`Registered data explorer comm ${commId}.`);
-        this.commIds.add(commId);
-    }
-
-    open(commId: string): void {
         const existing = this.panels.get(commId);
         if (existing) {
             existing.reveal();
@@ -830,11 +812,19 @@ export class DataExplorerManager implements vscode.Disposable {
             panel.dispose();
         }
         this.panels.clear();
-        this.commIds.clear();
-        this.disposables.forEach((item) => item.dispose());
-        this.disposables.length = 0;
         this.outputChannel.dispose();
     }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isDataExplorerMetadata(value: unknown): boolean {
+    if (!isRecord(value)) {
+        return false;
+    }
+    return typeof value.title === 'string' && value.title.length > 0;
 }
 
 function getNonce(): string {
