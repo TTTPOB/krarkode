@@ -4,6 +4,7 @@ before you do any task, check bd status to see if it has been created as an issu
 after you've done a task, update the bd issue with what you've done.
 you can use gh cli tool to search code on github and i have gh cat extension installed to help you read code files.
 each commit touched side car, should run `cargo check` in sidecar dir to ensure pass.
+when implementing a feature the first time, add verbose logging to aid debugging.
 
 positron repo: posit-dev/positron, locally available at repo_ref/positron
 ark repo: posit-dev/ark, locally available at repo_ref/ark
