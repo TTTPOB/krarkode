@@ -162,7 +162,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(dataExplorerManager);
     context.subscriptions.push(
         sidecarManager.onDidOpenDataExplorerComm((e) => {
-            dataExplorerManager?.open(e.commId);
+            dataExplorerManager?.registerComm(e.commId);
         })
     );
 }
