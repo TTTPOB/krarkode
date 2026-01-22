@@ -1,0 +1,232 @@
+/* Use box-sizing: border-box everywhere: */
+html {
+    box-sizing: border-box;
+}
+*, *::before, *::after {
+    box-sizing: inherit;
+}
+
+/* General styling: */
+body {
+    margin: 0;
+    padding: 0;
+    background: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    overflow: hidden;
+}
+body.fullWindow {
+    overflow-x: hidden;
+    overflow-y: hidden;
+}
+
+/* Main plot area: */
+#largePlot {
+    overflow-x: auto;
+    overflow-y: auto;
+    padding: 10px;
+    width: 100%;
+    height: calc(100vh - 200px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+#largePlot.fit-to-window {
+    align-items: center;
+}
+body.fullWindow #largePlot {
+    overflow-x: hidden;
+    width: 100vw !important;
+    height: 100vh !important;
+}
+
+#largePlot img, #largePlot svg {
+    max-width: 100%;
+    user-select: none;
+}
+#largePlot.fit-to-window img, #largePlot.fit-to-window svg {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Dragbar to resize main plot: */
+#handler {
+    background-color: var(--vscode-textSeparator-foreground);
+    height: 4px;
+    cursor: ns-resize;
+    flex-shrink: 0;
+}
+#handler:hover, #handler.dragging {
+    background-color: var(--vscode-focusBorder);
+    transition: background-color .1s ease-out;
+    transition-delay: .2s;
+}
+body.fullWindow #handler {
+    display: none;
+}
+
+/* Toolbar */
+#toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    background: var(--vscode-editor-background);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+body.fullWindow #toolbar {
+    display: none;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.toolbar-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--vscode-panel-border);
+    margin: 0 4px;
+}
+
+#toolbar button {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: none;
+    padding: 3px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+#toolbar button:hover:not(:disabled) {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+#toolbar button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+#toolbar button.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.nav-info {
+    font-size: 12px;
+    min-width: 60px;
+    text-align: center;
+}
+.zoom-info {
+    font-size: 11px;
+    min-width: 45px;
+    text-align: center;
+}
+
+/* Plot history (small plots): */
+#smallPlots {
+    display: flex;
+    flex-direction: row;
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    gap: 8px;
+    background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+    border-top: 1px solid var(--vscode-panel-border);
+    flex-shrink: 0;
+    min-height: 100px;
+}
+body.fullWindow #smallPlots {
+    display: none;
+}
+
+#smallPlots.multirow {
+    overflow-x: hidden;
+    flex-wrap: wrap;
+}
+
+#smallPlots.hidden {
+    display: none;
+}
+
+/* Each small plot: */
+#smallPlots .wrapper {
+    position: relative;
+    height: 80px;
+    width: 100px;
+    flex: none;
+    cursor: pointer;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: border-color 0.15s ease;
+}
+
+#smallPlots .wrapper:hover {
+    border-color: var(--vscode-focusBorder);
+}
+
+#smallPlots .wrapper.active {
+    border-color: var(--vscode-button-background);
+}
+
+#smallPlots .wrapper .plotContent {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: var(--vscode-editor-background);
+}
+
+#smallPlots .wrapper .plotContent img,
+#smallPlots .wrapper .plotContent svg {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Hide plot button */
+#smallPlots .wrapper .hidePlot {
+    display: none;
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 18px;
+    height: 18px;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    border-radius: 50%;
+    font-size: 10px;
+    cursor: pointer;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+}
+
+#smallPlots .wrapper:hover .hidePlot {
+    display: flex;
+}
+
+#smallPlots .wrapper .hidePlot:hover {
+    background: var(--vscode-errorForeground);
+}
+
+/* No plot message */
+.no-plot {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: calc(100vh - 50px);
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
