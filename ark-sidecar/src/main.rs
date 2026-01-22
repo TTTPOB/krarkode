@@ -270,14 +270,19 @@ async fn run_plot_watcher(
     session_id: &str,
     timeout_ms: u64,
 ) -> Result<()> {
+    eprintln!("[sidecar] Starting plot watcher...");
     let mut iopub = create_client_iopub_connection(connection, "", session_id)
         .await
         .context("Failed to connect iopub")?;
+    eprintln!("[sidecar] Connected to iopub");
+
     let mut shell = create_shell_connection(connection, session_id)
         .await
         .context("Failed to connect shell")?;
+    eprintln!("[sidecar] Connected to shell");
 
     wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
+    eprintln!("[sidecar] Received iopub welcome");
 
     // Spawn a task to handle stdin commands (for sending RPC requests to backend)
     tokio::spawn(async move {

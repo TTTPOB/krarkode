@@ -106,15 +106,29 @@ export class ArkSidecarManager implements vscode.Disposable {
         const sidecarPath = this.resolveSidecarPath();
         const timeoutMs = this.getTimeoutMs();
         const args = ['--watch-plot', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
+        
+        this.outputChannel.appendLine(`[ArkSidecarManager] Spawning sidecar: ${sidecarPath} ${args.join(' ')}`);
+        
         const proc = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
         this.proc = proc;
 
         proc.on('error', (err) => {
-            this.outputChannel.appendLine(`Failed to spawn sidecar: ${err.message}`);
+            this.outputChannel.appendLine(`[ArkSidecarManager] Failed to spawn sidecar: ${err.message}`);
         });
 
+        if (proc.pid) {
+            this.outputChannel.appendLine(`[ArkSidecarManager] Sidecar spawned with PID ${proc.pid}`);
+        } else {
+            this.outputChannel.appendLine(`[ArkSidecarManager] Sidecar spawn failed (no PID)`);
+        }
+
         proc.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(`[sidecar] ${chunk.toString().trim()}`);
+            this.outputChannel.appendLine(`[sidecar-stderr] ${chunk.toString().trim()}`);
+        });
+
+        proc.stdout?.on('data', (chunk: Buffer) => {
+             // stdout lines are handled by readline, but log raw just in case
+             // this.outputChannel.appendLine(`[sidecar-stdout] ${chunk.toString().trim()}`);
         });
 
         const rl = readline.createInterface({ input: proc.stdout });

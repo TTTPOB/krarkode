@@ -69,9 +69,12 @@ export function activate(context: vscode.ExtensionContext): void {
     
     // When active session changes, attach sidecar to connection file
     sessionManager.setActiveSessionHandler((entry: ArkSessionEntry | undefined) => {
+        console.log(`[Extension] Active session changed: ${entry?.name} (file: ${entry?.connectionFilePath})`);
         if (entry && sidecarManager) {
+            console.log(`[Extension] Attaching sidecar to ${entry.connectionFilePath}`);
             sidecarManager.attach(entry.connectionFilePath);
         } else if (sidecarManager) {
+            console.log(`[Extension] Stopping sidecar`);
             sidecarManager.stop();
         }
     });

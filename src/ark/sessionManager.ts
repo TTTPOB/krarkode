@@ -293,7 +293,9 @@ export class ArkSessionManager {
             });
 
             sessionRegistry.setActiveSessionName(sessionName);
-            this.onActiveSessionChanged?.(sessionRegistry.findSession(sessionName));
+            const activeSession = sessionRegistry.findSession(sessionName);
+            console.log(`[SessionManager] Setting active session to: ${sessionName}, handler: ${!!this.onActiveSessionChanged}`);
+            this.onActiveSessionChanged?.(activeSession);
         } finally {
             if (fs.existsSync(announceFile)) {
                 fs.unlinkSync(announceFile);
