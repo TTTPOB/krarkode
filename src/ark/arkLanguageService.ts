@@ -49,6 +49,7 @@ export class ArkLanguageService implements vscode.Disposable {
     private sidecarProcess: cp.ChildProcessWithoutNullStreams | undefined;
     private connectionDir: string | undefined;
     private connectionFile: string | undefined;
+    private isIntentionallyRestarting: boolean = false;
 
     constructor() {
         this.outputChannel = vscode.window.createOutputChannel('Ark LSP');
@@ -63,8 +64,10 @@ export class ArkLanguageService implements vscode.Disposable {
 
     public async restart(): Promise<void> {
         this.outputChannel.appendLine('Restarting Ark LSP...');
+        this.isIntentionallyRestarting = true;
         await this.stopLanguageService();
         this.client = undefined;
+        this.isIntentionallyRestarting = false;
         await this.startLanguageService();
         this.outputChannel.appendLine('Ark LSP restarted.');
     }
@@ -330,13 +333,21 @@ export class ArkLanguageService implements vscode.Disposable {
             revealOutputChannelOn: RevealOutputChannelOn.Never,
             errorHandler: {
                 error: () => {
+                    if (this.isIntentionallyRestarting) {
+                        return { action: ErrorAction.Continue };
+                    }
                     return {
-                        action: ErrorAction.Continue
+                        action: ErrorAction.Continue,
+                        message: 'Ark Language Server encountered an error. Check the output channel for details.'
                     };
                 },
                 closed: () => {
+                    if (this.isIntentionallyRestarting) {
+                        return { action: CloseAction.DoNotRestart };
+                    }
                     return {
-                        action: CloseAction.DoNotRestart
+                        action: CloseAction.DoNotRestart,
+                        message: 'Ark Language Server connection closed unexpectedly. Please check the output channel or try restarting the session.'
                     };
                 },
             },
