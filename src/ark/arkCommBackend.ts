@@ -136,6 +136,8 @@ export class ArkCommBackend implements IPlotBackend {
     }
 
     public async renderPlot(id: PlotId, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg'): Promise<PlotRenderResult> {
+        this.outputChannel.appendLine(`[ArkComm] renderPlot(${id}, ${size.width}x${size.height}, pixelRatio=${pixelRatio}, format=${format})`);
+
         return new Promise<{ data: string; mime_type: string }>((resolve, reject) => {
             const pending = this.pendingRenders.get(id);
             if (pending) {
@@ -153,12 +155,16 @@ export class ArkCommBackend implements IPlotBackend {
                 },
             };
 
+            this.outputChannel.appendLine(`[ArkComm] Sending render request to sidecar for ${id}`);
             this.sidecarManager.sendCommMessage(id, request);
-        }).then(({ data, mime_type }) => ({
-            data,
-            mimeType: mime_type,
-            format: mime_type === 'image/svg+xml' ? 'svg' : 'png',
-        }));
+        }).then(({ data, mime_type }) => {
+            this.outputChannel.appendLine(`[ArkComm] Received render reply for ${id}: ${data.length} bytes, ${mime_type}`);
+            return {
+                data,
+                mimeType: mime_type,
+                format: mime_type === 'image/svg+xml' ? 'svg' : 'png',
+            };
+        });
     }
 
     public getRenderers(): PlotRenderer[] {
@@ -219,6 +225,8 @@ export class ArkCommBackend implements IPlotBackend {
     private handleMessage(e: { commId: string; data: unknown }): void {
         const pending = this.pendingRenders.get(e.commId);
         const data = e.data as Record<string, unknown> | undefined;
+        this.outputChannel.appendLine(`[ArkComm] handleMessage for ${e.commId}: ${JSON.stringify(data)?.slice(0, 200)}`);
+
         if (pending && data && data.method === 'RenderReply') {
             const reply = data as unknown as ArkRenderReply;
             if (reply.result && reply.result.data) {
