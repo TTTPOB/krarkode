@@ -112,6 +112,10 @@ interface SearchSchemaFeatures {
     support_status?: SupportStatus;
 }
 
+interface SetColumnFiltersFeatures {
+    support_status?: SupportStatus;
+}
+
 interface RowFilterTypeSupportStatus {
     row_filter_type: RowFilterType;
     support_status: SupportStatus;
@@ -125,6 +129,7 @@ interface SetRowFiltersFeatures {
 
 interface SupportedFeatures {
     search_schema?: SearchSchemaFeatures;
+    set_column_filters?: SetColumnFiltersFeatures;
     set_row_filters?: SetRowFiltersFeatures;
     set_sort_columns?: SetSortColumnsFeatures;
     [key: string]: unknown;
@@ -212,6 +217,7 @@ const loadingBlocks = new Set<number>();
 
 let state: BackendState | undefined;
 let schema: ColumnSchema[] = [];
+let fullSchema: ColumnSchema[] = [];
 let tableInstance: Table<RowData> | undefined;
 let rowModel: RowModel<RowData> | undefined;
 let rowVirtualizer: Virtualizer<HTMLDivElement, HTMLDivElement> | undefined;
@@ -225,6 +231,9 @@ let histogramChart: echarts.ECharts | null = null;
 let rowFilters: RowFilter[] = [];
 let editingRowFilterIndex: number | null = null;
 let rowFilterSupport: SetRowFiltersFeatures | undefined;
+let columnFilterSupport: SearchSchemaFeatures | undefined;
+let setColumnFilterSupport: SetColumnFiltersFeatures | undefined;
+let columnFilterMatches: number[] | null = null;
 
 function log(message: string, payload?: unknown): void {
     if (payload !== undefined) {
@@ -374,6 +383,10 @@ function populateStatsColumnSelect() {
 }
 
 function applyColumnFilter() {
+    if (!isColumnFilterSupported()) {
+        filterStatus.textContent = 'Column filtering is not supported.';
+        return;
+    }
     const searchTerm = (document.getElementById('column-search') as HTMLInputElement).value;
     const sortOrder = (document.getElementById('sort-order') as HTMLSelectElement).value;
 
@@ -391,7 +404,9 @@ function applyColumnFilter() {
 
     filterStatus.textContent = 'Searching...';
     vscode.postMessage({ type: 'searchSchema', filters, sortOrder });
-    vscode.postMessage({ type: 'setColumnFilters', filters });
+    if (isSetColumnFiltersSupported()) {
+        vscode.postMessage({ type: 'setColumnFilters', filters });
+    }
 }
 
 function updateRowFilterBarVisibility(): void {
@@ -405,6 +420,22 @@ function updateRowFilterBarVisibility(): void {
 
 function isRowFilterSupported(): boolean {
     const supportStatus = rowFilterSupport?.support_status;
+    if (!supportStatus) {
+        return true;
+    }
+    return supportStatus === 'supported';
+}
+
+function isColumnFilterSupported(): boolean {
+    const supportStatus = columnFilterSupport?.support_status;
+    if (!supportStatus) {
+        return true;
+    }
+    return supportStatus === 'supported';
+}
+
+function isSetColumnFiltersSupported(): boolean {
+    const supportStatus = setColumnFilterSupport?.support_status;
     if (!supportStatus) {
         return true;
     }
@@ -761,6 +792,43 @@ vscode.postMessage({ type: 'ready' });
 function handleSearchSchemaResult(matches: number[]): void {
     filterPanel.classList.remove('open');
     filterStatus.textContent = `Found ${matches.length} matching columns.`;
+    columnFilterMatches = matches;
+    if (!isSetColumnFiltersSupported()) {
+        const nextSchema = resolveSchemaMatches(matches);
+        applySchemaUpdate(nextSchema);
+    }
+}
+
+function resolveSchemaMatches(matches: number[]): ColumnSchema[] {
+    if (!fullSchema.length || matches.length === 0) {
+        return [];
+    }
+    const lookup = new Map(fullSchema.map((column) => [column.column_index, column]));
+    const resolved: ColumnSchema[] = [];
+    for (const index of matches) {
+        const column = lookup.get(index);
+        if (column) {
+            resolved.push(column);
+        }
+    }
+    return resolved;
+}
+
+function applySchemaUpdate(nextSchema: ColumnSchema[]): void {
+    schema = nextSchema;
+    rowCache.clear();
+    rowLabelCache.clear();
+    loadedBlocks.clear();
+    loadingBlocks.clear();
+    renderHeader();
+    setupTable();
+    setupVirtualizer();
+    renderRows();
+    requestInitialBlock();
+    requestVisibleBlocks();
+    if (statsPanel.classList.contains('open')) {
+        populateStatsColumnSelect();
+    }
 }
 
 function ensureHistogramChart(): echarts.ECharts {
@@ -913,7 +981,8 @@ function handleSuggestCodeSyntaxResult(syntax: string): void {
 
 function handleInit(message: InitMessage) {
     state = message.state;
-    schema = message.schema ?? [];
+    fullSchema = message.schema ?? [];
+    schema = fullSchema;
     rowCache.clear();
     rowLabelCache.clear();
     loadedBlocks.clear();
@@ -921,6 +990,8 @@ function handleInit(message: InitMessage) {
     activeSort = resolveSortState(state.sort_keys);
     rowFilters = state.row_filters ?? [];
     rowFilterSupport = state.supported_features?.set_row_filters;
+    columnFilterSupport = state.supported_features?.search_schema;
+    setColumnFilterSupport = state.supported_features?.set_column_filters;
     filterStatus.textContent = '';
     statsText.textContent = '';
     clearHistogram();
@@ -929,6 +1000,9 @@ function handleInit(message: InitMessage) {
     (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
     renderRowFilterChips();
     updateRowFilterBarVisibility();
+    if (columnFilterMatches && !isSetColumnFiltersSupported()) {
+        schema = resolveSchemaMatches(columnFilterMatches);
+    }
     renderHeader();
     setupTable();
     setupVirtualizer();
@@ -1100,7 +1174,8 @@ function renderHeader() {
     updateHeaderScroll(tableBody.scrollLeft);
     updateHeaderSortIndicators();
     tableTitle.textContent = state.display_name || 'Data Explorer';
-    const { num_rows, num_columns } = state.table_shape;
+    const { num_rows } = state.table_shape;
+    const num_columns = schema.length;
     const { num_rows: rawRows, num_columns: rawColumns } = state.table_unfiltered_shape;
     const filteredText = num_rows !== rawRows || num_columns !== rawColumns
         ? ` (${rawRows}x${rawColumns} raw)`
