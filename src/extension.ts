@@ -11,6 +11,7 @@ import { HelpService } from './help/helpService';
 import { HelpManager } from './help/helpManager';
 import { VariablesService } from './variables/variablesService';
 import { VariablesManager } from './variables/variablesManager';
+import { DataExplorerManager } from './dataExplorer/dataExplorerManager';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 
@@ -25,6 +26,7 @@ let helpService: HelpService | undefined;
 let helpManager: HelpManager | undefined;
 let variablesService: VariablesService | undefined;
 let variablesManager: VariablesManager | undefined;
+let dataExplorerManager: DataExplorerManager | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
@@ -155,6 +157,14 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(VariablesManager.viewType, variablesManager)
     );
+
+    dataExplorerManager = new DataExplorerManager(context.extensionUri, sidecarManager);
+    context.subscriptions.push(dataExplorerManager);
+    context.subscriptions.push(
+        sidecarManager.onDidOpenDataExplorerComm((e) => {
+            dataExplorerManager?.open(e.commId);
+        })
+    );
 }
 
 export function deactivate(): void {
@@ -176,4 +186,6 @@ export function deactivate(): void {
     helpManager = undefined;
     helpService?.dispose();
     helpService = undefined;
+    dataExplorerManager?.dispose();
+    dataExplorerManager = undefined;
 }
