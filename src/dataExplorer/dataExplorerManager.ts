@@ -610,6 +610,11 @@ class DataExplorerPanel implements vscode.Disposable {
                         <button class="action" id="refresh-btn">Refresh</button>
                     </div>
                 </div>
+                <div class="row-filter-bar" id="row-filter-bar">
+                    <div class="row-filter-label">Row Filters</div>
+                    <div class="row-filter-chips" id="row-filter-chips"></div>
+                    <button class="action secondary" id="add-row-filter">+ Filter</button>
+                </div>
                 <div class="side-panel" id="filter-panel">
                     <div class="panel-header">
                         <span>Column Filter</span>
@@ -635,6 +640,76 @@ class DataExplorerPanel implements vscode.Disposable {
                             <button class="action secondary" id="clear-filter">Clear</button>
                         </div>
                         <div class="filter-status" id="filter-status"></div>
+                    </div>
+                </div>
+                <div class="side-panel" id="row-filter-panel">
+                    <div class="panel-header">
+                        <span>Row Filter</span>
+                        <button class="close-btn" id="close-row-filter">&times;</button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="filter-section">
+                            <label>Column</label>
+                            <select id="row-filter-column"></select>
+                        </div>
+                        <div class="filter-section">
+                            <label>Filter Type</label>
+                            <select id="row-filter-type"></select>
+                        </div>
+                        <div class="filter-section" id="row-filter-compare-section">
+                            <label>Comparison</label>
+                            <div class="row-filter-inline">
+                                <select id="row-filter-compare-op">
+                                    <option value="=">=</option>
+                                    <option value="!=">!=</option>
+                                    <option value="&lt;">&lt;</option>
+                                    <option value="&lt;=">&lt;=</option>
+                                    <option value="&gt;">&gt;</option>
+                                    <option value="&gt;=">&gt;=</option>
+                                </select>
+                                <input type="text" id="row-filter-compare-value" placeholder="Value">
+                            </div>
+                        </div>
+                        <div class="filter-section" id="row-filter-between-section">
+                            <label>Between</label>
+                            <div class="row-filter-inline">
+                                <input type="text" id="row-filter-between-left" placeholder="From">
+                                <input type="text" id="row-filter-between-right" placeholder="To">
+                            </div>
+                        </div>
+                        <div class="filter-section" id="row-filter-search-section">
+                            <label>Text Search</label>
+                            <select id="row-filter-search-type">
+                                <option value="contains">contains</option>
+                                <option value="not_contains">not contains</option>
+                                <option value="starts_with">starts with</option>
+                                <option value="ends_with">ends with</option>
+                                <option value="regex_match">regex</option>
+                            </select>
+                            <input type="text" id="row-filter-search-term" placeholder="Search term">
+                            <label class="checkbox-inline">
+                                <input type="checkbox" id="row-filter-search-case"> Case sensitive
+                            </label>
+                        </div>
+                        <div class="filter-section" id="row-filter-set-section">
+                            <label>Set Membership</label>
+                            <input type="text" id="row-filter-set-values" placeholder="Comma-separated values">
+                            <label class="checkbox-inline">
+                                <input type="checkbox" id="row-filter-set-inclusive" checked> Include values
+                            </label>
+                        </div>
+                        <div class="filter-section" id="row-filter-condition-section">
+                            <label>Condition</label>
+                            <select id="row-filter-condition">
+                                <option value="and">AND</option>
+                                <option value="or">OR</option>
+                            </select>
+                        </div>
+                        <div class="filter-status" id="row-filter-error"></div>
+                        <div class="filter-actions">
+                            <button class="action" id="save-row-filter">Save</button>
+                            <button class="action secondary" id="cancel-row-filter">Cancel</button>
+                        </div>
                     </div>
                 </div>
                 <div class="side-panel" id="stats-panel">

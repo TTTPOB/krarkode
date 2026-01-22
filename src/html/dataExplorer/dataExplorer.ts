@@ -55,11 +55,30 @@ interface ColumnFilter {
     };
 }
 
+type RowFilterType =
+    | 'between'
+    | 'compare'
+    | 'is_empty'
+    | 'is_false'
+    | 'is_null'
+    | 'is_true'
+    | 'not_between'
+    | 'not_empty'
+    | 'not_null'
+    | 'search'
+    | 'set_membership';
+
+type RowFilterCondition = 'and' | 'or';
+
+type FilterComparisonOp = '=' | '!=' | '<' | '<=' | '>' | '>=';
+
+type TextSearchType = 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'regex_match';
+
 interface RowFilter {
     filter_id: string;
-    filter_type: string;
+    filter_type: RowFilterType;
     column_schema: ColumnSchema;
-    condition: 'and' | 'or';
+    condition: RowFilterCondition;
     params?: Record<string, unknown>;
 }
 
@@ -93,8 +112,20 @@ interface SearchSchemaFeatures {
     support_status?: SupportStatus;
 }
 
+interface RowFilterTypeSupportStatus {
+    row_filter_type: RowFilterType;
+    support_status: SupportStatus;
+}
+
+interface SetRowFiltersFeatures {
+    support_status?: SupportStatus;
+    supports_conditions?: SupportStatus;
+    supported_types?: RowFilterTypeSupportStatus[];
+}
+
 interface SupportedFeatures {
     search_schema?: SearchSchemaFeatures;
+    set_row_filters?: SetRowFiltersFeatures;
     set_sort_columns?: SetSortColumnsFeatures;
     [key: string]: unknown;
 }
@@ -136,9 +167,31 @@ const refreshButton = document.getElementById('refresh-btn') as HTMLButtonElemen
 const filterButton = document.getElementById('filter-btn') as HTMLButtonElement;
 const statsButton = document.getElementById('stats-btn') as HTMLButtonElement;
 const codeButton = document.getElementById('code-btn') as HTMLButtonElement;
+const rowFilterBar = document.getElementById('row-filter-bar') as HTMLDivElement;
+const rowFilterChips = document.getElementById('row-filter-chips') as HTMLDivElement;
+const addRowFilterButton = document.getElementById('add-row-filter') as HTMLButtonElement;
 const filterPanel = document.getElementById('filter-panel') as HTMLDivElement;
 const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
 const codeModal = document.getElementById('code-modal') as HTMLDivElement;
+const rowFilterPanel = document.getElementById('row-filter-panel') as HTMLDivElement;
+const rowFilterColumn = document.getElementById('row-filter-column') as HTMLSelectElement;
+const rowFilterType = document.getElementById('row-filter-type') as HTMLSelectElement;
+const rowFilterCompareOp = document.getElementById('row-filter-compare-op') as HTMLSelectElement;
+const rowFilterCompareValue = document.getElementById('row-filter-compare-value') as HTMLInputElement;
+const rowFilterBetweenLeft = document.getElementById('row-filter-between-left') as HTMLInputElement;
+const rowFilterBetweenRight = document.getElementById('row-filter-between-right') as HTMLInputElement;
+const rowFilterSearchType = document.getElementById('row-filter-search-type') as HTMLSelectElement;
+const rowFilterSearchTerm = document.getElementById('row-filter-search-term') as HTMLInputElement;
+const rowFilterSearchCase = document.getElementById('row-filter-search-case') as HTMLInputElement;
+const rowFilterSetValues = document.getElementById('row-filter-set-values') as HTMLInputElement;
+const rowFilterSetInclusive = document.getElementById('row-filter-set-inclusive') as HTMLInputElement;
+const rowFilterCondition = document.getElementById('row-filter-condition') as HTMLSelectElement;
+const rowFilterError = document.getElementById('row-filter-error') as HTMLDivElement;
+const rowFilterCompareSection = document.getElementById('row-filter-compare-section') as HTMLDivElement;
+const rowFilterBetweenSection = document.getElementById('row-filter-between-section') as HTMLDivElement;
+const rowFilterSearchSection = document.getElementById('row-filter-search-section') as HTMLDivElement;
+const rowFilterSetSection = document.getElementById('row-filter-set-section') as HTMLDivElement;
+const rowFilterConditionSection = document.getElementById('row-filter-condition-section') as HTMLDivElement;
 const filterStatus = document.getElementById('filter-status') as HTMLDivElement;
 const statsResults = document.getElementById('stats-results') as HTMLDivElement;
 const statsText = document.getElementById('stats-text') as HTMLPreElement;
@@ -169,6 +222,9 @@ let headerRowElement: HTMLDivElement | undefined;
 let rowVirtualizerCleanup: (() => void) | undefined;
 let activeSort: SortState | null = null;
 let histogramChart: echarts.ECharts | null = null;
+let rowFilters: RowFilter[] = [];
+let editingRowFilterIndex: number | null = null;
+let rowFilterSupport: SetRowFiltersFeatures | undefined;
 
 function log(message: string, payload?: unknown): void {
     if (payload !== undefined) {
@@ -178,6 +234,34 @@ function log(message: string, payload?: unknown): void {
     }
 }
 
+const ROW_FILTER_TYPE_LABELS: Record<RowFilterType, string> = {
+    between: 'Between',
+    compare: 'Compare',
+    is_empty: 'Is empty',
+    is_false: 'Is false',
+    is_null: 'Is null',
+    is_true: 'Is true',
+    not_between: 'Not between',
+    not_empty: 'Not empty',
+    not_null: 'Not null',
+    search: 'Search',
+    set_membership: 'Set membership',
+};
+
+const ROW_FILTER_SECTION_MAP: Record<RowFilterType, 'compare' | 'between' | 'search' | 'set' | 'none'> = {
+    between: 'between',
+    compare: 'compare',
+    is_empty: 'none',
+    is_false: 'none',
+    is_null: 'none',
+    is_true: 'none',
+    not_between: 'between',
+    not_empty: 'none',
+    not_null: 'none',
+    search: 'search',
+    set_membership: 'set',
+};
+
 refreshButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'refresh' });
 });
@@ -186,12 +270,18 @@ filterButton.addEventListener('click', () => {
     filterPanel.classList.toggle('open');
     statsPanel.classList.remove('open');
     codeModal.classList.remove('open');
+    rowFilterPanel.classList.remove('open');
+});
+
+addRowFilterButton.addEventListener('click', () => {
+    openRowFilterEditor();
 });
 
 statsButton.addEventListener('click', () => {
     statsPanel.classList.toggle('open');
     filterPanel.classList.remove('open');
     codeModal.classList.remove('open');
+    rowFilterPanel.classList.remove('open');
     populateStatsColumnSelect();
     if (statsPanel.classList.contains('open')) {
         requestAnimationFrame(() => {
@@ -208,10 +298,15 @@ codeButton.addEventListener('click', () => {
     codeModal.classList.toggle('open');
     filterPanel.classList.remove('open');
     statsPanel.classList.remove('open');
+    rowFilterPanel.classList.remove('open');
 });
 
 document.getElementById('close-filter')?.addEventListener('click', () => {
     filterPanel.classList.remove('open');
+});
+
+document.getElementById('close-row-filter')?.addEventListener('click', () => {
+    rowFilterPanel.classList.remove('open');
 });
 
 document.getElementById('close-stats')?.addEventListener('click', () => {
@@ -222,6 +317,10 @@ document.getElementById('close-code')?.addEventListener('click', () => {
     codeModal.classList.remove('open');
 });
 
+document.getElementById('cancel-row-filter')?.addEventListener('click', () => {
+    rowFilterPanel.classList.remove('open');
+});
+
 document.getElementById('apply-filter')?.addEventListener('click', () => {
     applyColumnFilter();
 });
@@ -230,6 +329,14 @@ document.getElementById('clear-filter')?.addEventListener('click', () => {
     (document.getElementById('column-search') as HTMLInputElement).value = '';
     (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
     applyColumnFilter();
+});
+
+document.getElementById('save-row-filter')?.addEventListener('click', () => {
+    saveRowFilter();
+});
+
+rowFilterType.addEventListener('change', () => {
+    updateRowFilterSections(rowFilterType.value as RowFilterType);
 });
 
 document.getElementById('get-stats')?.addEventListener('click', () => {
@@ -285,6 +392,306 @@ function applyColumnFilter() {
     filterStatus.textContent = 'Searching...';
     vscode.postMessage({ type: 'searchSchema', filters, sortOrder });
     vscode.postMessage({ type: 'setColumnFilters', filters });
+}
+
+function updateRowFilterBarVisibility(): void {
+    const supported = isRowFilterSupported();
+    rowFilterBar.style.display = supported ? 'flex' : 'none';
+    addRowFilterButton.disabled = !supported;
+    if (!supported) {
+        rowFilterPanel.classList.remove('open');
+    }
+}
+
+function isRowFilterSupported(): boolean {
+    const supportStatus = rowFilterSupport?.support_status;
+    if (!supportStatus) {
+        return true;
+    }
+    return supportStatus === 'supported';
+}
+
+function supportsRowFilterConditions(): boolean {
+    const supportStatus = rowFilterSupport?.supports_conditions;
+    if (!supportStatus) {
+        return true;
+    }
+    return supportStatus === 'supported';
+}
+
+function getSupportedRowFilterTypes(): RowFilterType[] {
+    const supported = rowFilterSupport?.supported_types
+        ?.filter((entry) => entry.support_status === 'supported')
+        .map((entry) => entry.row_filter_type);
+
+    if (supported && supported.length > 0) {
+        return supported;
+    }
+
+    return Object.keys(ROW_FILTER_TYPE_LABELS) as RowFilterType[];
+}
+
+function renderRowFilterChips(): void {
+    rowFilterChips.innerHTML = '';
+    if (!rowFilters.length) {
+        const empty = document.createElement('span');
+        empty.textContent = 'No filters';
+        empty.className = 'row-filter-label';
+        rowFilterChips.appendChild(empty);
+        return;
+    }
+
+    rowFilters.forEach((filter, index) => {
+        const chip = document.createElement('div');
+        chip.className = 'row-filter-chip';
+        const label = document.createElement('span');
+        label.textContent = formatRowFilterChip(filter, index);
+        chip.appendChild(label);
+
+        const removeButton = document.createElement('button');
+        removeButton.textContent = '×';
+        removeButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            removeRowFilter(index);
+        });
+        chip.appendChild(removeButton);
+
+        chip.addEventListener('click', () => {
+            openRowFilterEditor(filter, index);
+        });
+        rowFilterChips.appendChild(chip);
+    });
+}
+
+function formatRowFilterChip(filter: RowFilter, index: number): string {
+    const columnLabel = filter.column_schema.column_label || filter.column_schema.column_name || `Column ${filter.column_schema.column_index + 1}`;
+    const prefix = index > 0 ? `${filter.condition.toUpperCase()} ` : '';
+    const params = filter.params || {};
+
+    switch (filter.filter_type) {
+        case 'compare':
+            return `${prefix}${columnLabel} ${(params as { op?: string }).op ?? '='} ${(params as { value?: string }).value ?? ''}`.trim();
+        case 'between':
+            return `${prefix}${columnLabel} between ${(params as { left_value?: string }).left_value ?? ''} and ${(params as { right_value?: string }).right_value ?? ''}`.trim();
+        case 'not_between':
+            return `${prefix}${columnLabel} not between ${(params as { left_value?: string }).left_value ?? ''} and ${(params as { right_value?: string }).right_value ?? ''}`.trim();
+        case 'search':
+            return `${prefix}${columnLabel} ${(params as { search_type?: string }).search_type ?? 'contains'} "${(params as { term?: string }).term ?? ''}"`.trim();
+        case 'set_membership': {
+            const inclusive = (params as { inclusive?: boolean }).inclusive !== false;
+            const values = (params as { values?: string[] }).values ?? [];
+            const label = inclusive ? 'in' : 'not in';
+            return `${prefix}${columnLabel} ${label} [${values.join(', ')}]`;
+        }
+        case 'is_null':
+            return `${prefix}${columnLabel} is null`;
+        case 'not_null':
+            return `${prefix}${columnLabel} is not null`;
+        case 'is_empty':
+            return `${prefix}${columnLabel} is empty`;
+        case 'not_empty':
+            return `${prefix}${columnLabel} is not empty`;
+        case 'is_true':
+            return `${prefix}${columnLabel} is true`;
+        case 'is_false':
+            return `${prefix}${columnLabel} is false`;
+        default:
+            return `${prefix}${columnLabel}`;
+    }
+}
+
+function openRowFilterEditor(filter?: RowFilter, index?: number): void {
+    if (!isRowFilterSupported()) {
+        return;
+    }
+
+    if (!schema.length) {
+        log('Row filter editor skipped; schema not loaded.');
+        return;
+    }
+
+    editingRowFilterIndex = index ?? null;
+    rowFilterPanel.classList.add('open');
+    filterPanel.classList.remove('open');
+    statsPanel.classList.remove('open');
+    codeModal.classList.remove('open');
+    rowFilterError.textContent = '';
+
+    populateRowFilterColumns();
+    populateRowFilterTypes();
+
+    const selectedColumnIndex = filter?.column_schema.column_index ?? schema[0]?.column_index ?? 0;
+    rowFilterColumn.value = String(selectedColumnIndex);
+
+    const selectedType = filter?.filter_type ?? getSupportedRowFilterTypes()[0] ?? 'compare';
+    rowFilterType.value = selectedType;
+    updateRowFilterSections(selectedType);
+
+    const conditionValue = filter?.condition ?? 'and';
+    rowFilterCondition.value = conditionValue;
+    rowFilterConditionSection.style.display = supportsRowFilterConditions() ? 'block' : 'none';
+
+    rowFilterCompareOp.value = (filter?.params as { op?: string })?.op ?? '=';
+    rowFilterCompareValue.value = (filter?.params as { value?: string })?.value ?? '';
+    rowFilterBetweenLeft.value = (filter?.params as { left_value?: string })?.left_value ?? '';
+    rowFilterBetweenRight.value = (filter?.params as { right_value?: string })?.right_value ?? '';
+    rowFilterSearchType.value = (filter?.params as { search_type?: string })?.search_type ?? 'contains';
+    rowFilterSearchTerm.value = (filter?.params as { term?: string })?.term ?? '';
+    rowFilterSearchCase.checked = (filter?.params as { case_sensitive?: boolean })?.case_sensitive ?? false;
+    rowFilterSetValues.value = ((filter?.params as { values?: string[] })?.values ?? []).join(', ');
+    rowFilterSetInclusive.checked = (filter?.params as { inclusive?: boolean })?.inclusive !== false;
+
+    log('Row filter editor opened', { filter, index });
+}
+
+function populateRowFilterColumns(): void {
+    rowFilterColumn.innerHTML = '';
+    schema.forEach((column) => {
+        const option = document.createElement('option');
+        option.value = String(column.column_index);
+        option.textContent = column.column_label || column.column_name || `Column ${column.column_index + 1}`;
+        rowFilterColumn.appendChild(option);
+    });
+}
+
+function populateRowFilterTypes(): void {
+    const supportedTypes = getSupportedRowFilterTypes();
+    rowFilterType.innerHTML = '';
+    supportedTypes.forEach((filterType) => {
+        const option = document.createElement('option');
+        option.value = filterType;
+        option.textContent = ROW_FILTER_TYPE_LABELS[filterType] ?? filterType;
+        rowFilterType.appendChild(option);
+    });
+}
+
+function updateRowFilterSections(filterType: RowFilterType): void {
+    const section = ROW_FILTER_SECTION_MAP[filterType] ?? 'none';
+    rowFilterCompareSection.style.display = section === 'compare' ? 'block' : 'none';
+    rowFilterBetweenSection.style.display = section === 'between' ? 'block' : 'none';
+    rowFilterSearchSection.style.display = section === 'search' ? 'block' : 'none';
+    rowFilterSetSection.style.display = section === 'set' ? 'block' : 'none';
+}
+
+function saveRowFilter(): void {
+    const columnIndex = Number(rowFilterColumn.value);
+    const column = schema.find((item) => item.column_index === columnIndex);
+    if (!column) {
+        rowFilterError.textContent = 'Select a column.';
+        return;
+    }
+
+    const filterType = rowFilterType.value as RowFilterType;
+    const params = buildRowFilterParams(filterType);
+    if (!params.valid) {
+        rowFilterError.textContent = params.errorMessage;
+        return;
+    }
+
+    const condition: RowFilterCondition = supportsRowFilterConditions()
+        ? (rowFilterCondition.value as RowFilterCondition)
+        : 'and';
+
+    const filterId = editingRowFilterIndex !== null
+        ? rowFilters[editingRowFilterIndex]?.filter_id
+        : createRowFilterId();
+
+    if (!filterId) {
+        rowFilterError.textContent = 'Unable to create filter ID.';
+        return;
+    }
+
+    const filter: RowFilter = {
+        filter_id: filterId,
+        filter_type: filterType,
+        column_schema: column,
+        condition,
+        params: params.value,
+    };
+
+    if (editingRowFilterIndex !== null) {
+        rowFilters[editingRowFilterIndex] = filter;
+    } else {
+        rowFilters.push(filter);
+    }
+
+    rowFilterPanel.classList.remove('open');
+    rowFilterError.textContent = '';
+    renderRowFilterChips();
+    vscode.postMessage({ type: 'setRowFilters', filters: rowFilters });
+    log('Row filters saved', { count: rowFilters.length, filter });
+}
+
+function buildRowFilterParams(filterType: RowFilterType): { valid: boolean; value?: Record<string, unknown>; errorMessage?: string } {
+    switch (filterType) {
+        case 'compare':
+            if (!rowFilterCompareValue.value.trim()) {
+                return { valid: false, errorMessage: 'Enter a comparison value.' };
+            }
+            return {
+                valid: true,
+                value: {
+                    op: rowFilterCompareOp.value as FilterComparisonOp,
+                    value: rowFilterCompareValue.value.trim(),
+                },
+            };
+        case 'between':
+        case 'not_between':
+            if (!rowFilterBetweenLeft.value.trim() || !rowFilterBetweenRight.value.trim()) {
+                return { valid: false, errorMessage: 'Enter both range values.' };
+            }
+            return {
+                valid: true,
+                value: {
+                    left_value: rowFilterBetweenLeft.value.trim(),
+                    right_value: rowFilterBetweenRight.value.trim(),
+                },
+            };
+        case 'search':
+            if (!rowFilterSearchTerm.value.trim()) {
+                return { valid: false, errorMessage: 'Enter a search term.' };
+            }
+            return {
+                valid: true,
+                value: {
+                    search_type: rowFilterSearchType.value as TextSearchType,
+                    term: rowFilterSearchTerm.value.trim(),
+                    case_sensitive: rowFilterSearchCase.checked,
+                },
+            };
+        case 'set_membership': {
+            const values = rowFilterSetValues.value
+                .split(',')
+                .map((entry) => entry.trim())
+                .filter(Boolean);
+            if (!values.length) {
+                return { valid: false, errorMessage: 'Enter one or more values.' };
+            }
+            return {
+                valid: true,
+                value: {
+                    values,
+                    inclusive: rowFilterSetInclusive.checked,
+                },
+            };
+        }
+        default:
+            return { valid: true };
+    }
+}
+
+function createRowFilterId(): string {
+    if ('randomUUID' in crypto) {
+        return crypto.randomUUID();
+    }
+    return `row-filter-${Date.now()}`;
+}
+
+function removeRowFilter(index: number): void {
+    rowFilters.splice(index, 1);
+    renderRowFilterChips();
+    vscode.postMessage({ type: 'setRowFilters', filters: rowFilters });
+    log('Row filter removed', { index, count: rowFilters.length });
 }
 
 function getColumnStats() {
@@ -512,12 +919,16 @@ function handleInit(message: InitMessage) {
     loadedBlocks.clear();
     loadingBlocks.clear();
     activeSort = resolveSortState(state.sort_keys);
+    rowFilters = state.row_filters ?? [];
+    rowFilterSupport = state.supported_features?.set_row_filters;
     filterStatus.textContent = '';
     statsText.textContent = '';
     clearHistogram();
     codePreview.textContent = '';
     (document.getElementById('column-search') as HTMLInputElement).value = '';
     (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
+    renderRowFilterChips();
+    updateRowFilterBarVisibility();
     renderHeader();
     setupTable();
     setupVirtualizer();

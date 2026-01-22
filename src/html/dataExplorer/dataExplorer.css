@@ -57,6 +57,57 @@ body {
     background: var(--vscode-button-secondaryHoverBackground);
 }
 
+.row-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+    background: var(--vscode-sideBarSectionHeader-background);
+    flex-wrap: wrap;
+}
+
+.row-filter-label {
+    font-weight: 600;
+    font-size: 0.85em;
+    color: var(--vscode-descriptionForeground);
+}
+
+.row-filter-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.row-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    font-size: 0.85em;
+}
+
+.row-filter-chip button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1em;
+}
+
+.row-filter-chip button:hover {
+    color: var(--vscode-editor-foreground);
+}
+
+.row-filter-bar .action.secondary {
+    padding: 3px 8px;
+}
+
 .dropdown {
     position: relative;
     display: inline-block;
@@ -165,6 +216,25 @@ body {
     color: var(--vscode-dropdown-foreground);
     border-radius: 3px;
     box-sizing: border-box;
+}
+
+.row-filter-inline {
+    display: flex;
+    gap: 8px;
+}
+
+.row-filter-inline input,
+.row-filter-inline select {
+    flex: 1;
+}
+
+.checkbox-inline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: normal;
+    font-size: 0.85em;
+    margin-top: 8px;
 }
 
 .checkbox-group {
