@@ -8,6 +8,7 @@
     "vscode": "^1.75.0"
   },
   "categories": [
+    "Programming Languages",
     "Other"
   ],
   "activationEvents": [
@@ -15,6 +16,7 @@
     "onLanguage:rmd",
     "onCommand:krarkode.createArkSession",
     "onCommand:krarkode.attachArkSession",
+    "onCommand:krarkode.openArkConsole",
     "onCommand:krarkode.stopArkSession",
     "onCommand:krarkode.restartArkLanguageServer"
   ],
@@ -32,6 +34,11 @@
         "category": "Krarkode"
       },
       {
+        "command": "krarkode.openArkConsole",
+        "title": "Open Ark Console",
+        "category": "Krarkode"
+      },
+      {
         "command": "krarkode.stopArkSession",
         "title": "Stop Ark Session",
         "category": "Krarkode"
@@ -40,6 +47,86 @@
         "command": "krarkode.restartArkLanguageServer",
         "title": "Restart Ark Language Server",
         "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.runSelection",
+        "title": "Run Selection/Line",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.runSelectionRetainCursor",
+        "title": "Run Selection/Line (Retain Cursor)",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.runSource",
+        "title": "Source File",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.runSourceWithEcho",
+        "title": "Source File with Echo",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.runFromLineToEnd",
+        "title": "Run From Line To End",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.runFromBeginningToLine",
+        "title": "Run From Beginning To Line",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.nrow",
+        "title": "nrow()",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.length",
+        "title": "length()",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.head",
+        "title": "head()",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.thead",
+        "title": "t(head())",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.names",
+        "title": "names()",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.view",
+        "title": "View()",
+        "category": "Krarkode"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "krarkode.runSelection",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == r"
+      },
+      {
+        "command": "krarkode.runSelection",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && editorLangId == rmd"
+      },
+      {
+        "command": "krarkode.runSource",
+        "key": "ctrl+shift+s",
+        "mac": "cmd+shift+s",
+        "when": "editorTextFocus && editorLangId == r"
       }
     ],
     "configuration": {
@@ -124,6 +211,29 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Path to an R executable to launch R background processes. Must be \"vanilla\" R, not radian etc.! Some variables defined in <https://code.visualstudio.com/docs/editor/variables-reference> such as `${userHome}`, `${workspaceFolder}`, `${fileWorkspaceFolder}`, and `${fileDirname}` are supported."
+        },
+        "krarkode.source.encoding": {
+          "type": "string",
+          "default": "UTF-8",
+          "description": "Encoding to use when sourcing R files."
+        },
+        "krarkode.source.echo": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to echo commands when sourcing R files."
+        },
+        "krarkode.plot.viewColumn": {
+          "type": "string",
+          "default": "Two",
+          "enum": [
+            "Active",
+            "Beside",
+            "One",
+            "Two",
+            "Three",
+            "Disable"
+          ],
+          "description": "View column for plot viewer. Set to 'Disable' to disable the plot viewer."
         }
       }
     }
