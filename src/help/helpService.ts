@@ -123,13 +123,23 @@ export class HelpService implements IKrarkodeHelpService {
         // CSS to match VS Code theme
         const themeStyle = `
             <style>
+                /* Reset body styles that might conflict with flex layout */
                 body {
                     font-family: var(--vscode-editor-font-family);
                     font-size: var(--vscode-editor-font-size);
                     background-color: var(--vscode-editor-background);
                     color: var(--vscode-editor-foreground);
-                    line-height: 1.6;
+                    margin: 0;
+                    padding: 0;
+                }
+                /* Apply padding to the content container instead */
+                .content {
                     padding: 20px;
+                    line-height: 1.6;
+                }
+                img {
+                    max-width: 100%;
+                    height: auto;
                 }
                 a {
                     color: var(--vscode-textLink-foreground);

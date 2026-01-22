@@ -104,7 +104,7 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data: https:; frame-src http://127.0.0.1:*; base-uri http://127.0.0.1:*;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${cspSource} data: https: http://127.0.0.1:*; frame-src http://127.0.0.1:*; base-uri http://127.0.0.1:*;">
     <title>${HELP_VIEW_TITLE}</title>
     <style>
         * {
@@ -130,39 +130,13 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             background-color: var(--vscode-editorWidget-background);
             flex-shrink: 0;
         }
-        .toolbar button {
-            background: none;
-            border: 1px solid transparent;
-            padding: 5px 8px;
-            cursor: pointer;
-            border-radius: 4px;
-            color: var(--vscode-editor-foreground);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 28px;
-        }
-        .toolbar button:hover {
-            background-color: var(--vscode-toolbar-hoverBackground);
-        }
-        .toolbar button:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-        .toolbar button:disabled:hover {
-            background: none;
-        }
-        .toolbar .separator {
-            width: 1px;
-            height: 16px;
-            background-color: var(--vscode-editorWidget-border);
-            margin: 0 4px;
-        }
+        /* ... toolbar styles ... */
         .content {
             flex: 1;
-            overflow: hidden;
+            overflow: auto; /* Ensure scrollable */
             position: relative;
             background-color: var(--vscode-editor-background);
+            padding: 0;
         }
         .welcome-content {
             height: 100%;
