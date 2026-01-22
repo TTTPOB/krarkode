@@ -74,6 +74,11 @@ export function activate(context: vscode.ExtensionContext): void {
         } else if (sidecarManager) {
             sidecarManager.stop();
         }
+
+        // Restart LSP to pick up the new session (or fall back to background kernel)
+        if (languageService) {
+            void languageService.restart();
+        }
     });
     
     codeExecutor = new CodeExecutor();
