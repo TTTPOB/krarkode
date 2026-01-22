@@ -5,8 +5,9 @@ after you've done a task, update the bd issue with what you've done.
 you can use gh cli tool to search code on github and i have gh cat extension installed to help you read code files.
 each commit touched side car, should run `cargo check` in sidecar dir to ensure pass.
 
-positron repo: posit-dev/positron, locally available at ${workspaceroot}/repo_ref/positron
-ark repo: posit-dev/ark, locally available at ${workspaceroot}/repo_ref/ark
+positron repo: posit-dev/positron, locally available at repo_ref/positron
+ark repo: posit-dev/ark, locally available at repo_ref/ark
+vscode-R repo, where we have done some ark related work before this separate krarkode repo: tttpob/vscode-R, locally available at repo_ref/vscode-R
 
 - Ark sidecar smoke test
   - 通过 pixi 的 R 4.4 环境运行：`pixi run -- node scripts/ark-sidecar-lsp-test.js`
