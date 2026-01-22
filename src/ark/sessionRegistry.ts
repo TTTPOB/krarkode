@@ -11,6 +11,7 @@ export interface ArkSessionEntry {
     connectionFilePath: string;
     tmuxSessionName?: string;
     tmuxWindowName?: string;
+    pid?: number;
     createdAt: string;
     lastAttachedAt?: string;
 }

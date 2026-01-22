@@ -60,7 +60,14 @@ function renderShellTemplate(template: string, values: Record<string, string>): 
 
 export class ArkSessionManager {
     private readonly outputChannel = vscode.window.createOutputChannel('Ark');
+    private readonly statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     private onActiveSessionChanged?: (entry: ArkSessionEntry | undefined) => void;
+
+    constructor() {
+        this.statusBarItem.command = 'krarkode.openArkConsole';
+        this.updateStatusBar(undefined);
+        this.statusBarItem.show();
+    }
 
     registerCommands(context: vscode.ExtensionContext): void {
         context.subscriptions.push(
@@ -94,10 +101,31 @@ export class ArkSessionManager {
 
     dispose(): void {
         this.outputChannel.dispose();
+        this.statusBarItem.dispose();
     }
 
     setActiveSessionHandler(handler: (entry: ArkSessionEntry | undefined) => void): void {
         this.onActiveSessionChanged = handler;
+        // Initialize with current active session
+        const current = sessionRegistry.getActiveSession();
+        if (current) {
+            this.updateStatusBar(current);
+            handler(current);
+        }
+    }
+
+    private updateStatusBar(entry: ArkSessionEntry | undefined): void {
+        if (entry) {
+            const pidInfo = entry.pid ? ` (PID: ${entry.pid})` : '';
+            this.statusBarItem.text = `$(vm) Ark: ${entry.name}${pidInfo}`;
+            this.statusBarItem.tooltip = `Ark Session: ${entry.name}\nConnection File: ${entry.connectionFilePath}`;
+            this.statusBarItem.backgroundColor = undefined;
+        } else {
+            this.statusBarItem.text = `$(vm) Ark: No Session`;
+            this.statusBarItem.tooltip = 'Click to open Ark Console';
+            this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        }
+        this.statusBarItem.show();
     }
 
     private getArkPath(): string {
@@ -166,6 +194,12 @@ export class ArkSessionManager {
         const terminal = vscode.window.createTerminal({ name });
         terminal.show(true);
         return terminal;
+    }
+
+    private setActiveSession(entry: ArkSessionEntry | undefined): void {
+        sessionRegistry.setActiveSessionName(entry?.name);
+        this.updateStatusBar(entry);
+        this.onActiveSessionChanged?.(entry);
     }
 
     private async createSession(): Promise<void> {
@@ -239,15 +273,20 @@ export class ArkSessionManager {
             lastAttachedAt: nowIso(),
         };
 
+        // Try to get PID from startup announce
+        const payload = await this.waitForAnnounce(announceFile, 5000);
+        if (payload?.pid) {
+            entry.pid = payload.pid;
+        }
+
         sessionRegistry.upsertSession(entry);
 
         if (driver === 'tmux') {
             await this.openConsoleForEntry(entry);
         } else {
             void vscode.window.showInformationMessage('已生成 Ark connection file，请手动启动 Ark kernel 与 console。');
+            this.setActiveSession(entry);
         }
-        sessionRegistry.setActiveSessionName(sessionName);
-        this.onActiveSessionChanged?.(entry);
     }
 
     private async attachSession(): Promise<void> {
@@ -288,13 +327,13 @@ export class ArkSessionManager {
                 connectionFilePath: connectionFile,
                 tmuxSessionName: existing?.tmuxSessionName,
                 tmuxWindowName: existing?.tmuxWindowName,
+                pid: payload.pid,
                 createdAt: existing?.createdAt ?? nowIso(),
                 lastAttachedAt: nowIso(),
             });
 
-            sessionRegistry.setActiveSessionName(sessionName);
             const activeSession = sessionRegistry.findSession(sessionName);
-            this.onActiveSessionChanged?.(activeSession);
+            this.setActiveSession(activeSession);
         } finally {
             if (fs.existsSync(announceFile)) {
                 fs.unlinkSync(announceFile);
@@ -331,10 +370,13 @@ export class ArkSessionManager {
 
         const nextRegistry = registry.filter((item) => item.name !== entry.name);
         sessionRegistry.saveRegistry(nextRegistry);
-        if (sessionRegistry.getActiveSessionName() === entry.name) {
-            sessionRegistry.setActiveSessionName(undefined);
+        
+        let nextActive: ArkSessionEntry | undefined;
+        if (sessionRegistry.getActiveSessionName() !== entry.name) {
+            nextActive = sessionRegistry.getActiveSession();
         }
-        this.onActiveSessionChanged?.(sessionRegistry.getActiveSession());
+        this.setActiveSession(nextActive);
+
         void vscode.window.showInformationMessage(`Stopped Ark session "${entry.name}".`);
     }
 
@@ -345,7 +387,7 @@ export class ArkSessionManager {
         terminal.sendText(command, true);
         terminal.show(true);
         sessionRegistry.updateSessionAttachment(entry.name, nowIso());
-        sessionRegistry.setActiveSessionName(entry.name);
+        this.setActiveSession(entry);
     }
 
     private resolveStartupFile(name: string, sessionsDir: string): string {
@@ -381,6 +423,9 @@ export class ArkSessionManager {
             `script_path <- ${rStringLiteral(scriptPath)}`,
             `connection_file <- Sys.getenv("ARK_CONNECTION_FILE")`,
             `session_name <- basename(dirname(connection_file))`,
+            `if (!requireNamespace("jsonlite", quietly = TRUE)) {`,
+            `  stop("jsonlite package is required for Ark session management")`,
+            `}`,
             `payload <- jsonlite::toJSON(list(`,
             `  sessionName = session_name,`,
             `  connectionFilePath = connection_file,`,
