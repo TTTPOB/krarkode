@@ -34,6 +34,9 @@ export class VariablesManager implements vscode.WebviewViewProvider {
                 case 'view':
                     this._service.view(data.path);
                     break;
+                case 'inspect':
+                    this._service.inspect(data.path);
+                    break;
                 case 'refresh':
                     this._service.refresh();
                     break;

@@ -26,9 +26,15 @@ export interface UpdateParams {
     version: number;
 }
 
+export interface InspectResult {
+    path: string[];
+    children: Variable[];
+    length: number;
+}
+
 export interface VariablesEvent {
-    method: 'refresh' | 'update';
-    params: RefreshParams | UpdateParams;
+    method: 'refresh' | 'update' | 'inspect';
+    params: RefreshParams | UpdateParams | InspectResult;
 }
 
 export interface ViewParams {

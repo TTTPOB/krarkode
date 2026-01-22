@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
-import { RefreshParams, UpdateParams, VariablesEvent } from './protocol';
+import { InspectResult, RefreshParams, UpdateParams, VariablesEvent } from './protocol';
 
 type VariablesMessage = {
     jsonrpc?: string;
@@ -15,6 +15,7 @@ type VariablesMessage = {
 export class VariablesService {
     private commId: string | undefined;
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Variables');
+    private readonly pendingInspectPaths: string[][] = [];
     private readonly _onDidReceiveUpdate = new vscode.EventEmitter<VariablesEvent>();
     public readonly onDidReceiveUpdate = this._onDidReceiveUpdate.event;
 
@@ -48,6 +49,10 @@ export class VariablesService {
         const method = message.method;
         this.log(`Received comm message: ${JSON.stringify(data)}`);
 
+        if (message.error) {
+            this.log(`Variables RPC error: ${JSON.stringify(message.error)}`);
+        }
+
         if (method === 'refresh' || method === 'update') {
             this._onDidReceiveUpdate.fire({
                 method,
@@ -56,7 +61,7 @@ export class VariablesService {
             return;
         }
 
-        const result = message.result as RefreshParams | UpdateParams | undefined;
+        const result = message.result as RefreshParams | UpdateParams | InspectResult | undefined;
         if (result) {
             if ('variables' in result) {
                 this.log('Dispatching refresh event.');
@@ -72,6 +77,24 @@ export class VariablesService {
                 this._onDidReceiveUpdate.fire({
                     method: 'update',
                     params: result as UpdateParams,
+                });
+                return;
+            }
+
+            if ('children' in result) {
+                const path = this.pendingInspectPaths.shift();
+                if (!path) {
+                    this.log('Inspect reply received without pending path.');
+                    return;
+                }
+                this.log(`Dispatching inspect event for ${JSON.stringify(path)}.`);
+                this._onDidReceiveUpdate.fire({
+                    method: 'inspect',
+                    params: {
+                        path,
+                        children: result.children ?? [],
+                        length: result.length ?? 0,
+                    },
                 });
             }
         }
@@ -104,6 +127,11 @@ export class VariablesService {
 
     public refresh() {
         this.sendRpc('list');
+    }
+
+    public inspect(path: string[]) {
+        this.pendingInspectPaths.push(path);
+        this.sendRpc('inspect', { path });
     }
 
     public view(path: string[]) {
