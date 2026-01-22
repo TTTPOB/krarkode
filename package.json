@@ -197,6 +197,11 @@
           "default": "",
           "description": "Path to the Ark sidecar executable. Leave empty to use bundled binaries."
         },
+        "krarkode.ark.sidecarTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "description": "Timeout for sidecar operations (ms)."
+        },
         "krarkode.ark.tmux.path": {
           "type": "string",
           "default": "tmux",
