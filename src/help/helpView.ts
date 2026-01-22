@@ -436,6 +436,11 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                     this.view?.webview.postMessage({ command: 'navigate', url: message.url });
                 }
                 break;
+            case 'navigate-url':
+                if (message.url) {
+                    void this.helpService.loadUrl(message.url);
+                }
+                break;
             case 'execute-command':
                 if (message.url) {
                     vscode.commands.executeCommand(message.id);
