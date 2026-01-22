@@ -2,18 +2,14 @@ import * as vscode from 'vscode';
 import { HelpEntry, createHelpEntry } from './helpEntry';
 import { MAX_HISTORY_ENTRIES } from './helpIds';
 
-export interface IHelpEntry {
-    sourceUrl: string;
-    title?: string;
-}
-
 export interface IKrarkodeHelpService {
-    readonly helpEntries: IHelpEntry[];
-    readonly currentHelpEntry?: IHelpEntry;
+    readonly helpEntries: HelpEntry[];
+    readonly currentHelpEntry?: HelpEntry;
     readonly canGoBack: boolean;
     readonly canGoForward: boolean;
     
     showHelpTopic(topic: string): Promise<boolean>;
+    showHelpContent(content: string, kind: string, focus: boolean): void;
     showWelcomePage(): void;
     goBack(): void;
     goForward(): void;
@@ -29,15 +25,15 @@ export class HelpService implements IKrarkodeHelpService {
     public readonly onDidChangeHelpEntry = this._onDidChangeHelpEntry.event;
 
     constructor(
-        private readonly webviewService: vscode.WebviewViewProvider,
-        private readonly extensionUri: vscode.Uri
+        private readonly extensionUri: vscode.Uri,
+        private readonly sendRpcRequest: (method: string, params: unknown) => void
     ) {}
 
-    public get helpEntries(): IHelpEntry[] {
+    public get helpEntries(): HelpEntry[] {
         return this.helpEntriesStack;
     }
 
-    public get currentHelpEntry(): IHelpEntry | undefined {
+    public get currentHelpEntry(): HelpEntry | undefined {
         if (this.currentIndex >= 0 && this.currentIndex < this.helpEntriesStack.length) {
             return this.helpEntriesStack[this.currentIndex];
         }
@@ -53,17 +49,33 @@ export class HelpService implements IKrarkodeHelpService {
     }
 
     public async showHelpTopic(topic: string): Promise<boolean> {
-        // Placeholder - will be implemented with help client
-        vscode.window.showInformationMessage(`Help topic: ${topic}`);
-        return false;
+        this.sendRpcRequest('show_help_topic', { topic });
+        return true;
+    }
+
+    public showHelpContent(content: string, kind: string, focus: boolean): void {
+        const titleMatch = content.match(/<title>(.*?)<\/title>/i);
+        const title = titleMatch ? titleMatch[1] : 'Help';
+        
+        const entry = createHelpEntry(
+            '',
+            title,
+            content,
+            'help'
+        );
+        
+        this.pushHelpEntry(entry);
+        
+        if (focus) {
+            vscode.commands.executeCommand('krarkode.help.focus');
+        }
     }
 
     public showWelcomePage(): void {
-        // Placeholder - will be implemented with welcome page
         const welcomeEntry = createHelpEntry(
             '',
             'Welcome to Krarkode Help',
-            this.extensionUri,
+            undefined,
             'welcome'
         );
         this.pushHelpEntry(welcomeEntry);

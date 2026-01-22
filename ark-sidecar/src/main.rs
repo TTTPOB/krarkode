@@ -402,11 +402,17 @@ async fn run_plot_watcher(
                 }
             }
             JupyterMessageContent::CommMsg(comm_msg) => {
-                // Check if this is a UI comm message with show_html_file method
+                // Check for UI methods
                 if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
                     if method == "show_html_file" {
                         Some(json!({
                             "event": "show_html_file",
+                            "comm_id": comm_msg.comm_id.0,
+                            "data": comm_msg.data
+                        }).to_string())
+                    } else if method == "show_help" {
+                        Some(json!({
+                            "event": "show_help",
                             "comm_id": comm_msg.comm_id.0,
                             "data": comm_msg.data
                         }).to_string())

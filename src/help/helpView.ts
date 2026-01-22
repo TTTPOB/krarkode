@@ -39,10 +39,38 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
         webviewView.onDidChangeVisibility(() => {
             if (webviewView.visible) {
                 this.updateNavigationState();
+                this.updateContent();
             }
         });
 
+        this.disposables.push(
+            this.helpService.onDidChangeHelpEntry(() => {
+                this.updateNavigationState();
+                this.updateContent();
+            })
+        );
+
         this.registerCommands();
+    }
+
+    private updateContent(): void {
+        const entry = this.helpService.currentHelpEntry;
+        if (!entry || !this.view) {
+            return;
+        }
+
+        if (entry.entryType === 'welcome') {
+            this.view.webview.postMessage({
+                command: 'show-welcome',
+                title: entry.title
+            });
+        } else if (entry.content) {
+            this.view.webview.postMessage({
+                command: 'show-content',
+                html: entry.content,
+                title: entry.title
+            });
+        }
     }
 
     private registerCommands(): void {
@@ -324,6 +352,8 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                 });
             }
 
+            window.renderWelcomePage = renderWelcomePage;
+
             window.addEventListener('message', (event) => {
                 const msg = event.data;
                 switch (msg.command) {
@@ -343,6 +373,10 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                             // Re-bind links if necessary, or assume default behavior
                         }
                         if (status) status.textContent = msg.title || 'Help';
+                        break;
+                    case 'show-welcome':
+                        renderWelcomePage();
+                        if (status) status.textContent = msg.title || 'Welcome';
                         break;
                 }
             });

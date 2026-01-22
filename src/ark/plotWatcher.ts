@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 
 interface SidecarEvent {
-    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open';
+    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help';
     data?: unknown;
     display_id?: string | null;
     message?: string;
@@ -55,6 +55,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidOpenHelpComm = new vscode.EventEmitter<{ commId: string }>();
     public readonly onDidOpenHelpComm = this._onDidOpenHelpComm.event;
+
+    private readonly _onDidShowHelp = new vscode.EventEmitter<{ content: string; kind: string; focus: boolean }>();
+    public readonly onDidShowHelp = this._onDidShowHelp.event;
 
     constructor(
         private readonly resolveSidecarPath: () => string,
@@ -126,6 +129,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidClosePlotComm.dispose();
         this._onDidReceiveHttpgdUrl.dispose();
         this._onDidShowHtmlFile.dispose();
+        this._onDidShowHelp.dispose();
         this._onDidReceivePlotData.dispose();
         this._onDidStart.dispose();
         this._onDidOpenHelpComm.dispose();
@@ -231,6 +235,15 @@ export class ArkSidecarManager implements vscode.Disposable {
             if (data?.params) {
                 const params = data.params as ShowHtmlFileParams;
                 this._onDidShowHtmlFile.fire(params);
+            }
+            return;
+        }
+
+        if (msg.event === 'show_help') {
+            const data = msg.data as Record<string, unknown> | undefined;
+            if (data?.params) {
+                const params = data.params as { content: string; kind: string; focus: boolean };
+                this._onDidShowHelp.fire(params);
             }
             return;
         }

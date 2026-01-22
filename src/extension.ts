@@ -106,7 +106,31 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(codeExecutor);
     context.subscriptions.push(sessionManager);
     
-    helpService = new HelpService(undefined, context.extensionUri);
+    helpService = new HelpService(
+        context.extensionUri,
+        (method, params) => {
+            if (helpCommId && sidecarManager) {
+                sidecarManager.sendCommMessage(helpCommId, {
+                    method,
+                    params
+                });
+            } else {
+                void vscode.window.showErrorMessage('Help communication channel not available.');
+            }
+        }
+    );
+    
+    // Track help comm ID
+    let helpCommId: string | undefined;
+    context.subscriptions.push(
+        sidecarManager.onDidOpenHelpComm((e) => {
+            helpCommId = e.commId;
+            console.log(`Help comm opened: ${helpCommId}`);
+        }),
+        sidecarManager.onDidShowHelp((e) => {
+            helpService?.showHelpContent(e.content, e.kind, e.focus);
+        })
+    );
     
     const helpViewProvider = new HelpViewProvider(context.extensionUri, helpService);
     context.subscriptions.push(
