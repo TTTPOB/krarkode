@@ -11,14 +11,15 @@
     "Programming Languages",
     "Other"
   ],
-  "activationEvents": [
+      "activationEvents": [
     "onLanguage:r",
     "onLanguage:rmd",
     "onCommand:krarkode.createArkSession",
     "onCommand:krarkode.attachArkSession",
     "onCommand:krarkode.openArkConsole",
     "onCommand:krarkode.stopArkSession",
-    "onCommand:krarkode.restartArkLanguageServer"
+    "onCommand:krarkode.restartArkLanguageServer",
+    "onView:krarkode.help"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -132,9 +133,39 @@
         "command": "krarkode.plot.clear",
         "title": "Clear Plot History",
         "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.help.open",
+        "title": "Open Help Panel",
+        "category": "Help"
+      },
+      {
+        "command": "krarkode.help.showAtCursor",
+        "title": "Look Up Help at Cursor",
+        "category": "Help"
+      },
+      {
+        "command": "krarkode.help.goBack",
+        "title": "Go Back in Help",
+        "category": "Help"
+      },
+      {
+        "command": "krarkode.help.goForward",
+        "title": "Go Forward in Help",
+        "category": "Help"
+      },
+      {
+        "command": "krarkode.help.goHome",
+        "title": "Go Home",
+        "category": "Help"
+      },
+      {
+        "command": "krarkode.help.find",
+        "title": "Find in Help",
+        "category": "Help"
       }
     ],
-    "keybindings": [
+        "keybindings": [
       {
         "command": "krarkode.runSelection",
         "key": "ctrl+enter",
@@ -152,8 +183,37 @@
         "key": "ctrl+shift+s",
         "mac": "cmd+shift+s",
         "when": "editorTextFocus && editorLangId == r"
+      },
+      {
+        "command": "krarkode.help.open",
+        "key": "ctrl+shift+h",
+        "mac": "cmd+shift+h",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "krarkode.help.showAtCursor",
+        "key": "f1",
+        "when": "editorTextFocus && editorLangId == r"
       }
     ],
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "krarkode-container",
+          "title": "Krarkode",
+          "icon": "resources/ark-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "krarkode-container": [
+        {
+          "type": "webview",
+          "id": "krarkode.help",
+          "name": "Help"
+        }
+      ]
+    },
     "configuration": {
       "type": "object",
       "title": "Krarkode",

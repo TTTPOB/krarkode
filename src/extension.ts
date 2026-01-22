@@ -7,6 +7,8 @@ import { ArkSidecarManager } from './ark/plotWatcher';
 import { ArkCommBackend } from './ark/arkCommBackend';
 import { HtmlViewer } from './ark/htmlViewer';
 import { PlotManager } from './ark/plotManager';
+import { HelpService } from './help/helpService';
+import { HelpViewProvider } from './help/helpView';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 
@@ -17,6 +19,7 @@ let sidecarManager: ArkSidecarManager | undefined;
 let plotBackend: ArkCommBackend | undefined;
 let htmlViewer: HtmlViewer | undefined;
 let plotManager: PlotManager | undefined;
+let helpService: HelpService | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
@@ -102,6 +105,16 @@ export function activate(context: vscode.ExtensionContext): void {
     
     context.subscriptions.push(codeExecutor);
     context.subscriptions.push(sessionManager);
+    
+    helpService = new HelpService(undefined, context.extensionUri);
+    
+    const helpViewProvider = new HelpViewProvider(context.extensionUri, helpService);
+    context.subscriptions.push(
+        vscode.window.registerWebviewViewProvider(
+            HelpViewProvider.viewType,
+            helpViewProvider
+        )
+    );
 }
 
 export function deactivate(): void {
@@ -119,4 +132,6 @@ export function deactivate(): void {
     sidecarManager = undefined;
     sessionManager?.dispose();
     sessionManager = undefined;
+    helpService?.dispose();
+    helpService = undefined;
 }

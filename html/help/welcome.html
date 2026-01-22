@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Krarkode</title>
+    <style>
+        :root {
+            --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            --vscode-editor-background: #1e1e1e;
+            --vscode-editor-foreground: #d4d4d4;
+            --vscode-textLink-foreground: #3794ff;
+            --vscode-textLink-activeForeground: #66aaff;
+            --vscode-border: #454545;
+            --vscode-editorLineNumber-foreground: #858585;
+            --vscode-editor.selectionBackground: #264f78;
+            --vscode-input-background: #3c3c3c;
+            --vscode-button-background: #0e639c;
+            --vscode-button-foreground: #ffffff;
+            --vscode-button-hoverBackground: #1177bb;
+        }
+        
+        @media (prefers-color-scheme: light) {
+            :root {
+                --vscode-editor-background: #ffffff;
+                --vscode-editor-foreground: #333333;
+                --vscode-textLink-foreground: #0066b8;
+                --vscode-textLink-activeForeground: #0080ff;
+                --vscode-border: #d4d4d4;
+                --vscode-editorLineNumber-foreground: #6f6f6f;
+                --vscode-editor.selectionBackground: #add6ff;
+                --vscode-input-background: #f3f3f3;
+                --vscode-button-background: #0078d4;
+                --vscode-button-foreground: #ffffff;
+                --vscode-button-hoverBackground: #006cbf;
+            }
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 30px;
+            font-family: var(--vscode-font-family);
+            background-color: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .logo h1 {
+            font-size: 2.5em;
+            margin: 0.2em 0;
+            font-weight: 300;
+        }
+        
+        .logo .tagline {
+            color: var(--vscode-editorLineNumber-foreground);
+            font-size: 1.1em;
+        }
+        
+        .search-box {
+            margin: 40px 0;
+        }
+        
+        .search-box input {
+            width: 100%;
+            padding: 14px 20px;
+            font-size: 1.1em;
+            border: 2px solid var(--vscode-border);
+            border-radius: 8px;
+            background-color: var(--vscode-input-background);
+            color: var(--vscode-editor-foreground);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        .search-box input:focus {
+            border-color: var(--vscode-textLink-foreground);
+        }
+        
+        .search-box input::placeholder {
+            color: var(--vscode-editorLineNumber-foreground);
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin: 40px 0;
+        }
+        
+        .action-card {
+            padding: 20px;
+            border: 1px solid var(--vscode-border);
+            border-radius: 8px;
+            background-color: rgba(127, 127, 127, 0.05);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .action-card:hover {
+            background-color: rgba(127, 127, 127, 0.1);
+            border-color: var(--vscode-textLink-foreground);
+        }
+        
+        .action-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 1.1em;
+            color: var(--vscode-textLink-foreground);
+        }
+        
+        .action-card p {
+            margin: 0;
+            font-size: 0.9em;
+            color: var(--vscode-editorLineNumber-foreground);
+        }
+        
+        .section {
+            margin: 40px 0;
+        }
+        
+        .section h2 {
+            font-size: 1.4em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--vscode-border);
+        }
+        
+        .commands-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .commands-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--vscode-border);
+        }
+        
+        .commands-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .command-name {
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 0.9em;
+        }
+        
+        .command-desc {
+            color: var(--vscode-editorLineNumber-foreground);
+            font-size: 0.9em;
+        }
+        
+        .keyboard {
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            background-color: rgba(127, 127, 127, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        
+        .resources {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .resource-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none;
+            padding: 10px 16px;
+            border: 1px solid var(--vscode-border);
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        
+        .resource-link:hover {
+            background-color: rgba(127, 127, 127, 0.1);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>Krarkode</h1>
+            <p class="tagline">R Development Environment for VS Code</p>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="help-search" placeholder="Search R documentation... (e.g., lm, ggplot2, dplyr)" autofocus>
+        </div>
+        
+        <div class="quick-actions">
+            <div class="action-card" onclick="startNewSession()">
+                <h3>New R Session</h3>
+                <p>Start a new Ark R session in a new console</p>
+            </div>
+            <div class="action-card" onclick="attachSession()">
+                <h3>Attach to Session</h3>
+                <p>Connect to an existing R session</p>
+            </div>
+            <div class="action-card" onclick="openHelp()">
+                <h3>Help Documentation</h3>
+                <p>Browse R function documentation</p>
+            </div>
+            <div class="action-card" onclick="showPlots()">
+                <h3>Plot Viewer</h3>
+                <p>View and manage R plots</p>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Quick Commands</h2>
+            <ul class="commands-list">
+                <li>
+                    <div>
+                        <span class="command-name">Ark: Open Console</span>
+                        <span class="command-desc">Start a new R session</span>
+                    </div>
+                    <span class="keyboard">Ctrl+Shift+A</span>
+                </li>
+                <li>
+                    <div>
+                        <span class="command-name">Help: Open Help Panel</span>
+                        <span class="command-desc">Open the Help panel</span>
+                    </div>
+                    <span class="keyboard">Ctrl+Shift+H</span>
+                </li>
+                <li>
+                    <div>
+                        <span class="command-name">Help: Look Up Help at Cursor</span>
+                        <span class="command-desc">Show help for function at cursor</span>
+                    </div>
+                    <span class="keyboard">F1</span>
+                </li>
+                <li>
+                    <div>
+                        <span class="command-name">Plot: Previous</span>
+                        <span class="command-desc">Show previous plot in history</span>
+                    </div>
+                    <span class="keyboard">Alt+Left</span>
+                </li>
+                <li>
+                    <div>
+                        <span class="command-name">Plot: Next</span>
+                        <span class="command-desc">Show next plot in history</span>
+                    </div>
+                    <span class="keyboard">Alt+Right</span>
+                </li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>Resources</h2>
+            <div class="resources">
+                <a href="https://www.r-project.org/" class="resource-link" target="_blank">
+                    R Project
+                </a>
+                <a href="https://r4ds.had.co.nz/" class="resource-link" target="_blank">
+                    R for Data Science
+                </a>
+                <a href="https://ggplot2.tidyverse.org/" class="resource-link" target="_blank">
+                    ggplot2 Documentation
+                </a>
+                <a href="https://dplyr.tidyverse.org/" class="resource-link" target="_blank">
+                    dplyr Documentation
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        document.getElementById('help-search').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const query = e.target.value.trim();
+                if (query) {
+                    vscode.postMessage({ 
+                        command: 'search-help', 
+                        query: query 
+                    });
+                }
+            }
+        });
+        
+        function startNewSession() {
+            vscode.postMessage({ command: 'execute-command', id: 'krarkode.openConsole' });
+        }
+        
+        function attachSession() {
+            vscode.postMessage({ command: 'execute-command', id: 'krarkode.attachSession' });
+        }
+        
+        function openHelp() {
+            vscode.postMessage({ command: 'execute-command', id: 'krarkode.help.open' });
+        }
+        
+        function showPlots() {
+            vscode.postMessage({ command: 'execute-command', id: 'krarkode.plot.focus' });
+        }
+        
+        window.addEventListener('message', (event) => {
+            const msg = event.data;
+            if (msg.command === 'navigate') {
+                window.location.href = msg.url;
+            }
+        });
+    </script>
+</body>
+</html>
