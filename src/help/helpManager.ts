@@ -1,71 +1,99 @@
 import * as vscode from 'vscode';
-import { HELP_VIEW_ID, HELP_VIEW_TITLE, COMMAND_HELP_GO_BACK, COMMAND_HELP_GO_FORWARD, COMMAND_HELP_GO_HOME, COMMAND_HELP_FIND } from './helpIds';
+import { HELP_VIEW_TITLE, COMMAND_HELP_GO_BACK, COMMAND_HELP_GO_FORWARD, COMMAND_HELP_GO_HOME, COMMAND_HELP_FIND } from './helpIds';
 import { HelpService } from './helpService';
+import * as util from '../util';
 
-export class HelpViewProvider implements vscode.WebviewViewProvider {
-    public static readonly viewType = HELP_VIEW_ID;
-
-    private view?: vscode.WebviewView;
+export class HelpManager implements vscode.Disposable {
+    private panel?: vscode.WebviewPanel;
     private readonly disposables: vscode.Disposable[] = [];
     private isFirstLoad = true;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly helpService: HelpService
-    ) {}
-
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken
-    ): void {
-        this.view = webviewView;
-
-        webviewView.webview.options = {
-            enableScripts: true,
-            retainContextWhenHidden: true,
-            localResourceRoots: [
-                vscode.Uri.joinPath(this.extensionUri, 'html', 'help'),
-                vscode.Uri.joinPath(this.extensionUri, 'resources'),
-            ],
-        };
-
-        webviewView.webview.html = this.getWebviewHtml();
-
-        webviewView.webview.onDidReceiveMessage((message) => {
-            this.handleMessage(message);
-        });
-
-        webviewView.onDidChangeVisibility(() => {
-            if (webviewView.visible) {
-                this.updateNavigationState();
-                this.updateContent();
-            }
-        });
-
+    ) {
         this.disposables.push(
             this.helpService.onDidChangeHelpEntry(() => {
-                this.updateNavigationState();
-                this.updateContent();
+                if (this.panel && this.panel.visible) {
+                    this.updateNavigationState();
+                    this.updateContent();
+                } else if (this.panel) {
+                    // Content changed but panel hidden/background? 
+                    // Usually we might want to reveal it if it's a new request
+                    // But let's leave that policy to the caller or service
+                }
             })
         );
 
         this.registerCommands();
     }
 
+    public showHelp(focus: boolean = true): void {
+        const viewColumn = this.getViewColumn();
+        
+        if (this.panel) {
+            this.panel.reveal(viewColumn, focus);
+        } else {
+            this.panel = vscode.window.createWebviewPanel(
+                'krarkode.help',
+                HELP_VIEW_TITLE,
+                { viewColumn, preserveFocus: !focus },
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    enableFindWidget: true,
+                    localResourceRoots: [
+                        vscode.Uri.joinPath(this.extensionUri, 'html', 'help'),
+                        vscode.Uri.joinPath(this.extensionUri, 'resources'),
+                    ],
+                }
+            );
+
+            this.panel.onDidDispose(() => {
+                this.panel = undefined;
+                this.isFirstLoad = true;
+            }, null, this.disposables);
+
+            this.panel.webview.onDidReceiveMessage((message) => {
+                this.handleMessage(message);
+            }, null, this.disposables);
+
+            this.panel.webview.html = this.getWebviewHtml();
+        }
+        
+        this.updateNavigationState();
+        this.updateContent();
+    }
+
+    private getViewColumn(): vscode.ViewColumn {
+        const configured = util.config().get<string>('krarkode.plot.viewColumn'); // Reuse plot column preference
+        return this.asViewColumn(configured, vscode.ViewColumn.Two);
+    }
+
+    private asViewColumn(value: string | undefined, defaultColumn: vscode.ViewColumn): vscode.ViewColumn {
+        switch (value) {
+            case 'Active': return vscode.ViewColumn.Active;
+            case 'Beside': return vscode.ViewColumn.Beside;
+            case 'One': return vscode.ViewColumn.One;
+            case 'Two': return vscode.ViewColumn.Two;
+            case 'Three': return vscode.ViewColumn.Three;
+            default: return defaultColumn;
+        }
+    }
+
     private updateContent(): void {
         const entry = this.helpService.currentHelpEntry;
-        if (!entry || !this.view) {
+        if (!entry || !this.panel) {
             return;
         }
 
         if (entry.entryType === 'welcome') {
-            this.view.webview.postMessage({
+            this.panel.webview.postMessage({
                 command: 'show-welcome',
                 title: entry.title
             });
         } else if (entry.content) {
-            this.view.webview.postMessage({
+            this.panel.webview.postMessage({
                 command: 'show-content',
                 html: entry.content,
                 title: entry.title,
@@ -79,18 +107,15 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
         this.disposables.push(
             vscode.commands.registerCommand(COMMAND_HELP_GO_BACK, () => {
                 this.helpService.goBack();
-                this.updateNavigationState();
             }),
             vscode.commands.registerCommand(COMMAND_HELP_GO_FORWARD, () => {
                 this.helpService.goForward();
-                this.updateNavigationState();
             }),
             vscode.commands.registerCommand(COMMAND_HELP_GO_HOME, () => {
                 this.helpService.goHome();
-                this.updateNavigationState();
             }),
             vscode.commands.registerCommand(COMMAND_HELP_FIND, () => {
-                this.view?.webview.postMessage({ command: 'positron-help-find' });
+                this.panel?.webview.postMessage({ command: 'positron-help-find' });
             })
         );
     }
@@ -98,7 +123,10 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
     private getWebviewHtml(): string {
         const extensionUri = this.extensionUri.toString();
         const nonce = this.generateNonce();
-        const cspSource = this.view?.webview.cspSource;
+        // CSP needs to be updated dynamically or generic enough
+        // Since we don't have the webview instance available in a static string context easily if we want to use webview.cspSource
+        // But we have this.panel.webview.cspSource when we call this.
+        const cspSource = this.panel?.webview.cspSource || '';
 
         return `<!DOCTYPE html>
 <html>
@@ -131,7 +159,34 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             background-color: var(--vscode-editorWidget-background);
             flex-shrink: 0;
         }
-        /* ... toolbar styles ... */
+        .toolbar button {
+            background: none;
+            border: 1px solid transparent;
+            padding: 5px 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            color: var(--vscode-editor-foreground);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+        }
+        .toolbar button:hover {
+            background-color: var(--vscode-toolbar-hoverBackground);
+        }
+        .toolbar button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .toolbar button:disabled:hover {
+            background: none;
+        }
+        .toolbar .separator {
+            width: 1px;
+            height: 16px;
+            background-color: var(--vscode-editorWidget-border);
+            margin: 0 4px;
+        }
         .content {
             flex: 1;
             overflow: auto; /* Ensure scrollable */
@@ -144,48 +199,21 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             overflow-y: auto;
             padding: 20px;
             box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
         }
         .welcome-content h1 {
-            font-size: 1.8em;
+            font-size: 1.5em;
             margin-bottom: 0.5em;
             color: var(--vscode-textLink-foreground);
-        }
-        .welcome-content h2 {
-            font-size: 1.2em;
-            margin-top: 1.5em;
-            margin-bottom: 0.5em;
-            color: var(--vscode-editor-foreground);
         }
         .welcome-content p {
             color: var(--vscode-editor-foreground);
-            line-height: 1.6;
-        }
-        .quick-links {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .quick-link {
-            padding: 12px 16px;
-            border: 1px solid var(--vscode-editorWidget-border);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-        .quick-link:hover {
-            background-color: var(--vscode-toolbar-hoverBackground);
-            border-color: var(--vscode-textLink-foreground);
-        }
-        .quick-link h3 {
-            margin: 0 0 4px 0;
-            font-size: 0.95em;
-            color: var(--vscode-textLink-foreground);
-        }
-        .quick-link p {
-            margin: 0;
-            font-size: 0.8em;
-            color: var(--vscode-editorLineNumber-foreground);
+            max-width: 400px;
+            margin-bottom: 1.5em;
         }
         .loading {
             display: flex;
@@ -233,7 +261,7 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             </svg>
         </button>
         <div style="flex:1"></div>
-        <span id="status" style="font-size: 12px; opacity: 0.7;">Welcome</span>
+        <span id="status" style="font-size: 12px; opacity: 0.7;">R Help</span>
     </div>
     <div class="content" id="content">
         <div class="loading">
@@ -251,58 +279,17 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             const btnFind = document.getElementById('btn-find');
             const status = document.getElementById('status');
 
-            const extensionUri = "${extensionUri}";
-
             function renderWelcomePage() {
                 if (!contentDiv) return;
                 contentDiv.innerHTML = \`
                     <div class="welcome-content">
-                        <h1>Krarkode Help</h1>
-                        <p>Welcome to the Krarkode Help Panel. Use the navigation buttons above or search for R function documentation.</p>
-                        
-                        <h2>Quick Actions</h2>
-                        <div class="quick-links">
-                            <div class="quick-link" onclick="executeCommand('krarkode.openArkConsole')">
-                                <h3>New R Session</h3>
-                                <p>Start a new Ark R session</p>
-                            </div>
-                            <div class="quick-link" onclick="executeCommand('krarkode.attachArkSession')">
-                                <h3>Attach to Session</h3>
-                                <p>Connect to an existing R session</p>
-                            </div>
-                            <div class="quick-link" onclick="searchHelp()">
-                                <h3>Search Help</h3>
-                                <p>Search R documentation</p>
-                            </div>
-                            <div class="quick-link" onclick="executeCommand('krarkode.plot.focus')">
-                                <h3>Plot Viewer</h3>
-                                <p>View and manage R plots</p>
-                            </div>
-                        </div>
-
-                        <h2>Keyboard Shortcuts</h2>
-                        <p><strong>Ctrl+Shift+H</strong> - Open Help Panel</p>
-                        <p><strong>F1</strong> - Look up help at cursor</p>
-                        <p><strong>Ctrl+Enter</strong> - Run selection/line in R file</p>
-
-                        <h2>Getting Help</h2>
-                        <p>To get help for an R function, place your cursor on the function name and press <strong>F1</strong>, or use the command palette to search for "Look Up Help at Cursor".</p>
+                        <h1>R Help Viewer</h1>
+                        <p>Search for functions or view R documentation.</p>
+                        <p><em>Run R code or use "Look Up Help" to start.</em></p>
                     </div>
                 \`;
-                if (status) status.textContent = 'Welcome';
+                if (status) status.textContent = 'R Help';
             }
-
-            // Expose functions to global scope for onclick handlers
-            window.executeCommand = function(commandId) {
-                vscode.postMessage({ command: 'execute-command', id: commandId });
-            };
-
-            window.searchHelp = function() {
-                const query = prompt('Enter R function or topic to search for:');
-                if (query && query.trim()) {
-                    vscode.postMessage({ command: 'search-help', query: query.trim() });
-                }
-            };
 
             if (btnBack) {
                 btnBack.addEventListener('click', () => {
@@ -328,15 +315,10 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                 });
             }
 
-            window.renderWelcomePage = renderWelcomePage;
-
             // Global click handler to intercept links
             document.addEventListener('click', e => {
-                // If the target or any of its ancestors is an anchor tag
                 const link = e.target.closest('a');
                 if (link && link.href) {
-                    // Check if it's an internal link or needs to be handled
-                    // We prevent default behavior and notify extension
                     e.preventDefault();
                     e.stopPropagation();
                     vscode.postMessage({ command: 'navigate-url', url: link.href });
@@ -371,14 +353,11 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                     case 'show-content':
                         if (contentDiv) {
                             if (msg.kind === 'url') {
-                                // For URL content, use an iframe
                                 contentDiv.innerHTML = \`<iframe src="\${msg.html}" style="width: 100%; height: 100%; border: none;"></iframe>\`;
                             } else {
-                                // For HTML content, inject directly
                                 contentDiv.innerHTML = msg.html;
                             }
                             
-                            // Restore scroll position
                             if (typeof msg.scrollPosition === 'number') {
                                 contentDiv.scrollTop = msg.scrollPosition;
                             } else {
@@ -409,10 +388,6 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
         
         } catch (e) {
             console.error('Error initializing help view:', e);
-            const contentDiv = document.getElementById('content');
-            if (contentDiv) {
-                contentDiv.innerHTML = '<div style="color:red; padding: 20px;">Error initializing help view: ' + e.message + '</div>';
-            }
         }
     </script>
 </body>
@@ -433,29 +408,21 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                 break;
             case 'positron-help-back':
                 this.helpService.goBack();
-                this.updateNavigationState();
                 break;
             case 'positron-help-forward':
                 this.helpService.goForward();
-                this.updateNavigationState();
                 break;
             case 'positron-help-home':
                 this.helpService.goHome();
-                this.updateNavigationState();
                 break;
             case 'positron-help-navigate':
                 if (message.url) {
-                    this.view?.webview.postMessage({ command: 'navigate', url: message.url });
+                    this.panel?.webview.postMessage({ command: 'navigate', url: message.url });
                 }
                 break;
             case 'navigate-url':
                 if (message.url) {
                     void this.helpService.loadUrl(message.url);
-                }
-                break;
-            case 'execute-command':
-                if (message.url) {
-                    vscode.commands.executeCommand(message.id);
                 }
                 break;
             case 'search-help':
@@ -467,7 +434,7 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
     }
 
     private updateNavigationState(): void {
-        this.view?.webview.postMessage({
+        this.panel?.webview.postMessage({
             command: 'update-navigation',
             canGoBack: this.helpService.canGoBack,
             canGoForward: this.helpService.canGoForward,
@@ -486,5 +453,6 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
     public dispose(): void {
         this.disposables.forEach(d => d.dispose());
         this.disposables.length = 0;
+        this.panel?.dispose();
     }
 }

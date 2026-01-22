@@ -21,6 +21,7 @@ export interface IKrarkodeHelpService {
 export class HelpService implements IKrarkodeHelpService {
     private readonly helpEntriesStack: HelpEntry[] = [];
     private currentIndex = -1;
+    private baseUrl?: string;
     
     private readonly _onDidChangeHelpEntry = new vscode.EventEmitter<void>();
     public readonly onDidChangeHelpEntry = this._onDidChangeHelpEntry.event;
@@ -66,6 +67,14 @@ export class HelpService implements IKrarkodeHelpService {
             }
         } else if (kind === 'url') {
             try {
+                // Capture base URL from the first help URL we see
+                if (!this.baseUrl) {
+                    const urlObj = new URL(content);
+                    // R help URLs are typically http://127.0.0.1:port/library/...
+                    // Base URL is http://127.0.0.1:port
+                    this.baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+                }
+
                 // Fetch the content instead of just using the URL
                 const response = await fetch(content);
                 if (response.ok) {
@@ -111,7 +120,7 @@ export class HelpService implements IKrarkodeHelpService {
         this.pushHelpEntry(entry);
         
         if (focus) {
-            vscode.commands.executeCommand('krarkode.help.focus');
+            vscode.commands.executeCommand('krarkode.help.open');
         }
     }
 
@@ -207,15 +216,21 @@ export class HelpService implements IKrarkodeHelpService {
         await this.showHelpContent(url, 'url', false);
     }
 
-    public showWelcomePage(): void {
-        const welcomeEntry = createHelpEntry(
-            '',
-            'Welcome to Krarkode Help',
-            undefined,
-            'html',
-            'welcome'
-        );
-        this.pushHelpEntry(welcomeEntry);
+    public async showWelcomePage(): Promise<void> {
+        if (this.baseUrl) {
+            // If we have a base URL, show the R Help Index
+            await this.loadUrl(`${this.baseUrl}/doc/html/index.html`);
+        } else {
+            // Otherwise show the static welcome page
+            const welcomeEntry = createHelpEntry(
+                '',
+                'R Help',
+                undefined,
+                'html',
+                'welcome'
+            );
+            this.pushHelpEntry(welcomeEntry);
+        }
     }
 
     public goBack(): void {

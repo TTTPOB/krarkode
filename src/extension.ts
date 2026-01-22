@@ -8,7 +8,7 @@ import { ArkCommBackend } from './ark/arkCommBackend';
 import { HtmlViewer } from './ark/htmlViewer';
 import { PlotManager } from './ark/plotManager';
 import { HelpService } from './help/helpService';
-import { HelpViewProvider } from './help/helpView';
+import { HelpManager } from './help/helpManager';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 
@@ -20,6 +20,7 @@ let plotBackend: ArkCommBackend | undefined;
 let htmlViewer: HtmlViewer | undefined;
 let plotManager: PlotManager | undefined;
 let helpService: HelpService | undefined;
+let helpManager: HelpManager | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
@@ -106,6 +107,9 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(codeExecutor);
     context.subscriptions.push(sessionManager);
     
+    // Track help comm ID
+    let helpCommId: string | undefined;
+
     helpService = new HelpService(
         context.extensionUri,
         (method, params) => {
@@ -120,24 +124,23 @@ export function activate(context: vscode.ExtensionContext): void {
         }
     );
     
-    // Track help comm ID
-    let helpCommId: string | undefined;
+    helpManager = new HelpManager(context.extensionUri, helpService);
+    context.subscriptions.push(helpManager);
+    
+    context.subscriptions.push(
+        vscode.commands.registerCommand('krarkode.help.open', () => {
+            helpManager?.showHelp(true);
+        })
+    );
+    
     context.subscriptions.push(
         sidecarManager.onDidOpenHelpComm((e) => {
             helpCommId = e.commId;
             console.log(`Help comm opened: ${helpCommId}`);
         }),
         sidecarManager.onDidShowHelp((e) => {
-            helpService?.showHelpContent(e.content, e.kind, e.focus);
+            void helpService?.showHelpContent(e.content, e.kind, e.focus);
         })
-    );
-    
-    const helpViewProvider = new HelpViewProvider(context.extensionUri, helpService);
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(
-            HelpViewProvider.viewType,
-            helpViewProvider
-        )
     );
 }
 
@@ -156,6 +159,8 @@ export function deactivate(): void {
     sidecarManager = undefined;
     sessionManager?.dispose();
     sessionManager = undefined;
+    helpManager?.dispose();
+    helpManager = undefined;
     helpService?.dispose();
     helpService = undefined;
 }
