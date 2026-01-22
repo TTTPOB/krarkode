@@ -20,7 +20,7 @@
     "onCommand:krarkode.stopArkSession",
     "onCommand:krarkode.restartArkLanguageServer",
     "onView:krarkode.help",
-    "onView:positronVariables"
+    "onView:krarkodeVariables"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -36,7 +36,7 @@
     "views": {
       "krarkode-activity-bar": [
         {
-          "id": "positronVariables",
+          "id": "krarkodeVariables",
           "name": "Variables"
         }
       ]

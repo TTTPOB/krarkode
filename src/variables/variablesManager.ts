@@ -3,13 +3,14 @@ import { VariablesService } from './variablesService';
 import { VariablesEvent } from './protocol';
 
 export class VariablesManager implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'positronVariables';
+    public static readonly viewType = 'krarkodeVariables';
     private _view?: vscode.WebviewView;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _service: VariablesService
     ) {
+        console.log('VariablesManager initialized');
         _service.onDidReceiveUpdate(e => this.updateView(e));
     }
 
@@ -18,6 +19,7 @@ export class VariablesManager implements vscode.WebviewViewProvider {
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
+        console.log('VariablesManager resolving webview view');
         this._view = webviewView;
 
         webviewView.webview.options = {
