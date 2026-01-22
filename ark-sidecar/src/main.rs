@@ -285,17 +285,43 @@ async fn run_plot_watcher(
     // Open the help comm so Ark can serve help pages
     let help_comm_id = Uuid::new_v4().to_string();
     send_help_comm_open(&mut shell, &help_comm_id).await?;
+    println!("{}", json!({
+        "event": "help_comm_open",
+        "comm_id": help_comm_id,
+        "target_name": HELP_COMM_TARGET
+    }));
     log_debug("Sidecar: sent help comm_open.");
 
     // Open the UI comm so Ark knows the UI is connected (enables dynamic plots)
     let ui_comm_id = Uuid::new_v4().to_string();
     send_ui_comm_open(&mut shell, &ui_comm_id).await?;
+    println!("{}", json!({
+        "event": "ui_comm_open",
+        "comm_id": ui_comm_id,
+        "target_name": UI_COMM_TARGET
+    }));
     log_debug("Sidecar: sent UI comm_open.");
 
     // Open the Variables comm so Ark starts sending variable updates
     let variables_comm_id = Uuid::new_v4().to_string();
     send_variables_comm_open(&mut shell, &variables_comm_id).await?;
+    println!("{}", json!({
+        "event": "variables_comm_open",
+        "comm_id": variables_comm_id,
+        "target_name": VARIABLES_COMM_TARGET
+    }));
     log_debug("Sidecar: sent variables comm_open.");
+
+    // Open the Data Explorer comm so Ark knows we support it (enables View())
+    let data_explorer_comm_id = Uuid::new_v4().to_string();
+    send_data_explorer_comm_open(&mut shell, &data_explorer_comm_id).await?;
+    println!("{}", json!({
+        "event": "data_explorer_comm_open",
+        "comm_id": data_explorer_comm_id,
+        "target_name": DATA_EXPLORER_COMM_TARGET
+    }));
+    log_debug("Sidecar: sent data explorer comm_open.");
+
 
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
@@ -628,6 +654,20 @@ async fn send_variables_comm_open(
     };
     let message = JupyterMessage::new(comm_open, None);
     shell.send(message).await.context("Failed to send variables comm_open")
+}
+
+async fn send_data_explorer_comm_open(
+    shell: &mut runtimelib::ClientShellConnection,
+    comm_id: &str,
+) -> Result<()> {
+    let comm_open = CommOpen {
+        comm_id: CommId(comm_id.to_string()),
+        target_name: DATA_EXPLORER_COMM_TARGET.to_string(),
+        data: Map::new(),
+        target_module: None,
+    };
+    let message = JupyterMessage::new(comm_open, None);
+    shell.send(message).await.context("Failed to send data explorer comm_open")
 }
 
 async fn create_shell_connection(

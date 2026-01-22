@@ -19,7 +19,8 @@
     "onCommand:krarkode.openArkConsole",
     "onCommand:krarkode.stopArkSession",
     "onCommand:krarkode.restartArkLanguageServer",
-    "onView:krarkode.help"
+    "onView:krarkode.help",
+    "onView:positronVariables"
   ],
   "main": "./dist/extension.js",
   "contributes": {
