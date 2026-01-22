@@ -23,7 +23,7 @@ export function activate(context: vscode.ExtensionContext): void {
     
     // Create sidecar manager for plot/comm watching
     sidecarManager = new ArkSidecarManager(
-        () => util.config().get<string>('krarkode.ark.sidecarPath') || 'ark-sidecar',
+        () => util.resolveSidecarPath(),
         () => util.config().get<number>('krarkode.ark.sidecarTimeoutMs') ?? 30000
     );
     context.subscriptions.push(sidecarManager);

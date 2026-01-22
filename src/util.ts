@@ -151,6 +151,29 @@ export function spawnAsync(command: string, args: string[], options: cp.SpawnOpt
     });
 }
 
+export function resolveSidecarPath(): string {
+    const config = vscode.workspace.getConfiguration('krarkode.ark');
+    const configured = config.get<string>('sidecarPath')?.trim();
+    if (configured) {
+        return configured;
+    }
+
+    const exeName = process.platform === 'win32' ? 'vscode-r-ark-sidecar.exe' : 'vscode-r-ark-sidecar';
+    const context = getExtensionContext();
+    
+    const releasePath = context.asAbsolutePath(path.join('ark-sidecar', 'target', 'release', exeName));
+    if (fs.existsSync(releasePath)) {
+        return releasePath;
+    }
+
+    const debugPath = context.asAbsolutePath(path.join('ark-sidecar', 'target', 'debug', exeName));
+    if (fs.existsSync(debugPath)) {
+        return debugPath;
+    }
+
+    return exeName;
+}
+
 function getCurrentWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {

@@ -167,7 +167,7 @@ export class ArkLanguageService implements vscode.Disposable {
 
         const ipAddress = (this.config.get<string>('ipAddress') || DEFAULT_IP_ADDRESS).trim();
         const timeoutMs = this.config.get<number>('lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
-        const sidecarPath = this.resolveSidecarPath();
+        const sidecarPath = util.resolveSidecarPath();
         const args = ['--connection-file', this.connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)];
 
         this.outputChannel.appendLine(`Starting Ark sidecar: ${sidecarPath}`);
@@ -181,7 +181,7 @@ export class ArkLanguageService implements vscode.Disposable {
     }
 
     private async checkConnectionFile(connectionFile: string): Promise<boolean> {
-        const sidecarPath = this.resolveSidecarPath();
+        const sidecarPath = util.resolveSidecarPath();
         const timeoutMs = this.config.get<number>('lspTimeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
         const args = ['--check', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
         const result = await util.spawnAsync(sidecarPath, args, { env: process.env });
@@ -302,25 +302,6 @@ export class ArkLanguageService implements vscode.Disposable {
         });
     }
 
-    private resolveSidecarPath(): string {
-        const configured = (this.config.get<string>('sidecarPath') || '').trim();
-        if (configured) {
-            return configured;
-        }
-
-        const exeName = process.platform === 'win32' ? 'vscode-r-ark-sidecar.exe' : 'vscode-r-ark-sidecar';
-        const releasePath = getExtensionContext().asAbsolutePath(path.join('ark-sidecar', 'target', 'release', exeName));
-        if (fs.existsSync(releasePath)) {
-            return releasePath;
-        }
-
-        const debugPath = getExtensionContext().asAbsolutePath(path.join('ark-sidecar', 'target', 'debug', exeName));
-        if (fs.existsSync(debugPath)) {
-            return debugPath;
-        }
-
-        return exeName;
-    }
 
     private async createClient(
         port: number,

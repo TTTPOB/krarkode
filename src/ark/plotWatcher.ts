@@ -109,6 +109,10 @@ export class ArkSidecarManager implements vscode.Disposable {
         const proc = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
         this.proc = proc;
 
+        proc.on('error', (err) => {
+            this.outputChannel.appendLine(`Failed to spawn sidecar: ${err.message}`);
+        });
+
         proc.stderr?.on('data', (chunk: Buffer) => {
             this.outputChannel.appendLine(`[sidecar] ${chunk.toString().trim()}`);
         });
