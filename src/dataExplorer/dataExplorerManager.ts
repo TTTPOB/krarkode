@@ -5,6 +5,8 @@ import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSessi
 import {
     BackendState,
     ColumnFilter,
+    ColumnHistogramParamsMethod,
+    ColumnProfileSpec,
     ColumnProfileRequest,
     ColumnProfileType,
     ColumnSelection,
@@ -19,6 +21,9 @@ type RowRangeRequest = {
     startIndex: number;
     endIndex: number;
 };
+
+const SMALL_HISTOGRAM_NUM_BINS = 80;
+const SMALL_FREQUENCY_TABLE_LIMIT = 8;
 
 class DataExplorerPanel implements vscode.Disposable {
     private readonly panel: vscode.WebviewPanel;
@@ -390,7 +395,7 @@ class DataExplorerPanel implements vscode.Disposable {
         const callbackId = crypto.randomUUID();
         const profiles: ColumnProfileRequest[] = [{
             column_index: columnIndex,
-            profiles: profileTypes.map((pt) => ({ profile_type: pt as ColumnProfileType })),
+            profiles: profileTypes.map((pt) => this.buildColumnProfileSpec(pt as ColumnProfileType)),
         }];
         try {
             this.pendingProfileCallbacks.set(callbackId, { columnIndex });
@@ -404,6 +409,27 @@ class DataExplorerPanel implements vscode.Disposable {
                 message,
             });
         }
+    }
+
+    private buildColumnProfileSpec(profileType: ColumnProfileType): ColumnProfileSpec {
+        if (profileType === 'small_histogram') {
+            return {
+                profile_type: profileType,
+                params: {
+                    method: ColumnHistogramParamsMethod.FreedmanDiaconis,
+                    num_bins: SMALL_HISTOGRAM_NUM_BINS,
+                },
+            };
+        }
+        if (profileType === 'small_frequency_table') {
+            return {
+                profile_type: profileType,
+                params: {
+                    limit: SMALL_FREQUENCY_TABLE_LIMIT,
+                },
+            };
+        }
+        return { profile_type: profileType };
     }
 
     private async exportData(format: ExportFormat): Promise<void> {
