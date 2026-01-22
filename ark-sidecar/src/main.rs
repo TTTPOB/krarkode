@@ -19,6 +19,7 @@ use zeromq::{DealerSocket, Socket as ZmqSocket, SocketOptions};
 const LSP_COMM_TARGET: &str = "positron.lsp";
 const PLOT_COMM_TARGET: &str = "positron.plot";
 const UI_COMM_TARGET: &str = "positron.ui";
+const HELP_COMM_TARGET: &str = "positron.help";
 const DEFAULT_TIMEOUT_MS: u64 = 15000;
 const SUPPORTED_SIGNATURE_SCHEME: &str = "hmac-sha256";
 
@@ -279,6 +280,16 @@ async fn run_plot_watcher(
         .await
         .context("Failed to connect shell")?;
 
+    // Open the help comm so Ark can serve help pages
+    let help_comm_id = Uuid::new_v4().to_string();
+    send_help_comm_open(&mut shell, &help_comm_id).await?;
+    log_debug("Sidecar: sent help comm_open.");
+
+    // Open the UI comm so Ark knows the UI is connected (enables dynamic plots)
+    let ui_comm_id = Uuid::new_v4().to_string();
+    send_ui_comm_open(&mut shell, &ui_comm_id).await?;
+    log_debug("Sidecar: sent UI comm_open.");
+
     // Spawn a task to handle stdin commands (for sending RPC requests to backend)
     // We do this BEFORE waiting for IOPub welcome, so that we can send comm_open (positron.ui)
     // immediately. This ensures Ark knows about the UI even if IOPub is slow/flaky.
@@ -375,6 +386,13 @@ async fn run_plot_watcher(
                 } else if comm_open.target_name == UI_COMM_TARGET {
                     Some(json!({
                         "event": "ui_comm_open",
+                        "comm_id": comm_open.comm_id.0,
+                        "target_name": comm_open.target_name,
+                        "data": comm_open.data
+                    }).to_string())
+                } else if comm_open.target_name == HELP_COMM_TARGET {
+                    Some(json!({
+                        "event": "help_comm_open",
                         "comm_id": comm_open.comm_id.0,
                         "target_name": comm_open.target_name,
                         "data": comm_open.data
@@ -516,6 +534,34 @@ async fn send_comm_open(
     };
     let message = JupyterMessage::new(comm_open, None);
     shell.send(message).await.context("Failed to send comm_open")
+}
+
+async fn send_help_comm_open(
+    shell: &mut runtimelib::ClientShellConnection,
+    comm_id: &str,
+) -> Result<()> {
+    let comm_open = CommOpen {
+        comm_id: CommId(comm_id.to_string()),
+        target_name: HELP_COMM_TARGET.to_string(),
+        data: Map::new(),
+        target_module: None,
+    };
+    let message = JupyterMessage::new(comm_open, None);
+    shell.send(message).await.context("Failed to send help comm_open")
+}
+
+async fn send_ui_comm_open(
+    shell: &mut runtimelib::ClientShellConnection,
+    comm_id: &str,
+) -> Result<()> {
+    let comm_open = CommOpen {
+        comm_id: CommId(comm_id.to_string()),
+        target_name: UI_COMM_TARGET.to_string(),
+        data: Map::new(),
+        target_module: None,
+    };
+    let message = JupyterMessage::new(comm_open, None);
+    shell.send(message).await.context("Failed to send UI comm_open")
 }
 
 async fn create_shell_connection(

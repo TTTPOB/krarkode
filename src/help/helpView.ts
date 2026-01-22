@@ -7,6 +7,7 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
 
     private view?: vscode.WebviewView;
     private readonly disposables: vscode.Disposable[] = [];
+    private isFirstLoad = true;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -23,7 +24,10 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.options = {
             enableScripts: true,
             retainContextWhenHidden: true,
-            localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'html', 'help')],
+            localResourceRoots: [
+                vscode.Uri.joinPath(this.extensionUri, 'html', 'help'),
+                vscode.Uri.joinPath(this.extensionUri, 'resources'),
+            ],
         };
 
         webviewView.webview.html = this.getWebviewHtml();
@@ -62,7 +66,7 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
     }
 
     private getWebviewHtml(): string {
-        const welcomePath = vscode.Uri.joinPath(this.extensionUri, 'html', 'help', 'welcome.html');
+        const extensionUri = this.extensionUri.toString();
         const nonce = this.generateNonce();
 
         return `<!DOCTYPE html>
@@ -84,36 +88,42 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background-color: var(--vscode-editor-background);
             color: var(--vscode-editor-foreground);
+            overflow: hidden;
         }
         .toolbar {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px 12px;
+            gap: 4px;
+            padding: 6px 10px;
             border-bottom: 1px solid var(--vscode-editorWidget-border);
             background-color: var(--vscode-editorWidget-background);
+            flex-shrink: 0;
         }
         .toolbar button {
             background: none;
             border: 1px solid transparent;
-            padding: 6px 10px;
+            padding: 5px 8px;
             cursor: pointer;
             border-radius: 4px;
             color: var(--vscode-editor-foreground);
             display: flex;
             align-items: center;
-            gap: 4px;
+            justify-content: center;
+            min-width: 28px;
         }
         .toolbar button:hover {
             background-color: var(--vscode-toolbar-hoverBackground);
         }
         .toolbar button:disabled {
-            opacity: 0.5;
+            opacity: 0.4;
             cursor: not-allowed;
+        }
+        .toolbar button:disabled:hover {
+            background: none;
         }
         .toolbar .separator {
             width: 1px;
-            height: 20px;
+            height: 16px;
             background-color: var(--vscode-editorWidget-border);
             margin: 0 4px;
         }
@@ -121,11 +131,74 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             flex: 1;
             overflow: hidden;
             position: relative;
+            background-color: var(--vscode-editor-background);
         }
-        iframe {
-            width: 100%;
+        .welcome-content {
             height: 100%;
-            border: none;
+            overflow-y: auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .welcome-content h1 {
+            font-size: 1.8em;
+            margin-bottom: 0.5em;
+            color: var(--vscode-textLink-foreground);
+        }
+        .welcome-content h2 {
+            font-size: 1.2em;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            color: var(--vscode-editor-foreground);
+        }
+        .welcome-content p {
+            color: var(--vscode-editor-foreground);
+            line-height: 1.6;
+        }
+        .quick-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .quick-link {
+            padding: 12px 16px;
+            border: 1px solid var(--vscode-editorWidget-border);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .quick-link:hover {
+            background-color: var(--vscode-toolbar-hoverBackground);
+            border-color: var(--vscode-textLink-foreground);
+        }
+        .quick-link h3 {
+            margin: 0 0 4px 0;
+            font-size: 0.95em;
+            color: var(--vscode-textLink-foreground);
+        }
+        .quick-link p {
+            margin: 0;
+            font-size: 0.8em;
+            color: var(--vscode-editorLineNumber-foreground);
+        }
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--vscode-editorLineNumber-foreground);
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--vscode-editorWidget-border);
+            border-top-color: var(--vscode-textLink-foreground);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -149,24 +222,78 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
         <div class="separator"></div>
         <button id="btn-find" title="Find (Ctrl+F)">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" opacity="0.5"/>
+                <path d="M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
                 <path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" fill="none"/>
             </svg>
         </button>
         <div style="flex:1"></div>
         <span id="status" style="font-size: 12px; opacity: 0.7;">Welcome</span>
     </div>
-    <div class="content">
-        <iframe id="help-frame" src="${welcomePath}" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"></iframe>
+    <div class="content" id="content">
+        <div class="loading">
+            <div class="spinner"></div>
+            <span>Loading...</span>
+        </div>
     </div>
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
-        const iframe = document.getElementById('help-frame');
+        const contentDiv = document.getElementById('content');
         const btnBack = document.getElementById('btn-back');
         const btnForward = document.getElementById('btn-forward');
         const btnHome = document.getElementById('btn-home');
         const btnFind = document.getElementById('btn-find');
         const status = document.getElementById('status');
+
+        const extensionUri = "${extensionUri}";
+
+        function renderWelcomePage() {
+            contentDiv.innerHTML = \`
+                <div class="welcome-content">
+                    <h1>Krarkode Help</h1>
+                    <p>Welcome to the Krarkode Help Panel. Use the navigation buttons above or search for R function documentation.</p>
+                    
+                    <h2>Quick Actions</h2>
+                    <div class="quick-links">
+                        <div class="quick-link" onclick="executeCommand('krarkode.openConsole')">
+                            <h3>New R Session</h3>
+                            <p>Start a new Ark R session</p>
+                        </div>
+                        <div class="quick-link" onclick="executeCommand('krarkode.attachSession')">
+                            <h3>Attach to Session</h3>
+                            <p>Connect to an existing R session</p>
+                        </div>
+                        <div class="quick-link" onclick="searchHelp()">
+                            <h3>Search Help</h3>
+                            <p>Search R documentation</p>
+                        </div>
+                        <div class="quick-link" onclick="executeCommand('krarkode.plot.focus')">
+                            <h3>Plot Viewer</h3>
+                            <p>View and manage R plots</p>
+                        </div>
+                    </div>
+
+                    <h2>Keyboard Shortcuts</h2>
+                    <p><strong>Ctrl+Shift+H</strong> - Open Help Panel</p>
+                    <p><strong>F1</strong> - Look up help at cursor</p>
+                    <p><strong>Ctrl+Enter</strong> - Run selection/line in R file</p>
+
+                    <h2>Getting Help</h2>
+                    <p>To get help for an R function, place your cursor on the function name and press <strong>F1</strong>, or use the command palette to search for "Look Up Help at Cursor".</p>
+                </div>
+            \`;
+            status.textContent = 'Welcome';
+        }
+
+        function executeCommand(commandId) {
+            vscode.postMessage({ command: 'execute-command', id: commandId });
+        }
+
+        function searchHelp() {
+            const query = prompt('Enter R function or topic to search for:');
+            if (query && query.trim()) {
+                vscode.postMessage({ command: 'search-help', query: query.trim() });
+            }
+        }
 
         btnBack.addEventListener('click', () => {
             vscode.postMessage({ command: 'positron-help-back' });
@@ -184,16 +311,6 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             vscode.postMessage({ command: 'positron-help-find' });
         });
 
-        iframe.addEventListener('load', () => {
-            try {
-                const title = iframe.contentDocument?.title || 'Help';
-                status.textContent = title;
-                vscode.postMessage({ command: 'positron-help-complete', title });
-            } catch (e) {
-                // Cross-origin restriction - can't access content
-            }
-        });
-
         window.addEventListener('message', (event) => {
             const msg = event.data;
             switch (msg.command) {
@@ -202,15 +319,18 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                     btnForward.disabled = !msg.canGoForward;
                     break;
                 case 'navigate':
-                    iframe.src = msg.url;
+                    status.textContent = msg.title || 'Loading...';
                     break;
                 case 'positron-help-find':
-                    iframe.contentWindow?.focus();
+                    btnFind.click();
+                    break;
+                case 'show-content':
+                    contentDiv.innerHTML = msg.html;
+                    status.textContent = msg.title || 'Help';
                     break;
             }
         });
 
-        // Keyboard shortcuts
         document.addEventListener('keydown', (event) => {
             if (event.ctrlKey || event.metaKey) {
                 if (event.key === 'f') {
@@ -219,16 +339,20 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
                 }
             }
         });
+
+        // Initial load
+        renderWelcomePage();
+        vscode.postMessage({ command: 'view-ready' });
     </script>
 </body>
 </html>`;
     }
 
-    private handleMessage(message: { command: string; title?: string; url?: string }): void {
+    private handleMessage(message: { command: string; title?: string; url?: string; query?: string }): void {
         switch (message.command) {
-            case 'positron-help-complete':
-                if (this.view) {
-                    this.view.title = message.title ?? HELP_VIEW_TITLE;
+            case 'view-ready':
+                if (this.isFirstLoad) {
+                    this.isFirstLoad = false;
                 }
                 break;
             case 'positron-help-back':
@@ -246,6 +370,16 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
             case 'positron-help-navigate':
                 if (message.url) {
                     this.view?.webview.postMessage({ command: 'navigate', url: message.url });
+                }
+                break;
+            case 'execute-command':
+                if (message.url) {
+                    vscode.commands.executeCommand(message.id);
+                }
+                break;
+            case 'search-help':
+                if (message.query) {
+                    void this.helpService.showHelpTopic(message.query);
                 }
                 break;
         }

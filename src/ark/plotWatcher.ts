@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 
 interface SidecarEvent {
-    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file';
+    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open';
     data?: unknown;
     display_id?: string | null;
     message?: string;
@@ -52,6 +52,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidStart = new vscode.EventEmitter<void>();
     public readonly onDidStart = this._onDidStart.event;
+
+    private readonly _onDidOpenHelpComm = new vscode.EventEmitter<{ commId: string }>();
+    public readonly onDidOpenHelpComm = this._onDidOpenHelpComm.event;
 
     constructor(
         private readonly resolveSidecarPath: () => string,
@@ -125,6 +128,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidShowHtmlFile.dispose();
         this._onDidReceivePlotData.dispose();
         this._onDidStart.dispose();
+        this._onDidOpenHelpComm.dispose();
     }
 
     private start(connectionFile: string): void {
@@ -190,6 +194,20 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (msg.event === 'comm_open') {
             if (msg.comm_id) {
                 this._onDidOpenPlotComm.fire({ commId: msg.comm_id, data: msg.data });
+            }
+            return;
+        }
+
+        if (msg.event === 'ui_comm_open') {
+            if (msg.comm_id) {
+                console.log(`UI comm opened: ${msg.comm_id}`);
+            }
+            return;
+        }
+
+        if (msg.event === 'help_comm_open') {
+            if (msg.comm_id) {
+                this._onDidOpenHelpComm.fire({ commId: msg.comm_id });
             }
             return;
         }
