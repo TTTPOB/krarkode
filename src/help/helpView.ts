@@ -355,6 +355,19 @@ export class HelpViewProvider implements vscode.WebviewViewProvider {
 
             window.renderWelcomePage = renderWelcomePage;
 
+            // Global click handler to intercept links
+            document.addEventListener('click', e => {
+                // If the target or any of its ancestors is an anchor tag
+                const link = e.target.closest('a');
+                if (link && link.href) {
+                    // Check if it's an internal link or needs to be handled
+                    // We prevent default behavior and notify extension
+                    e.preventDefault();
+                    e.stopPropagation();
+                    vscode.postMessage({ command: 'navigate-url', url: link.href });
+                }
+            });
+
             window.addEventListener('message', (event) => {
                 const msg = event.data;
                 switch (msg.command) {

@@ -179,31 +179,15 @@ export class HelpService implements IKrarkodeHelpService {
         `;
 
         // Script to intercept clicks and handle navigation
-        const script = `
-            <script>
-                const vscode = acquireVsCodeApi();
-                document.addEventListener('click', e => {
-                    const a = e.target.closest('a');
-                    if (a && a.href) {
-                        e.preventDefault();
-                        vscode.postMessage({ command: 'navigate-url', url: a.href });
-                    }
-                });
-            </script>
-        `;
-
+        // Note: Scripts injected via innerHTML do not execute.
+        // We handle click interception in the main webview script instead.
+        
         // Inject into head or body
         let processed = html;
         if (processed.includes('<head>')) {
             processed = processed.replace('<head>', `<head>${baseTag}${themeStyle}`);
         } else {
             processed = `<head>${baseTag}${themeStyle}</head>${processed}`;
-        }
-
-        if (processed.includes('</body>')) {
-            processed = processed.replace('</body>', `${script}</body>`);
-        } else {
-            processed = `${processed}${script}`;
         }
 
         return processed;
