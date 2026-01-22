@@ -5,12 +5,19 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 
 interface SidecarEvent {
-    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close';
+    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file';
     data?: unknown;
     display_id?: string | null;
     message?: string;
     url?: string;
     comm_id?: string;
+}
+
+export interface ShowHtmlFileParams {
+    path: string;
+    title: string;
+    destination: 'plot' | 'viewer' | 'editor';
+    height: number;
 }
 
 export class ArkSidecarManager implements vscode.Disposable {
@@ -31,6 +38,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidReceiveHttpgdUrl = new vscode.EventEmitter<string>();
     public readonly onDidReceiveHttpgdUrl = this._onDidReceiveHttpgdUrl.event;
+
+    private readonly _onDidShowHtmlFile = new vscode.EventEmitter<ShowHtmlFileParams>();
+    public readonly onDidShowHtmlFile = this._onDidShowHtmlFile.event;
 
     constructor(
         private readonly resolveSidecarPath: () => string,
@@ -78,6 +88,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidReceiveCommMessage.dispose();
         this._onDidClosePlotComm.dispose();
         this._onDidReceiveHttpgdUrl.dispose();
+        this._onDidShowHtmlFile.dispose();
     }
 
     private start(connectionFile: string): void {
@@ -147,6 +158,15 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (msg.event === 'comm_close') {
             if (msg.comm_id) {
                 this._onDidClosePlotComm.fire({ commId: msg.comm_id });
+            }
+            return;
+        }
+
+        if (msg.event === 'show_html_file') {
+            const data = msg.data as Record<string, unknown> | undefined;
+            if (data?.params) {
+                const params = data.params as ShowHtmlFileParams;
+                this._onDidShowHtmlFile.fire(params);
             }
             return;
         }

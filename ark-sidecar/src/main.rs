@@ -17,6 +17,8 @@ use zeromq::util::PeerIdentity;
 use zeromq::{DealerSocket, Socket as ZmqSocket, SocketOptions};
 
 const LSP_COMM_TARGET: &str = "positron.lsp";
+const PLOT_COMM_TARGET: &str = "positron.plot";
+const UI_COMM_TARGET: &str = "positron.ui";
 const DEFAULT_TIMEOUT_MS: u64 = 15000;
 const SUPPORTED_SIGNATURE_SCHEME: &str = "hmac-sha256";
 
@@ -326,9 +328,16 @@ async fn run_plot_watcher(
                 }
             }
             JupyterMessageContent::CommOpen(comm_open) => {
-                if comm_open.target_name == "positron.plot" {
+                if comm_open.target_name == PLOT_COMM_TARGET {
                     Some(json!({
                         "event": "comm_open",
+                        "comm_id": comm_open.comm_id.0,
+                        "target_name": comm_open.target_name,
+                        "data": comm_open.data
+                    }).to_string())
+                } else if comm_open.target_name == UI_COMM_TARGET {
+                    Some(json!({
+                        "event": "ui_comm_open",
                         "comm_id": comm_open.comm_id.0,
                         "target_name": comm_open.target_name,
                         "data": comm_open.data
@@ -338,11 +347,29 @@ async fn run_plot_watcher(
                 }
             }
             JupyterMessageContent::CommMsg(comm_msg) => {
-                Some(json!({
-                    "event": "comm_msg",
-                    "comm_id": comm_msg.comm_id.0,
-                    "data": comm_msg.data
-                }).to_string())
+                // Check if this is a UI comm message with show_html_file method
+                if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
+                    if method == "show_html_file" {
+                        Some(json!({
+                            "event": "show_html_file",
+                            "comm_id": comm_msg.comm_id.0,
+                            "data": comm_msg.data
+                        }).to_string())
+                    } else {
+                        // Other comm messages (e.g., plot render replies)
+                        Some(json!({
+                            "event": "comm_msg",
+                            "comm_id": comm_msg.comm_id.0,
+                            "data": comm_msg.data
+                        }).to_string())
+                    }
+                } else {
+                    Some(json!({
+                        "event": "comm_msg",
+                        "comm_id": comm_msg.comm_id.0,
+                        "data": comm_msg.data
+                    }).to_string())
+                }
             }
             JupyterMessageContent::CommClose(comm_close) => {
                 Some(json!({
