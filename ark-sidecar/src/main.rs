@@ -433,8 +433,8 @@ async fn run_check(
         .context("Failed to connect shell")?;
 
     // Send kernel_info_request. If successful, the kernel is alive.
-    // We don't care about parsing the reply correctly - just getting any reply
-    // proves the kernel is responsive, even if it's busy executing other code.
+    // Note: Ark's kernel_info_reply may be missing fields expected by runtimelib,
+    // causing deserialization errors. We handle this gracefully.
     let request = KernelInfoRequest {};
     let message = JupyterMessage::new(request, None);
     let msg_id = message.header.msg_id.clone();
@@ -453,14 +453,16 @@ async fn run_check(
             Ok(Ok(msg)) => {
                 // Check if this is a response to our request
                 if msg.parent_header.as_ref().map(|h| h.msg_id.as_str()) == Some(&msg_id) {
-                    // We got a reply! Even if parsing fails, the kernel is alive.
-                    // Just break here - the kernel responded.
+                    // We got a reply! Consider the kernel alive.
                     break;
                 }
                 // Otherwise, keep waiting for our reply
             }
             Ok(Err(e)) => {
-                return Err(anyhow!("Error reading from shell: {}", e));
+                // Deserialization error (e.g., missing fields in kernel_info_reply).
+                // This is expected with Ark. If we got this far, the kernel is alive.
+                log_debug(&format!("Sidecar: ignoring shell read error: {}", e));
+                break;
             }
             Err(_) => {
                 return Err(anyhow!("Timed out waiting for kernel response"));
