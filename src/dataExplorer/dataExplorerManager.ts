@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
@@ -5,9 +6,11 @@ import {
     BackendState,
     ColumnFilter,
     ColumnProfileRequest,
+    ColumnProfileType,
     ColumnSelection,
     ColumnSortKey,
     ExportFormat,
+    ReturnColumnProfilesParams,
     RowFilter,
     TableSchema,
 } from './protocol';
@@ -28,6 +31,7 @@ class DataExplorerPanel implements vscode.Disposable {
     private sortInFlight = false;
     private filterInFlight = false;
     private exportInFlight = false;
+    private readonly pendingProfileCallbacks = new Map<string, { columnIndex: number }>();
     private disposed = false;
 
     constructor(
@@ -57,6 +61,10 @@ class DataExplorerPanel implements vscode.Disposable {
                 if (event.method === 'schema_update' || event.method === 'data_update') {
                     this.log(`Received ${event.method}; refreshing.`);
                     void this.initialize();
+                    return;
+                }
+                if (event.method === 'return_column_profiles') {
+                    this.handleReturnColumnProfiles(event.params);
                 }
             })
         );
@@ -235,13 +243,60 @@ class DataExplorerPanel implements vscode.Disposable {
         return supportStatus === 'supported';
     }
 
+    private isFeatureSupported(featureKey: string): boolean {
+        const features = this.state?.supported_features as Record<string, { support_status?: string }> | undefined;
+        const supportStatus = features?.[featureKey]?.support_status;
+        if (!supportStatus) {
+            return true;
+        }
+        return supportStatus === 'supported';
+    }
+
+    private handleReturnColumnProfiles(params: unknown): void {
+        if (!params || typeof params !== 'object') {
+            this.log('Column profiles response missing params.');
+            return;
+        }
+
+        const payload = params as ReturnColumnProfilesParams;
+        const callbackId = payload.callback_id;
+        if (!callbackId) {
+            this.log('Column profiles response missing callback_id.');
+            return;
+        }
+
+        const pending = this.pendingProfileCallbacks.get(callbackId);
+        if (!pending) {
+            this.log(`Unexpected column profiles callback: ${callbackId}.`);
+            return;
+        }
+
+        this.pendingProfileCallbacks.delete(callbackId);
+        const errorMessage = payload.error_message;
+        if (errorMessage) {
+            this.log(`Column profiles error: ${errorMessage}`);
+        }
+
+        void this.panel.webview.postMessage({
+            type: 'columnProfilesResult',
+            columnIndex: pending.columnIndex,
+            profiles: payload.profiles ?? [],
+            errorMessage,
+        });
+    }
+
     private async searchSchema(filters: ColumnFilter[], sortOrder: string): Promise<void> {
         if (!this.state) {
             return;
         }
-        this.log(`Searching schema with ${filters.length} filters, sort: ${sortOrder}`);
+        if (!this.isFeatureSupported('search_schema')) {
+            this.log('Search schema ignored; backend does not support search_schema.');
+            return;
+        }
+        const resolvedSortOrder = sortOrder || 'original';
+        this.log(`Searching schema with ${filters.length} filters, sort: ${resolvedSortOrder}`);
         try {
-            const result = await this.session.searchSchema(filters, sortOrder);
+            const result = await this.session.searchSchema(filters, resolvedSortOrder);
             void this.panel.webview.postMessage({
                 type: 'searchSchemaResult',
                 matches: result.matches,
@@ -258,6 +313,10 @@ class DataExplorerPanel implements vscode.Disposable {
 
     private async applyColumnFilters(filters: ColumnFilter[]): Promise<void> {
         if (!this.state) {
+            return;
+        }
+        if (!this.isFeatureSupported('set_column_filters')) {
+            this.log('Column filter request ignored; backend does not support set_column_filters.');
             return;
         }
         if (this.filterInFlight) {
@@ -283,6 +342,10 @@ class DataExplorerPanel implements vscode.Disposable {
 
     private async applyRowFilters(filters: RowFilter[]): Promise<void> {
         if (!this.state) {
+            return;
+        }
+        if (!this.isFeatureSupported('set_row_filters')) {
+            this.log('Row filter request ignored; backend does not support set_row_filters.');
             return;
         }
         if (this.filterInFlight) {
@@ -311,15 +374,29 @@ class DataExplorerPanel implements vscode.Disposable {
         if (!this.state) {
             return;
         }
+        if (!this.isFeatureSupported('get_column_profiles')) {
+            this.log('Column profiles request ignored; backend does not support get_column_profiles.');
+            return;
+        }
+        if (profileTypes.length === 0) {
+            this.log('Column profiles request ignored; no profile types selected.');
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message: 'Please select at least one profile type.',
+            });
+            return;
+        }
         this.log(`Getting column profiles for column ${columnIndex}: ${profileTypes.join(', ')}`);
-        const callbackId = `profile_${Date.now()}`;
+        const callbackId = crypto.randomUUID();
         const profiles: ColumnProfileRequest[] = [{
             column_index: columnIndex,
-            profiles: profileTypes.map((pt) => ({ profile_type: pt as never })),
+            profiles: profileTypes.map((pt) => ({ profile_type: pt as ColumnProfileType })),
         }];
         try {
+            this.pendingProfileCallbacks.set(callbackId, { columnIndex });
             await this.session.getColumnProfiles(callbackId, profiles, DEFAULT_FORMAT_OPTIONS);
         } catch (error) {
+            this.pendingProfileCallbacks.delete(callbackId);
             const message = error instanceof Error ? error.message : 'Unknown error';
             this.log(`Failed to get column profiles: ${message}`);
             void this.panel.webview.postMessage({
@@ -333,8 +410,20 @@ class DataExplorerPanel implements vscode.Disposable {
         if (!this.state) {
             return;
         }
+        if (!this.isFeatureSupported('export_data_selection')) {
+            this.log('Export request ignored; backend does not support export_data_selection.');
+            return;
+        }
         if (this.exportInFlight) {
             this.log('Export request ignored; export already in flight.');
+            return;
+        }
+        if (this.state.table_shape.num_rows === 0) {
+            this.log('Export request ignored; table has no rows.');
+            void this.panel.webview.postMessage({
+                type: 'error',
+                message: 'No rows available to export.',
+            });
             return;
         }
         this.log(`Exporting data as ${format}.`);
@@ -368,6 +457,10 @@ class DataExplorerPanel implements vscode.Disposable {
 
     private async convertToCode(syntax: string): Promise<void> {
         if (!this.state) {
+            return;
+        }
+        if (!this.isFeatureSupported('convert_to_code')) {
+            this.log('Convert to code ignored; backend does not support convert_to_code.');
             return;
         }
         this.log(`Converting current view to ${syntax} code.`);
@@ -541,6 +634,7 @@ class DataExplorerPanel implements vscode.Disposable {
                             <button class="action" id="apply-filter">Apply</button>
                             <button class="action secondary" id="clear-filter">Clear</button>
                         </div>
+                        <div class="filter-status" id="filter-status"></div>
                     </div>
                 </div>
                 <div class="side-panel" id="stats-panel">

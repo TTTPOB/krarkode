@@ -62,6 +62,28 @@ interface RowFilter {
     params?: Record<string, unknown>;
 }
 
+interface ColumnProfileResult {
+    null_count?: number;
+    summary_stats?: {
+        type_display: string;
+        number_stats?: Record<string, string>;
+        string_stats?: Record<string, number>;
+        boolean_stats?: Record<string, number>;
+        date_stats?: Record<string, string>;
+        datetime_stats?: Record<string, string>;
+        other_stats?: Record<string, number>;
+    };
+    small_histogram?: {
+        bin_edges: string[];
+        bin_counts: number[];
+    };
+    small_frequency_table?: {
+        values: ColumnValue[];
+        counts: number[];
+        other_count?: number;
+    };
+}
+
 interface SetSortColumnsFeatures {
     support_status?: SupportStatus;
 }
@@ -112,11 +134,13 @@ const tableMeta = document.getElementById('table-meta') as HTMLDivElement;
 const refreshButton = document.getElementById('refresh-btn') as HTMLButtonElement;
 const filterButton = document.getElementById('filter-btn') as HTMLButtonElement;
 const statsButton = document.getElementById('stats-btn') as HTMLButtonElement;
-const exportButton = document.getElementById('export-btn') as HTMLButtonElement;
 const codeButton = document.getElementById('code-btn') as HTMLButtonElement;
 const filterPanel = document.getElementById('filter-panel') as HTMLDivElement;
 const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
 const codeModal = document.getElementById('code-modal') as HTMLDivElement;
+const filterStatus = document.getElementById('filter-status') as HTMLDivElement;
+const statsResults = document.getElementById('stats-results') as HTMLDivElement;
+const codePreview = document.getElementById('code-preview') as HTMLPreElement;
 const tableHeader = document.getElementById('table-header') as HTMLDivElement;
 const tableBody = document.getElementById('table-body') as HTMLDivElement;
 
@@ -160,6 +184,10 @@ statsButton.addEventListener('click', () => {
 });
 
 codeButton.addEventListener('click', () => {
+    const shouldOpen = !codeModal.classList.contains('open');
+    if (shouldOpen) {
+        vscode.postMessage({ type: 'suggestCodeSyntax' });
+    }
     codeModal.classList.toggle('open');
     filterPanel.classList.remove('open');
     statsPanel.classList.remove('open');
@@ -237,7 +265,9 @@ function applyColumnFilter() {
         });
     }
 
+    filterStatus.textContent = 'Searching...';
     vscode.postMessage({ type: 'searchSchema', filters, sortOrder });
+    vscode.postMessage({ type: 'setColumnFilters', filters });
 }
 
 function getColumnStats() {
@@ -260,6 +290,7 @@ function getColumnStats() {
         profileTypes.push('small_frequency_table');
     }
 
+    statsResults.textContent = 'Loading statistics...';
     vscode.postMessage({ type: 'getColumnProfiles', columnIndex, profileTypes });
 }
 
@@ -288,6 +319,9 @@ window.addEventListener('message', (event) => {
         case 'exportResult':
             handleExportResult(message.data, message.format);
             break;
+        case 'columnProfilesResult':
+            handleColumnProfilesResult(message.columnIndex, message.profiles, message.errorMessage);
+            break;
         case 'convertToCodeResult':
             handleConvertToCodeResult(message.code, message.syntax);
             break;
@@ -301,7 +335,51 @@ vscode.postMessage({ type: 'ready' });
 
 function handleSearchSchemaResult(matches: number[]): void {
     filterPanel.classList.remove('open');
-    showError(`Found ${matches.length} matching columns.`);
+    filterStatus.textContent = `Found ${matches.length} matching columns.`;
+}
+
+function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfileResult[], errorMessage?: string): void {
+    if (errorMessage) {
+        statsResults.textContent = `Error: ${errorMessage}`;
+        return;
+    }
+
+    const lines: string[] = [`Column ${columnIndex + 1} profiles:`];
+    profiles.forEach((profile) => {
+        if (profile.null_count !== undefined) {
+            lines.push(`Null count: ${profile.null_count}`);
+        }
+        if (profile.summary_stats) {
+            const stats = profile.summary_stats;
+            lines.push(`Summary (${stats.type_display}):`);
+            const details = stats.number_stats || stats.string_stats || stats.boolean_stats || stats.date_stats || stats.datetime_stats || stats.other_stats;
+            if (details) {
+                Object.entries(details).forEach(([key, value]) => {
+                    lines.push(`  ${key}: ${value}`);
+                });
+            }
+        }
+        if (profile.small_histogram) {
+            lines.push('Histogram (first 10 bins):');
+            profile.small_histogram.bin_counts.slice(0, 10).forEach((count, idx) => {
+                const start = profile.small_histogram.bin_edges[idx];
+                const end = profile.small_histogram.bin_edges[idx + 1] ?? '';
+                lines.push(`  ${start} - ${end}: ${count}`);
+            });
+        }
+        if (profile.small_frequency_table) {
+            lines.push('Top values:');
+            profile.small_frequency_table.values.forEach((value, idx) => {
+                const count = profile.small_frequency_table.counts[idx];
+                lines.push(`  ${value}: ${count}`);
+            });
+            if (profile.small_frequency_table.other_count !== undefined) {
+                lines.push(`  Other: ${profile.small_frequency_table.other_count}`);
+            }
+        }
+    });
+
+    statsResults.textContent = lines.join('\n');
 }
 
 function handleExportResult(data: string, format: string): void {
@@ -315,8 +393,7 @@ function handleExportResult(data: string, format: string): void {
 }
 
 function handleConvertToCodeResult(code: string, syntax: string): void {
-    const preview = document.getElementById('code-preview') as HTMLPreElement;
-    preview.textContent = code || '(No code generated)';
+    codePreview.textContent = code || '(No code generated)';
 }
 
 function handleSuggestCodeSyntaxResult(syntax: string): void {
@@ -332,6 +409,11 @@ function handleInit(message: InitMessage) {
     loadedBlocks.clear();
     loadingBlocks.clear();
     activeSort = resolveSortState(state.sort_keys);
+    filterStatus.textContent = '';
+    statsResults.textContent = '';
+    codePreview.textContent = '';
+    (document.getElementById('column-search') as HTMLInputElement).value = '';
+    (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
     renderHeader();
     setupTable();
     setupVirtualizer();
