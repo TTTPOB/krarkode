@@ -1492,8 +1492,15 @@ function renderHeader() {
         actions.className = 'header-actions';
         const filterAction = document.createElement('button');
         filterAction.className = 'header-action';
-        filterAction.textContent = 'Filter';
-        filterAction.title = 'Add row filter';
+        filterAction.title = 'Filter rows by this column';
+        filterAction.setAttribute('aria-label', 'Filter rows by this column');
+        const filterIcon = document.createElement('span');
+        filterIcon.className = 'codicon codicon-filter';
+        const filterLabel = document.createElement('span');
+        filterLabel.className = 'header-action-label';
+        filterLabel.textContent = 'Filter';
+        filterAction.appendChild(filterIcon);
+        filterAction.appendChild(filterLabel);
         filterAction.disabled = !isRowFilterSupported();
         filterAction.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -1505,8 +1512,15 @@ function renderHeader() {
         });
         const statsAction = document.createElement('button');
         statsAction.className = 'header-action';
-        statsAction.textContent = 'Stats';
-        statsAction.title = 'Show column stats';
+        statsAction.title = 'Show statistics for this column';
+        statsAction.setAttribute('aria-label', 'Show statistics for this column');
+        const statsIcon = document.createElement('span');
+        statsIcon.className = 'codicon codicon-graph';
+        const statsLabel = document.createElement('span');
+        statsLabel.className = 'header-action-label';
+        statsLabel.textContent = 'Stats';
+        statsAction.appendChild(statsIcon);
+        statsAction.appendChild(statsLabel);
         statsAction.addEventListener('click', (event) => {
             event.stopPropagation();
             log('Header stats action', { columnIndex: column.column_index });
@@ -1514,8 +1528,15 @@ function renderHeader() {
         });
         const hideAction = document.createElement('button');
         hideAction.className = 'header-action';
-        hideAction.textContent = 'x';
-        hideAction.title = 'Hide column';
+        hideAction.title = 'Hide this column';
+        hideAction.setAttribute('aria-label', 'Hide this column');
+        const hideIcon = document.createElement('span');
+        hideIcon.className = 'codicon codicon-eye-closed';
+        const hideLabel = document.createElement('span');
+        hideLabel.className = 'header-action-label';
+        hideLabel.textContent = 'Hide';
+        hideAction.appendChild(hideIcon);
+        hideAction.appendChild(hideLabel);
         hideAction.disabled = schema.length <= 1;
         hideAction.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -1524,8 +1545,16 @@ function renderHeader() {
             }
             hideColumn(column.column_index);
         });
+        const actionSeparator = document.createElement('span');
+        actionSeparator.className = 'header-action-separator';
+        actionSeparator.textContent = '|';
+        const actionSeparator2 = document.createElement('span');
+        actionSeparator2.className = 'header-action-separator';
+        actionSeparator2.textContent = '|';
         actions.appendChild(filterAction);
+        actions.appendChild(actionSeparator);
         actions.appendChild(statsAction);
+        actions.appendChild(actionSeparator2);
         actions.appendChild(hideAction);
         content.appendChild(actions);
         cell.appendChild(content);

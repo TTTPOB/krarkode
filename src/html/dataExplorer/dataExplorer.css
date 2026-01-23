@@ -531,27 +531,51 @@ body {
 
 .header-actions {
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: 2px;
+    margin-top: 2px;
+    padding-top: 2px;
+    border-top: 1px solid var(--vscode-editorWidget-border);
 }
 
 .header-action {
-    background: var(--vscode-button-secondaryBackground);
-    color: var(--vscode-button-secondaryForeground);
+    background: transparent;
+    color: var(--vscode-descriptionForeground);
     border: none;
-    padding: 1px 6px;
-    border-radius: 3px;
+    padding: 1px 4px;
+    border-radius: 2px;
     cursor: pointer;
-    font-size: 0.75em;
+    font-size: 0.7em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .header-action:hover {
-    background: var(--vscode-button-secondaryHoverBackground);
+    background: var(--vscode-list-hoverBackground);
+    color: var(--vscode-editor-foreground);
 }
 
 .header-action:disabled {
     cursor: default;
     color: var(--vscode-disabledForeground);
-    background: var(--vscode-button-secondaryBackground);
+    background: transparent;
+}
+
+.header-action .codicon {
+    font-size: 0.95em;
+}
+
+.header-action-label {
+    font-size: 0.95em;
+    letter-spacing: 0.02em;
+}
+
+.header-action-separator {
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.6;
+    padding: 0 1px;
+    font-size: 0.7em;
 }
 
 .table-cell.header-cell.sortable {
