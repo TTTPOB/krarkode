@@ -264,6 +264,7 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
+    "@vscode/codicons": "^0.0.36",
     "@tanstack/table-core": "^8.21.3",
     "@tanstack/virtual-core": "^3.13.18",
     "echarts": "^5.6.0",

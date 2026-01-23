@@ -582,7 +582,6 @@ function renderColumnVisibilityList(): void {
 
         const toggle = document.createElement('button');
         toggle.className = 'column-visibility-toggle';
-        toggle.textContent = 'eye';
         const isHidden = hiddenColumnIndices.has(column.column_index);
         toggle.title = isHidden ? 'Show column' : 'Hide column';
         toggle.setAttribute('aria-pressed', String(!isHidden));
@@ -593,6 +592,9 @@ function renderColumnVisibilityList(): void {
             toggle.disabled = true;
             toggle.title = 'Cannot hide last visible column';
         }
+        const icon = document.createElement('span');
+        icon.className = `codicon ${isHidden ? 'codicon-eye-closed' : 'codicon-eye'}`;
+        toggle.appendChild(icon);
         toggle.addEventListener('click', () => {
             toggleColumnVisibility(column.column_index);
         });

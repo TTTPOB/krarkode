@@ -606,6 +606,9 @@ class DataExplorerPanel implements vscode.Disposable {
         const styleUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this.extensionUri, 'src', 'html', 'dataExplorer', 'dataExplorer.css')
         );
+        const codiconUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css')
+        );
         const nonce = getNonce();
 
         return `<!DOCTYPE html>
@@ -615,6 +618,7 @@ class DataExplorerPanel implements vscode.Disposable {
                 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <link href="${styleUri}" rel="stylesheet">
+                <link href="${codiconUri}" rel="stylesheet">
                 <title>Data Explorer</title>
             </head>
             <body>
