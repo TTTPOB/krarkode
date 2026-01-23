@@ -1230,6 +1230,7 @@ function handleInit(message: InitMessage) {
     state = message.state;
     fullSchema = message.schema ?? [];
     columnFilterMatches = null;
+    hiddenColumnIndices.clear();
     schema = resolveVisibleSchema();
     rowCache.clear();
     rowLabelCache.clear();
