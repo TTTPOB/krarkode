@@ -64,6 +64,7 @@ export class ArkSessionManager {
     private readonly statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     private onActiveSessionChanged?: (entry: ArkSessionEntry | undefined) => void;
     private kernelStatus: ArkKernelStatus | undefined;
+    private statusPanel: vscode.WebviewPanel | undefined;
 
     constructor() {
         this.statusBarItem.command = 'krarkode.showArkSessionMenu';
@@ -106,6 +107,7 @@ export class ArkSessionManager {
     dispose(): void {
         this.outputChannel.dispose();
         this.statusBarItem.dispose();
+        this.statusPanel?.dispose();
     }
 
     setActiveSessionHandler(handler: (entry: ArkSessionEntry | undefined) => void): void {
@@ -126,6 +128,7 @@ export class ArkSessionManager {
         this.kernelStatus = normalized;
         this.outputChannel.appendLine(`Kernel status updated: ${normalized ?? 'unknown'}`);
         this.updateStatusBar(sessionRegistry.getActiveSession());
+        this.updateStatusPanel();
     }
 
     private updateStatusBar(entry: ArkSessionEntry | undefined): void {
@@ -144,77 +147,231 @@ export class ArkSessionManager {
     }
 
     private async showStatusMenu(): Promise<void> {
-        this.outputChannel.appendLine('Opening Ark status menu.');
-        const activeSession = sessionRegistry.getActiveSession();
-        const pidLabel = activeSession?.pid ? String(activeSession.pid) : 'unknown';
-        const status = this.formatKernelStatus();
-
-        type StatusMenuItem = vscode.QuickPickItem & { action?: () => Promise<void> };
-        const items: StatusMenuItem[] = [];
-
-        if (activeSession) {
-            items.push({
-                label: `$(info) ${activeSession.name}`,
-                description: `PID: ${pidLabel}`,
-                detail: `Status: ${status.label}`
-            });
-        } else {
-            items.push({
-                label: 'No active Ark session',
-                detail: 'Attach or switch a session to connect.'
-            });
-        }
-
-        items.push({ label: 'Actions', kind: vscode.QuickPickItemKind.Separator });
-        items.push({
-            label: 'Attach current console',
-            description: 'Use active terminal',
-            action: async () => {
-                this.outputChannel.appendLine('Status menu: attach current console.');
-                await this.attachSession();
-            }
-        });
-        items.push({
-            label: 'Switch session',
-            description: 'Choose from registry',
-            action: async () => {
-                this.outputChannel.appendLine('Status menu: switch session.');
-                await this.switchSession();
-            }
-        });
-
-        if (activeSession) {
-            items.push({ label: 'Active Session', kind: vscode.QuickPickItemKind.Separator });
-            items.push({
-                label: 'Interrupt active session',
-                description: 'Send Ctrl+C',
-                action: async () => {
-                    this.outputChannel.appendLine('Status menu: interrupt active session.');
-                    await this.interruptActiveSession();
-                }
-            });
-            items.push({
-                label: 'Kill active session',
-                description: 'Stop kernel',
-                action: async () => {
-                    this.outputChannel.appendLine('Status menu: kill active session.');
-                    await this.stopActiveSession();
-                }
-            });
-        }
-
-        const selection = await vscode.window.showQuickPick(items, {
-            placeHolder: 'Ark session actions'
-        });
-
-        if (!selection?.action) {
-            if (selection) {
-                this.outputChannel.appendLine(`Status menu: no action for ${selection.label}.`);
-            }
+        this.outputChannel.appendLine('Opening Ark status panel.');
+        if (this.statusPanel) {
+            this.statusPanel.reveal(undefined, true);
+            this.updateStatusPanel();
             return;
         }
 
-        await selection.action();
+        const panel = vscode.window.createWebviewPanel(
+            'krarkodeArkStatus',
+            'Ark Status',
+            { viewColumn: vscode.ViewColumn.Active, preserveFocus: true },
+            { enableScripts: true }
+        );
+        this.statusPanel = panel;
+
+        panel.onDidDispose(() => {
+            this.outputChannel.appendLine('Ark status panel disposed.');
+            this.statusPanel = undefined;
+        });
+
+        panel.webview.onDidReceiveMessage(async (message) => {
+            if (!message || typeof message.command !== 'string') {
+                return;
+            }
+
+            this.outputChannel.appendLine(`Ark status panel action: ${message.command}`);
+            switch (message.command) {
+                case 'attach-console':
+                    await this.attachSession();
+                    break;
+                case 'switch-session':
+                    await this.switchSession();
+                    break;
+                case 'interrupt-session':
+                    await this.interruptActiveSession();
+                    break;
+                case 'kill-session':
+                    await this.stopActiveSession();
+                    break;
+                default:
+                    this.outputChannel.appendLine(`Unhandled status panel command: ${message.command}`);
+                    break;
+            }
+
+            this.updateStatusPanel();
+        });
+
+        this.updateStatusPanel();
+    }
+
+    private updateStatusPanel(): void {
+        if (!this.statusPanel) {
+            return;
+        }
+
+        const activeSession = sessionRegistry.getActiveSession();
+        this.statusPanel.webview.html = this.renderStatusPanelHtml(activeSession);
+    }
+
+    private renderStatusPanelHtml(activeSession: ArkSessionEntry | undefined): string {
+        const status = this.formatKernelStatus();
+        const sessionName = activeSession?.name ?? 'No active session';
+        const pidLabel = activeSession?.pid ? String(activeSession.pid) : 'unknown';
+        const connectionFile = activeSession?.connectionFilePath ?? 'N/A';
+        const hasActiveSession = Boolean(activeSession);
+        const safeSessionName = this.escapeHtml(sessionName);
+        const safeConnectionFile = this.escapeHtml(connectionFile);
+        const statusLabel = this.escapeHtml(status.label);
+
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ark Status</title>
+    <style>
+        :root {
+            color-scheme: light dark;
+        }
+
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background: var(--vscode-editorWidget-background);
+        }
+
+        .panel {
+            border: 1px solid var(--vscode-editorWidget-border);
+            border-radius: 12px;
+            background: var(--vscode-editorWidget-background);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+            padding: 16px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .title {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+        }
+
+        .section {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid var(--vscode-editorWidget-border);
+        }
+
+        .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.7;
+            margin-bottom: 6px;
+        }
+
+        .value {
+            font-size: 13px;
+            font-weight: 500;
+            word-break: break-word;
+        }
+
+        .actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+        }
+
+        button {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--vscode-button-border, transparent);
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .meta {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <div class="header">
+            <div class="title">Ark Session</div>
+            <div class="status">${statusLabel}</div>
+        </div>
+
+        <div class="section">
+            <div class="label">Session</div>
+            <div class="value">${safeSessionName}</div>
+            <div class="meta">PID: ${pidLabel}</div>
+        </div>
+
+        <div class="section">
+            <div class="label">Connection File</div>
+            <div class="value">${safeConnectionFile}</div>
+        </div>
+
+        <div class="section">
+            <div class="label">Actions</div>
+            <div class="actions">
+                <button data-command="attach-console">Attach current console</button>
+                <button class="secondary" data-command="switch-session">Switch session</button>
+                <button data-command="interrupt-session" ${hasActiveSession ? '' : 'disabled'}>Interrupt active session</button>
+                <button data-command="kill-session" ${hasActiveSession ? '' : 'disabled'}>Kill active session</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        document.querySelectorAll('[data-command]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const command = button.getAttribute('data-command');
+                if (command) {
+                    vscode.postMessage({ command });
+                }
+            });
+        });
+    </script>
+</body>
+</html>`;
+    }
+
+    private escapeHtml(value: string): string {
+        return value
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     private normalizeKernelStatus(status: string | undefined): ArkKernelStatus | undefined {
@@ -318,6 +475,7 @@ export class ArkSessionManager {
         sessionRegistry.setActiveSessionName(entry?.name);
         this.kernelStatus = undefined;
         this.updateStatusBar(entry);
+        this.updateStatusPanel();
         this.onActiveSessionChanged?.(entry);
     }
 
