@@ -211,6 +211,7 @@ const ROW_HEIGHT = 26;
 const ROW_BLOCK_SIZE = 200;
 const COLUMN_WIDTH = 160;
 const ROW_LABEL_WIDTH = 72;
+const UNNAMED_COLUMN_PREFIX = 'Unnamed';
 
 const rowCache = new Map<number, string[]>();
 const rowLabelCache = new Map<number, string>();
@@ -244,6 +245,20 @@ function log(message: string, payload?: unknown): void {
     } else {
         console.log(`[dataExplorer] ${message}`);
     }
+}
+
+function getColumnLabel(column: ColumnSchema): string {
+    const rawLabel = column.column_label ?? column.column_name;
+    const trimmed = rawLabel?.trim();
+    if (trimmed) {
+        return trimmed;
+    }
+    return `${UNNAMED_COLUMN_PREFIX} ${column.column_index + 1}`;
+}
+
+function isColumnNamed(column: ColumnSchema): boolean {
+    const rawLabel = column.column_label ?? column.column_name;
+    return Boolean(rawLabel?.trim());
 }
 
 const ROW_FILTER_TYPE_LABELS: Record<RowFilterType, string> = {
@@ -409,7 +424,7 @@ function populateStatsColumnSelect() {
     schema.forEach((col) => {
         const option = document.createElement('option');
         option.value = String(col.column_index);
-        option.textContent = col.column_name || `Col${col.column_index + 1}`;
+        option.textContent = getColumnLabel(col);
         select.appendChild(option);
     });
 }
@@ -545,7 +560,7 @@ function renderRowFilterChips(): void {
 }
 
 function formatRowFilterChip(filter: RowFilter, index: number): string {
-    const columnLabel = filter.column_schema.column_label || filter.column_schema.column_name || `Column ${filter.column_schema.column_index + 1}`;
+    const columnLabel = getColumnLabel(filter.column_schema);
     const prefix = index > 0 ? `${filter.condition.toUpperCase()} ` : '';
     const params = filter.params || {};
 
@@ -634,7 +649,7 @@ function populateRowFilterColumns(): void {
     schema.forEach((column) => {
         const option = document.createElement('option');
         option.value = String(column.column_index);
-        option.textContent = column.column_label || column.column_name || `Column ${column.column_index + 1}`;
+        option.textContent = getColumnLabel(column);
         rowFilterColumn.appendChild(option);
     });
 }
@@ -1013,7 +1028,8 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
 
     statsText.textContent = lines.join('\n');
     statsResults.scrollTop = 0;
-    const columnLabel = schema.find((col) => col.column_index === columnIndex)?.column_name || `Column ${columnIndex + 1}`;
+    const column = schema.find((col) => col.column_index === columnIndex);
+    const columnLabel = column ? getColumnLabel(column) : `Column ${columnIndex + 1}`;
     renderHistogram(histogram, columnLabel);
 }
 
@@ -1175,7 +1191,7 @@ function buildColumnDefs(): ColumnDef<RowData>[] {
     for (const column of schema) {
         columns.push({
             id: `col-${column.column_index}`,
-            header: column.column_label ?? column.column_name,
+            header: getColumnLabel(column),
             accessorFn: (row) => getCellValue(row.index, column.column_index),
         });
     }
@@ -1210,7 +1226,7 @@ function renderHeader() {
     for (const column of schema) {
         const cell = document.createElement('div');
         cell.className = 'table-cell header-cell';
-        const headerLabel = column.column_label || column.column_name || `Col${column.column_index + 1}`;
+        const headerLabel = getColumnLabel(column);
         cell.title = headerLabel;
         const label = document.createElement('span');
         label.className = 'header-label';
@@ -1241,7 +1257,11 @@ function renderHeader() {
     const filteredText = num_rows !== rawRows || num_columns !== rawColumns
         ? ` (${rawRows}x${rawColumns} raw)`
         : '';
-    tableMeta.textContent = `${num_rows}x${num_columns}${filteredText}`;
+    const unnamedCount = fullSchema.filter((column) => !isColumnNamed(column)).length;
+    const unnamedText = unnamedCount
+        ? ` - ${unnamedCount === fullSchema.length ? 'No column names' : `${unnamedCount} unnamed columns`}`
+        : '';
+    tableMeta.textContent = `${num_rows}x${num_columns}${filteredText}${unnamedText}`;
 }
 
 function handleHeaderSort(columnIndex: number): void {
