@@ -190,6 +190,7 @@ const columnVisibilityList = document.getElementById('column-visibility-list') a
 const columnVisibilitySearch = document.getElementById('column-visibility-search') as HTMLInputElement;
 const columnVisibilityApply = document.getElementById('apply-column-visibility-filter') as HTMLButtonElement;
 const columnVisibilityClear = document.getElementById('clear-column-visibility-filter') as HTMLButtonElement;
+const columnVisibilityInvert = document.getElementById('invert-column-visibility') as HTMLButtonElement;
 const columnVisibilityStatus = document.getElementById('column-visibility-status') as HTMLDivElement;
 const rowFilterPanel = document.getElementById('row-filter-panel') as HTMLDivElement;
 const rowFilterColumn = document.getElementById('row-filter-column') as HTMLSelectElement;
@@ -324,6 +325,10 @@ columnVisibilityApply.addEventListener('click', () => {
 columnVisibilityClear.addEventListener('click', () => {
     columnVisibilitySearch.value = '';
     applyColumnSearch();
+});
+
+columnVisibilityInvert.addEventListener('click', () => {
+    invertColumnVisibility();
 });
 
 columnVisibilitySearch.addEventListener('keydown', (event) => {
@@ -565,6 +570,38 @@ function toggleColumnVisibility(columnIndex: number): void {
         return;
     }
     hideColumn(columnIndex);
+}
+
+function invertColumnVisibility(): void {
+    if (!fullSchema.length) {
+        return;
+    }
+
+    const baseSchema = columnFilterMatches ? resolveSchemaMatches(columnFilterMatches) : fullSchema;
+    if (!baseSchema.length) {
+        return;
+    }
+
+    log('Inverting column visibility', { matches: baseSchema.length });
+    const nextHidden = new Set(hiddenColumnIndices);
+    for (const column of baseSchema) {
+        const index = column.column_index;
+        if (nextHidden.has(index)) {
+            nextHidden.delete(index);
+        } else {
+            nextHidden.add(index);
+        }
+    }
+
+    if (nextHidden.size >= fullSchema.length) {
+        nextHidden.delete(fullSchema[0].column_index);
+    }
+
+    hiddenColumnIndices.clear();
+    for (const index of nextHidden) {
+        hiddenColumnIndices.add(index);
+    }
+    applySchemaUpdate(resolveVisibleSchema());
 }
 
 function renderColumnVisibilityList(): void {

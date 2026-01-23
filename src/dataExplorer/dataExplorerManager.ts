@@ -669,6 +669,7 @@ class DataExplorerPanel implements vscode.Disposable {
                         <div class="filter-actions">
                             <button class="action" id="apply-column-visibility-filter">Apply</button>
                             <button class="action secondary" id="clear-column-visibility-filter">Clear</button>
+                            <button class="action secondary" id="invert-column-visibility">Invert</button>
                         </div>
                         <div class="filter-status" id="column-visibility-status"></div>
                         <div class="column-visibility-list" id="column-visibility-list"></div>
