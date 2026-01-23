@@ -174,14 +174,12 @@ const vscode = acquireVsCodeApi();
 const tableTitle = document.getElementById('table-title') as HTMLDivElement;
 const tableMeta = document.getElementById('table-meta') as HTMLDivElement;
 const refreshButton = document.getElementById('refresh-btn') as HTMLButtonElement;
-const filterButton = document.getElementById('filter-btn') as HTMLButtonElement;
 const columnsButton = document.getElementById('columns-btn') as HTMLButtonElement;
 const statsButton = document.getElementById('stats-btn') as HTMLButtonElement;
 const codeButton = document.getElementById('code-btn') as HTMLButtonElement;
 const rowFilterBar = document.getElementById('row-filter-bar') as HTMLDivElement;
 const rowFilterChips = document.getElementById('row-filter-chips') as HTMLDivElement;
 const addRowFilterButton = document.getElementById('add-row-filter') as HTMLButtonElement;
-const filterPanel = document.getElementById('filter-panel') as HTMLDivElement;
 const columnVisibilityPanel = document.getElementById('column-visibility-panel') as HTMLDivElement;
 const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
 const codeModal = document.getElementById('code-modal') as HTMLDivElement;
@@ -208,7 +206,6 @@ const rowFilterBetweenSection = document.getElementById('row-filter-between-sect
 const rowFilterSearchSection = document.getElementById('row-filter-search-section') as HTMLDivElement;
 const rowFilterSetSection = document.getElementById('row-filter-set-section') as HTMLDivElement;
 const rowFilterConditionSection = document.getElementById('row-filter-condition-section') as HTMLDivElement;
-const filterStatus = document.getElementById('filter-status') as HTMLDivElement;
 const statsResults = document.getElementById('stats-results') as HTMLDivElement;
 const statsText = document.getElementById('stats-text') as HTMLPreElement;
 const histogramContainer = document.getElementById('histogram-chart') as HTMLDivElement;
@@ -303,17 +300,8 @@ refreshButton.addEventListener('click', () => {
     vscode.postMessage({ type: 'refresh' });
 });
 
-filterButton.addEventListener('click', () => {
-    filterPanel.classList.toggle('open');
-    columnVisibilityPanel.classList.remove('open');
-    statsPanel.classList.remove('open');
-    codeModal.classList.remove('open');
-    rowFilterPanel.classList.remove('open');
-});
-
 columnsButton.addEventListener('click', () => {
     columnVisibilityPanel.classList.toggle('open');
-    filterPanel.classList.remove('open');
     statsPanel.classList.remove('open');
     codeModal.classList.remove('open');
     rowFilterPanel.classList.remove('open');
@@ -328,7 +316,6 @@ addRowFilterButton.addEventListener('click', () => {
 
 statsButton.addEventListener('click', () => {
     statsPanel.classList.toggle('open');
-    filterPanel.classList.remove('open');
     columnVisibilityPanel.classList.remove('open');
     codeModal.classList.remove('open');
     rowFilterPanel.classList.remove('open');
@@ -346,14 +333,9 @@ codeButton.addEventListener('click', () => {
         vscode.postMessage({ type: 'suggestCodeSyntax' });
     }
     codeModal.classList.toggle('open');
-    filterPanel.classList.remove('open');
     columnVisibilityPanel.classList.remove('open');
     statsPanel.classList.remove('open');
     rowFilterPanel.classList.remove('open');
-});
-
-document.getElementById('close-filter')?.addEventListener('click', () => {
-    filterPanel.classList.remove('open');
 });
 
 document.getElementById('close-column-visibility')?.addEventListener('click', () => {
@@ -374,16 +356,6 @@ document.getElementById('close-code')?.addEventListener('click', () => {
 
 document.getElementById('cancel-row-filter')?.addEventListener('click', () => {
     rowFilterPanel.classList.remove('open');
-});
-
-document.getElementById('apply-filter')?.addEventListener('click', () => {
-    applyColumnSearch();
-});
-
-document.getElementById('clear-filter')?.addEventListener('click', () => {
-    (document.getElementById('column-search') as HTMLInputElement).value = '';
-    (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
-    applyColumnSearch();
 });
 
 document.getElementById('save-row-filter')?.addEventListener('click', () => {
@@ -447,11 +419,6 @@ document.addEventListener('click', (event) => {
 
 document.addEventListener('click', (event) => {
     const target = event.target as Node;
-    if (filterPanel.classList.contains('open')
-        && !filterPanel.contains(target)
-        && !filterButton.contains(target)) {
-        filterPanel.classList.remove('open');
-    }
     if (statsPanel.classList.contains('open')
         && !statsPanel.contains(target)
         && !statsButton.contains(target)) {
@@ -496,30 +463,7 @@ function populateStatsColumnSelect() {
 }
 
 function applyColumnSearch() {
-    if (!isColumnFilterSupported()) {
-        filterStatus.textContent = 'Column filtering is not supported.';
-        return;
-    }
-    const searchTerm = (document.getElementById('column-search') as HTMLInputElement).value;
-    const sortOrder = (document.getElementById('sort-order') as HTMLSelectElement).value;
-
-    const filters: ColumnFilter[] = [];
-    if (searchTerm) {
-        filters.push({
-            filter_type: 'text_search',
-            params: {
-                search_type: 'contains',
-                term: searchTerm,
-                case_sensitive: false,
-            },
-        });
-    }
-
-    filterStatus.textContent = 'Searching...';
-    vscode.postMessage({ type: 'searchSchema', filters, sortOrder });
-    if (isSetColumnFiltersSupported()) {
-        vscode.postMessage({ type: 'setColumnFilters', filters });
-    }
+    return;
 }
 
 function hideColumn(columnIndex: number): void {
@@ -1012,8 +956,6 @@ window.addEventListener('message', (event) => {
 vscode.postMessage({ type: 'ready' });
 
 function handleSearchSchemaResult(matches: number[]): void {
-    filterPanel.classList.remove('open');
-    filterStatus.textContent = `Found ${matches.length} matching columns.`;
     columnFilterMatches = matches;
     if (!isSetColumnFiltersSupported()) {
         applySchemaUpdate(resolveVisibleSchema());
@@ -1222,7 +1164,6 @@ function handleInit(message: InitMessage) {
     rowFilterSupport = state.supported_features?.set_row_filters;
     columnFilterSupport = state.supported_features?.search_schema;
     setColumnFilterSupport = state.supported_features?.set_column_filters;
-    filterStatus.textContent = '';
     statsText.textContent = '';
     clearHistogram();
     codePreview.textContent = '';

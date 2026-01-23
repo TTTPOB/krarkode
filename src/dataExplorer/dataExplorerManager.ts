@@ -626,7 +626,6 @@ class DataExplorerPanel implements vscode.Disposable {
                     <div class="title" id="table-title">Data Explorer</div>
                     <div class="meta" id="table-meta"></div>
                     <div class="toolbar-actions">
-                        <button class="action" id="filter-btn" title="Filter Columns">Filter</button>
                         <button class="action" id="columns-btn" title="Column Visibility">Columns</button>
                         <button class="action" id="stats-btn" title="Column Statistics">Stats</button>
                         <div class="dropdown">
@@ -645,33 +644,6 @@ class DataExplorerPanel implements vscode.Disposable {
                     <div class="row-filter-label">Row Filters</div>
                     <div class="row-filter-chips" id="row-filter-chips"></div>
                     <button class="action secondary" id="add-row-filter">+ Filter</button>
-                </div>
-                <div class="side-panel" id="filter-panel">
-                    <div class="panel-header">
-                        <span>Column Filter</span>
-                        <button class="close-btn" id="close-filter">&times;</button>
-                    </div>
-                    <div class="panel-content">
-                        <div class="filter-section">
-                            <label>Search Columns</label>
-                            <input type="text" id="column-search" placeholder="Column name...">
-                        </div>
-                        <div class="filter-section">
-                            <label>Sort Order</label>
-                            <select id="sort-order">
-                                <option value="original">Original</option>
-                                <option value="ascending_name">Name (A-Z)</option>
-                                <option value="descending_name">Name (Z-A)</option>
-                                <option value="ascending_type">Type (A-Z)</option>
-                                <option value="descending_type">Type (Z-A)</option>
-                            </select>
-                        </div>
-                        <div class="filter-actions">
-                            <button class="action" id="apply-filter">Apply</button>
-                            <button class="action secondary" id="clear-filter">Clear</button>
-                        </div>
-                        <div class="filter-status" id="filter-status"></div>
-                    </div>
                 </div>
                 <div class="side-panel" id="column-visibility-panel">
                     <div class="panel-header">
