@@ -11,7 +11,12 @@ import {
     observeElementOffset,
     observeElementRect,
 } from '@tanstack/virtual-core';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import { BarChart } from 'echarts/charts';
+import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+
+echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
 interface TableShape {
     num_rows: number;
