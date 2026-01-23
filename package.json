@@ -23,6 +23,7 @@
     "onCommand:krarkode.switchArkSession",
     "onCommand:krarkode.interruptActiveArkSession",
     "onCommand:krarkode.stopActiveArkSession",
+    "onCommand:krarkode.copyArkConnectionFile",
     "onCommand:krarkode.restartArkLanguageServer",
     "onView:krarkode.help",
     "onView:krarkodeVariables"
@@ -91,6 +92,11 @@
       {
         "command": "krarkode.stopActiveArkSession",
         "title": "Stop Active Ark Session",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.copyArkConnectionFile",
+        "title": "Copy Ark Connection File",
         "category": "Krarkode"
       },
       {

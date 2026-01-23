@@ -84,7 +84,8 @@ export class ArkSessionManager {
             vscode.commands.registerCommand('krarkode.showArkSessionMenu', () => this.showStatusMenu()),
             vscode.commands.registerCommand('krarkode.switchArkSession', () => this.switchSession()),
             vscode.commands.registerCommand('krarkode.interruptActiveArkSession', () => this.interruptActiveSession()),
-            vscode.commands.registerCommand('krarkode.stopActiveArkSession', () => this.stopActiveSession())
+            vscode.commands.registerCommand('krarkode.stopActiveArkSession', () => this.stopActiveSession()),
+            vscode.commands.registerCommand('krarkode.copyArkConnectionFile', () => this.copyActiveConnectionFile())
         );
     }
 
@@ -153,13 +154,13 @@ export class ArkSessionManager {
     private buildStatusTooltip(entry: ArkSessionEntry | undefined, status: { icon: string; label: string }): vscode.MarkdownString {
         const pidLabel = entry?.pid ? String(entry.pid) : 'unknown';
         const nameLabel = entry?.name ?? 'No active session';
-        const connectionFile = entry?.connectionFilePath ?? 'N/A';
+        const connectionFile = entry?.connectionFilePath;
         const md = new vscode.MarkdownString(
             `**Ark Session**\n\n`
             + `- Status: ${status.label}\n`
             + `- Session: ${nameLabel}\n`
             + `- PID: ${pidLabel}\n`
-            + `- Connection: ${connectionFile}\n\n`
+            + `- Connection: ${connectionFile ? '[Copy connection file](command:krarkode.copyArkConnectionFile)' : 'Not available'}\n\n`
             + `[$(plug) Attach](command:krarkode.attachArkSession) `
             + `[$(arrow-switch) Switch](command:krarkode.switchArkSession) `
             + `[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession) `
@@ -168,6 +169,18 @@ export class ArkSessionManager {
         md.isTrusted = true;
         md.supportThemeIcons = true;
         return md;
+    }
+
+    private async copyActiveConnectionFile(): Promise<void> {
+        const entry = sessionRegistry.getActiveSession();
+        if (!entry?.connectionFilePath) {
+            void vscode.window.showWarningMessage('No active Ark connection file to copy.');
+            return;
+        }
+
+        this.outputChannel.appendLine(`Copying connection file for ${entry.name}.`);
+        await vscode.env.clipboard.writeText(entry.connectionFilePath);
+        void vscode.window.showInformationMessage('Ark connection file path copied to clipboard.');
     }
 
     private async showStatusMenu(): Promise<void> {
