@@ -1291,7 +1291,14 @@ function handleInit(message: InitMessage) {
     rowLabelCache.clear();
     loadedBlocks.clear();
     loadingBlocks.clear();
+    const previousWidths = new Map(columnWidths);
     columnWidths.clear();
+    fullSchema.forEach((column) => {
+        const width = previousWidths.get(column.column_index);
+        if (width !== undefined) {
+            columnWidths.set(column.column_index, width);
+        }
+    });
     activeSort = resolveSortState(state.sort_keys);
     rowFilters = state.row_filters ?? [];
     rowFilterSupport = state.supported_features?.set_row_filters;
