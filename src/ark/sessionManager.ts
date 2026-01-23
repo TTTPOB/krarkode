@@ -160,10 +160,10 @@ export class ArkSessionManager {
             + `- Session: ${nameLabel}\n`
             + `- PID: ${pidLabel}\n`
             + `- Connection: ${connectionFile}\n\n`
-            + `[Attach current console](command:krarkode.attachArkSession)\n\n`
-            + `[Switch session](command:krarkode.switchArkSession)\n\n`
-            + `[Interrupt active session](command:krarkode.interruptActiveArkSession)\n\n`
-            + `[Kill active session](command:krarkode.stopActiveArkSession)`
+            + `[$(plug) Attach](command:krarkode.attachArkSession) `
+            + `[$(arrow-switch) Switch](command:krarkode.switchArkSession) `
+            + `[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession) `
+            + `[$(stop-circle) Kill](command:krarkode.stopActiveArkSession)`
         );
         md.isTrusted = true;
         return md;
