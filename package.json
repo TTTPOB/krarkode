@@ -253,7 +253,7 @@
     ]
   },
   "scripts": {
-    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && esbuild src/html/dataExplorer/dataExplorer.ts --bundle --outfile=dist/html/dataExplorer/dataExplorer.js --format=iife && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && esbuild src/html/dataExplorer/dataExplorer.ts --bundle --outfile=dist/html/dataExplorer/dataExplorer.js --format=iife --minify && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
     "vscode:prepublish": "pnpm run compile"
   },
