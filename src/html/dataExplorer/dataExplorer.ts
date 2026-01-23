@@ -497,6 +497,18 @@ function applyColumnSearch() {
     const sortOrder = 'original';
 
     const filters: ColumnFilter[] = [];
+    if (!searchTerm) {
+        columnFilterMatches = null;
+        columnVisibilityStatus.textContent = 'Showing all columns.';
+        renderColumnVisibilityList();
+        if (!isSetColumnFiltersSupported()) {
+            applySchemaUpdate(resolveVisibleSchema());
+        } else {
+            vscode.postMessage({ type: 'setColumnFilters', filters });
+        }
+        log('Column search cleared');
+        return;
+    }
     if (searchTerm) {
         filters.push({
             filter_type: 'text_search',
@@ -1217,6 +1229,7 @@ function handleSuggestCodeSyntaxResult(syntax: string): void {
 function handleInit(message: InitMessage) {
     state = message.state;
     fullSchema = message.schema ?? [];
+    columnFilterMatches = null;
     schema = resolveVisibleSchema();
     rowCache.clear();
     rowLabelCache.clear();
@@ -1228,6 +1241,7 @@ function handleInit(message: InitMessage) {
     columnFilterSupport = state.supported_features?.search_schema;
     setColumnFilterSupport = state.supported_features?.set_column_filters;
     columnVisibilityStatus.textContent = '';
+    columnVisibilitySearch.value = '';
     statsText.textContent = '';
     clearHistogram();
     codePreview.textContent = '';
