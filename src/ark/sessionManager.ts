@@ -166,6 +166,7 @@ export class ArkSessionManager {
             + `[$(stop-circle) Kill](command:krarkode.stopActiveArkSession)`
         );
         md.isTrusted = true;
+        md.supportThemeIcons = true;
         return md;
     }
 
