@@ -20,6 +20,9 @@
     "onCommand:krarkode.stopArkSession",
     "onCommand:krarkode.interruptArkSession",
     "onCommand:krarkode.showArkSessionMenu",
+    "onCommand:krarkode.switchArkSession",
+    "onCommand:krarkode.interruptActiveArkSession",
+    "onCommand:krarkode.stopActiveArkSession",
     "onCommand:krarkode.restartArkLanguageServer",
     "onView:krarkode.help",
     "onView:krarkodeVariables"
@@ -73,6 +76,21 @@
       {
         "command": "krarkode.showArkSessionMenu",
         "title": "Show Ark Session Menu",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.switchArkSession",
+        "title": "Switch Ark Session",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.interruptActiveArkSession",
+        "title": "Interrupt Active Ark Session",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.stopActiveArkSession",
+        "title": "Stop Active Ark Session",
         "category": "Krarkode"
       },
       {

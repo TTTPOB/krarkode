@@ -81,7 +81,10 @@ export class ArkSessionManager {
             vscode.commands.registerCommand('krarkode.openArkConsole', () => this.openConsole()),
             vscode.commands.registerCommand('krarkode.stopArkSession', () => this.stopSession()),
             vscode.commands.registerCommand('krarkode.interruptArkSession', () => this.interruptSession()),
-            vscode.commands.registerCommand('krarkode.showArkSessionMenu', () => this.showStatusMenu())
+            vscode.commands.registerCommand('krarkode.showArkSessionMenu', () => this.showStatusMenu()),
+            vscode.commands.registerCommand('krarkode.switchArkSession', () => this.switchSession()),
+            vscode.commands.registerCommand('krarkode.interruptActiveArkSession', () => this.interruptActiveSession()),
+            vscode.commands.registerCommand('krarkode.stopActiveArkSession', () => this.stopActiveSession())
         );
     }
 
@@ -137,14 +140,33 @@ export class ArkSessionManager {
         if (entry) {
             const status = this.formatKernelStatus();
             this.statusBarItem.text = `${status.icon} Ark: ${entry.name} ${status.label}`;
-            this.statusBarItem.tooltip = `Ark Session: ${entry.name}\nStatus: ${status.label}\nConnection File: ${entry.connectionFilePath}`;
+            this.statusBarItem.tooltip = this.buildStatusTooltip(entry, status);
             this.statusBarItem.backgroundColor = undefined;
         } else {
             this.statusBarItem.text = `$(circle-slash) Ark: No Session`;
-            this.statusBarItem.tooltip = 'Click to manage Ark session';
+            this.statusBarItem.tooltip = this.buildStatusTooltip(undefined, this.formatKernelStatus());
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         }
         this.statusBarItem.show();
+    }
+
+    private buildStatusTooltip(entry: ArkSessionEntry | undefined, status: { icon: string; label: string }): vscode.MarkdownString {
+        const pidLabel = entry?.pid ? String(entry.pid) : 'unknown';
+        const nameLabel = entry?.name ?? 'No active session';
+        const connectionFile = entry?.connectionFilePath ?? 'N/A';
+        const md = new vscode.MarkdownString(
+            `**Ark Session**\n\n`
+            + `- Status: ${status.label}\n`
+            + `- Session: ${nameLabel}\n`
+            + `- PID: ${pidLabel}\n`
+            + `- Connection: ${connectionFile}\n\n`
+            + `[Attach current console](command:krarkode.attachArkSession)\n\n`
+            + `[Switch session](command:krarkode.switchArkSession)\n\n`
+            + `[Interrupt active session](command:krarkode.interruptActiveArkSession)\n\n`
+            + `[Kill active session](command:krarkode.stopActiveArkSession)`
+        );
+        md.isTrusted = true;
+        return md;
     }
 
     private async showStatusMenu(): Promise<void> {
