@@ -45,6 +45,18 @@ export class VariablesService {
                 this.handleMessage(e.data);
             }
         });
+
+        sidecarManager.onDidStart(() => {
+            this.log('Sidecar started; ensuring variables comm is open.');
+            const commId = this.sidecarManager.ensureVariablesCommOpen();
+            if (!commId) {
+                this.log('Variables comm not available after sidecar start.');
+                return;
+            }
+            this.commId = commId;
+            this.updateConnectionState(true, 'sidecar started');
+            this.refresh();
+        });
     }
 
     private handleMessage(data: unknown) {
