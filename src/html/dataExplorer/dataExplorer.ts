@@ -178,6 +178,8 @@ const addRowFilterButton = document.getElementById('add-row-filter') as HTMLButt
 const filterPanel = document.getElementById('filter-panel') as HTMLDivElement;
 const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
 const codeModal = document.getElementById('code-modal') as HTMLDivElement;
+const columnMenu = document.getElementById('column-menu') as HTMLDivElement;
+const columnMenuAddFilter = document.getElementById('column-menu-add-filter') as HTMLButtonElement;
 const rowFilterPanel = document.getElementById('row-filter-panel') as HTMLDivElement;
 const rowFilterColumn = document.getElementById('row-filter-column') as HTMLSelectElement;
 const rowFilterType = document.getElementById('row-filter-type') as HTMLSelectElement;
@@ -234,6 +236,7 @@ let rowFilterSupport: SetRowFiltersFeatures | undefined;
 let columnFilterSupport: SearchSchemaFeatures | undefined;
 let setColumnFilterSupport: SetColumnFiltersFeatures | undefined;
 let columnFilterMatches: number[] | null = null;
+let columnMenuColumnIndex: number | null = null;
 
 function log(message: string, payload?: unknown): void {
     if (payload !== undefined) {
@@ -371,6 +374,34 @@ document.querySelectorAll('#export-dropdown button').forEach((btn) => {
     });
 });
 
+columnMenuAddFilter.addEventListener('click', () => {
+    if (columnMenuColumnIndex === null) {
+        return;
+    }
+    closeColumnMenu();
+    openRowFilterEditor(undefined, undefined, columnMenuColumnIndex);
+});
+
+document.addEventListener('click', (event) => {
+    if (!columnMenu.classList.contains('open')) {
+        return;
+    }
+    if (columnMenu.contains(event.target as Node)) {
+        return;
+    }
+    closeColumnMenu();
+});
+
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        closeColumnMenu();
+    }
+});
+
+window.addEventListener('resize', () => {
+    closeColumnMenu();
+});
+
 function populateStatsColumnSelect() {
     const select = document.getElementById('stats-column') as HTMLSelectElement;
     select.innerHTML = '<option value="">Choose column...</option>';
@@ -440,6 +471,24 @@ function isSetColumnFiltersSupported(): boolean {
         return true;
     }
     return supportStatus === 'supported';
+}
+
+function openColumnMenu(x: number, y: number, columnIndex: number): void {
+    columnMenuColumnIndex = columnIndex;
+    columnMenuAddFilter.disabled = !isRowFilterSupported();
+    columnMenu.classList.add('open');
+    const padding = 8;
+    const { innerWidth, innerHeight } = window;
+    const menuRect = columnMenu.getBoundingClientRect();
+    const nextLeft = Math.min(x, innerWidth - menuRect.width - padding);
+    const nextTop = Math.min(y, innerHeight - menuRect.height - padding);
+    columnMenu.style.left = `${Math.max(nextLeft, padding)}px`;
+    columnMenu.style.top = `${Math.max(nextTop, padding)}px`;
+}
+
+function closeColumnMenu(): void {
+    columnMenu.classList.remove('open');
+    columnMenuColumnIndex = null;
 }
 
 function supportsRowFilterConditions(): boolean {
@@ -531,7 +580,7 @@ function formatRowFilterChip(filter: RowFilter, index: number): string {
     }
 }
 
-function openRowFilterEditor(filter?: RowFilter, index?: number): void {
+function openRowFilterEditor(filter?: RowFilter, index?: number, columnIndex?: number): void {
     if (!isRowFilterSupported()) {
         return;
     }
@@ -546,12 +595,16 @@ function openRowFilterEditor(filter?: RowFilter, index?: number): void {
     filterPanel.classList.remove('open');
     statsPanel.classList.remove('open');
     codeModal.classList.remove('open');
+    closeColumnMenu();
     rowFilterError.textContent = '';
 
     populateRowFilterColumns();
     populateRowFilterTypes();
 
-    const selectedColumnIndex = filter?.column_schema.column_index ?? schema[0]?.column_index ?? 0;
+    const selectedColumnIndex = filter?.column_schema.column_index
+        ?? columnIndex
+        ?? schema[0]?.column_index
+        ?? 0;
     rowFilterColumn.value = String(selectedColumnIndex);
 
     const selectedType = filter?.filter_type ?? getSupportedRowFilterTypes()[0] ?? 'compare';
@@ -751,6 +804,9 @@ function getColumnStats() {
 }
 
 tableBody.addEventListener('scroll', () => {
+    if (columnMenu.classList.contains('open')) {
+        closeColumnMenu();
+    }
     if (tableBody.scrollLeft !== lastScrollLeft) {
         updateHeaderScroll(tableBody.scrollLeft);
         lastScrollLeft = tableBody.scrollLeft;
@@ -1167,6 +1223,10 @@ function renderHeader() {
             cell.classList.add('sortable');
             cell.addEventListener('click', () => handleHeaderSort(column.column_index));
         }
+        cell.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+            openColumnMenu(event.clientX, event.clientY, column.column_index);
+        });
         headerRow.appendChild(cell);
     }
 

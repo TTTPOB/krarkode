@@ -792,6 +792,9 @@ class DataExplorerPanel implements vscode.Disposable {
                         </div>
                     </div>
                 </div>
+                <div class="context-menu" id="column-menu">
+                    <button class="context-menu-item" id="column-menu-add-filter">Add Filter</button>
+                </div>
                 <div class="table-container">
                     <div class="table-header" id="table-header"></div>
                     <div class="table-body" id="table-body"></div>
