@@ -1254,22 +1254,10 @@ function handleInit(message: InitMessage) {
         schema = resolveVisibleSchema();
     }
     renderColumnVisibilityList();
-    renderHeader();
-    setupTable();
-    setupVirtualizer();
-    renderRows();
-    requestInitialBlock();
-    requestVisibleBlocks();
+    applySchemaUpdate(schema);
     log('Data explorer initialized', {
         rows: state.table_shape.num_rows,
         columns: schema.length,
-    });
-    requestAnimationFrame(() => {
-        rowVirtualizer?.measure();
-        renderRows();
-        requestInitialBlock();
-        requestVisibleBlocks();
-        log('Data explorer post-init refresh');
     });
 }
 
