@@ -623,6 +623,7 @@ class DataExplorerPanel implements vscode.Disposable {
                     <div class="meta" id="table-meta"></div>
                     <div class="toolbar-actions">
                         <button class="action" id="filter-btn" title="Filter Columns">Filter</button>
+                        <button class="action" id="columns-btn" title="Column Visibility">Columns</button>
                         <button class="action" id="stats-btn" title="Column Statistics">Stats</button>
                         <div class="dropdown">
                             <button class="action" id="export-btn">Export ▾</button>
@@ -666,6 +667,15 @@ class DataExplorerPanel implements vscode.Disposable {
                             <button class="action secondary" id="clear-filter">Clear</button>
                         </div>
                         <div class="filter-status" id="filter-status"></div>
+                    </div>
+                </div>
+                <div class="side-panel" id="column-visibility-panel">
+                    <div class="panel-header">
+                        <span>Column Visibility</span>
+                        <button class="close-btn" id="close-column-visibility">&times;</button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="column-visibility-list" id="column-visibility-list"></div>
                     </div>
                 </div>
                 <div class="side-panel" id="row-filter-panel">

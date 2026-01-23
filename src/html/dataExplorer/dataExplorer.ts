@@ -175,17 +175,20 @@ const tableTitle = document.getElementById('table-title') as HTMLDivElement;
 const tableMeta = document.getElementById('table-meta') as HTMLDivElement;
 const refreshButton = document.getElementById('refresh-btn') as HTMLButtonElement;
 const filterButton = document.getElementById('filter-btn') as HTMLButtonElement;
+const columnsButton = document.getElementById('columns-btn') as HTMLButtonElement;
 const statsButton = document.getElementById('stats-btn') as HTMLButtonElement;
 const codeButton = document.getElementById('code-btn') as HTMLButtonElement;
 const rowFilterBar = document.getElementById('row-filter-bar') as HTMLDivElement;
 const rowFilterChips = document.getElementById('row-filter-chips') as HTMLDivElement;
 const addRowFilterButton = document.getElementById('add-row-filter') as HTMLButtonElement;
 const filterPanel = document.getElementById('filter-panel') as HTMLDivElement;
+const columnVisibilityPanel = document.getElementById('column-visibility-panel') as HTMLDivElement;
 const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
 const codeModal = document.getElementById('code-modal') as HTMLDivElement;
 const columnMenu = document.getElementById('column-menu') as HTMLDivElement;
 const columnMenuAddFilter = document.getElementById('column-menu-add-filter') as HTMLButtonElement;
 const columnMenuHideColumn = document.getElementById('column-menu-hide-column') as HTMLButtonElement;
+const columnVisibilityList = document.getElementById('column-visibility-list') as HTMLDivElement;
 const rowFilterPanel = document.getElementById('row-filter-panel') as HTMLDivElement;
 const rowFilterColumn = document.getElementById('row-filter-column') as HTMLSelectElement;
 const rowFilterType = document.getElementById('row-filter-type') as HTMLSelectElement;
@@ -302,9 +305,21 @@ refreshButton.addEventListener('click', () => {
 
 filterButton.addEventListener('click', () => {
     filterPanel.classList.toggle('open');
+    columnVisibilityPanel.classList.remove('open');
     statsPanel.classList.remove('open');
     codeModal.classList.remove('open');
     rowFilterPanel.classList.remove('open');
+});
+
+columnsButton.addEventListener('click', () => {
+    columnVisibilityPanel.classList.toggle('open');
+    filterPanel.classList.remove('open');
+    statsPanel.classList.remove('open');
+    codeModal.classList.remove('open');
+    rowFilterPanel.classList.remove('open');
+    if (columnVisibilityPanel.classList.contains('open')) {
+        renderColumnVisibilityList();
+    }
 });
 
 addRowFilterButton.addEventListener('click', () => {
@@ -314,6 +329,7 @@ addRowFilterButton.addEventListener('click', () => {
 statsButton.addEventListener('click', () => {
     statsPanel.classList.toggle('open');
     filterPanel.classList.remove('open');
+    columnVisibilityPanel.classList.remove('open');
     codeModal.classList.remove('open');
     rowFilterPanel.classList.remove('open');
     populateStatsColumnSelect();
@@ -331,12 +347,17 @@ codeButton.addEventListener('click', () => {
     }
     codeModal.classList.toggle('open');
     filterPanel.classList.remove('open');
+    columnVisibilityPanel.classList.remove('open');
     statsPanel.classList.remove('open');
     rowFilterPanel.classList.remove('open');
 });
 
 document.getElementById('close-filter')?.addEventListener('click', () => {
     filterPanel.classList.remove('open');
+});
+
+document.getElementById('close-column-visibility')?.addEventListener('click', () => {
+    columnVisibilityPanel.classList.remove('open');
 });
 
 document.getElementById('close-row-filter')?.addEventListener('click', () => {
@@ -436,6 +457,11 @@ document.addEventListener('click', (event) => {
         && !statsButton.contains(target)) {
         statsPanel.classList.remove('open');
     }
+    if (columnVisibilityPanel.classList.contains('open')
+        && !columnVisibilityPanel.contains(target)
+        && !columnsButton.contains(target)) {
+        columnVisibilityPanel.classList.remove('open');
+    }
     if (codeModal.classList.contains('open')
         && !codeModal.contains(target)
         && !codeButton.contains(target)) {
@@ -497,9 +523,84 @@ function applyColumnSearch() {
 }
 
 function hideColumn(columnIndex: number): void {
+    if (hiddenColumnIndices.has(columnIndex)) {
+        return;
+    }
     hiddenColumnIndices.add(columnIndex);
     log('Column hidden', { columnIndex });
     applySchemaUpdate(resolveVisibleSchema());
+}
+
+function showColumn(columnIndex: number): void {
+    if (!hiddenColumnIndices.has(columnIndex)) {
+        return;
+    }
+    hiddenColumnIndices.delete(columnIndex);
+    log('Column shown', { columnIndex });
+    applySchemaUpdate(resolveVisibleSchema());
+}
+
+function toggleColumnVisibility(columnIndex: number): void {
+    if (hiddenColumnIndices.has(columnIndex)) {
+        showColumn(columnIndex);
+        return;
+    }
+    if (resolveVisibleSchema().length <= 1) {
+        return;
+    }
+    hideColumn(columnIndex);
+}
+
+function renderColumnVisibilityList(): void {
+    columnVisibilityList.innerHTML = '';
+    if (!fullSchema.length) {
+        const empty = document.createElement('div');
+        empty.className = 'column-visibility-empty';
+        empty.textContent = 'No columns available.';
+        columnVisibilityList.appendChild(empty);
+        return;
+    }
+
+    const visibleCount = resolveVisibleSchema().length;
+    for (const column of fullSchema) {
+        const item = document.createElement('div');
+        item.className = 'column-visibility-item';
+
+        const details = document.createElement('div');
+        details.className = 'column-visibility-details';
+
+        const name = document.createElement('div');
+        name.className = 'column-visibility-name';
+        name.textContent = getColumnLabel(column);
+        name.title = getColumnLabel(column);
+        details.appendChild(name);
+
+        const meta = document.createElement('div');
+        meta.className = 'column-visibility-meta';
+        meta.textContent = column.type_display || column.type_name;
+        details.appendChild(meta);
+
+        const toggle = document.createElement('button');
+        toggle.className = 'column-visibility-toggle';
+        toggle.textContent = 'eye';
+        const isHidden = hiddenColumnIndices.has(column.column_index);
+        toggle.title = isHidden ? 'Show column' : 'Hide column';
+        toggle.setAttribute('aria-pressed', String(!isHidden));
+        if (isHidden) {
+            toggle.classList.add('is-hidden');
+        }
+        if (!isHidden && visibleCount <= 1) {
+            toggle.disabled = true;
+            toggle.title = 'Cannot hide last visible column';
+        }
+        toggle.addEventListener('click', () => {
+            toggleColumnVisibility(column.column_index);
+        });
+
+        item.appendChild(details);
+        item.appendChild(toggle);
+        columnVisibilityList.appendChild(item);
+    }
 }
 
 function updateRowFilterBarVisibility(): void {
@@ -945,6 +1046,7 @@ function applySchemaUpdate(nextSchema: ColumnSchema[]): void {
     rowLabelCache.clear();
     loadedBlocks.clear();
     loadingBlocks.clear();
+    renderColumnVisibilityList();
     renderHeader();
     setupTable();
     setupVirtualizer();
@@ -1129,6 +1231,7 @@ function handleInit(message: InitMessage) {
     if (columnFilterMatches && !isSetColumnFiltersSupported()) {
         schema = resolveVisibleSchema();
     }
+    renderColumnVisibilityList();
     renderHeader();
     setupTable();
     setupVirtualizer();

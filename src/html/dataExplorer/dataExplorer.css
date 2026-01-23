@@ -225,6 +225,77 @@ body {
     flex: 1;
 }
 
+.column-visibility-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.column-visibility-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 4px;
+    background: var(--vscode-editor-background);
+}
+
+.column-visibility-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.column-visibility-name {
+    font-weight: 600;
+    font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.column-visibility-meta {
+    font-size: 0.8em;
+    color: var(--vscode-descriptionForeground);
+}
+
+.column-visibility-toggle {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border: none;
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.column-visibility-toggle:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.column-visibility-toggle.is-hidden {
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+
+.column-visibility-toggle:disabled {
+    cursor: default;
+    color: var(--vscode-disabledForeground);
+    background: var(--vscode-button-secondaryBackground);
+}
+
+.column-visibility-empty {
+    padding: 8px;
+    font-size: 0.9em;
+    color: var(--vscode-descriptionForeground);
+}
+
 .filter-section,
 .stats-section,
 .code-section {
