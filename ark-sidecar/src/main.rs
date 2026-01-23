@@ -517,6 +517,19 @@ async fn run_plot_watcher(
                             "comm_id": comm_close.comm_id.0
                         }).to_string())
                     }
+                    JupyterMessageContent::Status(status) => {
+                        let state = match status.execution_state {
+                            ExecutionState::Idle => "idle",
+                            ExecutionState::Busy => "busy",
+                            ExecutionState::Starting => "starting",
+                            _ => "unknown",
+                        };
+                        log_debug(&format!("Sidecar: kernel status {state}"));
+                        Some(json!({
+                            "event": "kernel_status",
+                            "status": state
+                        }).to_string())
+                    }
                     _ => None,
                 };
 

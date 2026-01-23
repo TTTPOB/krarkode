@@ -8,6 +8,7 @@ import type { ArkConsoleDriver, ArkSessionEntry } from './sessionRegistry';
 import { getRBinaryPath } from '../util';
 
 type ArkSessionMode = 'console' | 'notebook' | 'background';
+type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'unknown';
 
 interface ArkAnnouncePayload {
     sessionName?: string;
@@ -62,6 +63,7 @@ export class ArkSessionManager {
     private readonly outputChannel = vscode.window.createOutputChannel('Ark');
     private readonly statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     private onActiveSessionChanged?: (entry: ArkSessionEntry | undefined) => void;
+    private kernelStatus: ArkKernelStatus | undefined;
 
     constructor() {
         this.statusBarItem.command = 'krarkode.openArkConsole';
@@ -115,18 +117,58 @@ export class ArkSessionManager {
         }
     }
 
+    public setKernelStatus(status: string | undefined): void {
+        const normalized = this.normalizeKernelStatus(status);
+        if (this.kernelStatus === normalized) {
+            return;
+        }
+        this.kernelStatus = normalized;
+        this.outputChannel.appendLine(`Kernel status updated: ${normalized ?? 'unknown'}`);
+        this.updateStatusBar(sessionRegistry.getActiveSession());
+    }
+
     private updateStatusBar(entry: ArkSessionEntry | undefined): void {
         if (entry) {
             const pidInfo = entry.pid ? ` (PID: ${entry.pid})` : '';
-            this.statusBarItem.text = `$(vm) Ark: ${entry.name}${pidInfo}`;
-            this.statusBarItem.tooltip = `Ark Session: ${entry.name}\nConnection File: ${entry.connectionFilePath}`;
+            const status = this.formatKernelStatus();
+            this.statusBarItem.text = `${status.icon} Ark: ${entry.name}${pidInfo} ${status.label}`;
+            this.statusBarItem.tooltip = `Ark Session: ${entry.name}\nStatus: ${status.label}\nConnection File: ${entry.connectionFilePath}`;
             this.statusBarItem.backgroundColor = undefined;
         } else {
-            this.statusBarItem.text = `$(vm) Ark: No Session`;
+            this.statusBarItem.text = `$(circle-slash) Ark: No Session`;
             this.statusBarItem.tooltip = 'Click to open Ark Console';
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         }
         this.statusBarItem.show();
+    }
+
+    private normalizeKernelStatus(status: string | undefined): ArkKernelStatus | undefined {
+        if (!status) {
+            return undefined;
+        }
+        switch (status) {
+            case 'idle':
+            case 'busy':
+            case 'starting':
+            case 'unknown':
+                return status;
+            default:
+                return 'unknown';
+        }
+    }
+
+    private formatKernelStatus(): { icon: string; label: string } {
+        const status = this.kernelStatus ?? 'unknown';
+        switch (status) {
+            case 'idle':
+                return { icon: '$(check)', label: 'Idle' };
+            case 'busy':
+                return { icon: '$(sync~spin)', label: 'Busy' };
+            case 'starting':
+                return { icon: '$(clock)', label: 'Starting' };
+            default:
+                return { icon: '$(question)', label: 'Unknown' };
+        }
     }
 
     private getArkPath(): string {
@@ -199,6 +241,7 @@ export class ArkSessionManager {
 
     private setActiveSession(entry: ArkSessionEntry | undefined): void {
         sessionRegistry.setActiveSessionName(entry?.name);
+        this.kernelStatus = undefined;
         this.updateStatusBar(entry);
         this.onActiveSessionChanged?.(entry);
     }

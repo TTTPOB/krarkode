@@ -79,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
     
     // When active session changes, attach sidecar to connection file
     sessionManager.setActiveSessionHandler((entry: ArkSessionEntry | undefined) => {
+        sessionManager?.setKernelStatus(undefined);
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);
         } else if (sidecarManager) {
@@ -112,6 +113,12 @@ export function activate(context: vscode.ExtensionContext): void {
     
     context.subscriptions.push(codeExecutor);
     context.subscriptions.push(sessionManager);
+
+    context.subscriptions.push(
+        sidecarManager.onDidChangeKernelStatus((status) => {
+            sessionManager?.setKernelStatus(status);
+        })
+    );
     
     // Track help comm ID
     let helpCommId: string | undefined;

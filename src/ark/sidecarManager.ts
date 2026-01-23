@@ -6,12 +6,13 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 
 interface SidecarEvent {
-    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help' | 'variables_comm_open' | 'data_explorer_comm_open';
+    event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help' | 'variables_comm_open' | 'data_explorer_comm_open' | 'kernel_status';
     data?: unknown;
     display_id?: string | null;
     message?: string;
     url?: string;
     comm_id?: string;
+    status?: string;
 }
 
 const VARIABLES_COMM_TARGET = 'positron.variables';
@@ -53,6 +54,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidReceivePlotData = new vscode.EventEmitter<PlotDataParams>();
     public readonly onDidReceivePlotData = this._onDidReceivePlotData.event;
+
+    private readonly _onDidChangeKernelStatus = new vscode.EventEmitter<string>();
+    public readonly onDidChangeKernelStatus = this._onDidChangeKernelStatus.event;
 
     private readonly _onDidStart = new vscode.EventEmitter<void>();
     public readonly onDidStart = this._onDidStart.event;
@@ -163,6 +167,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidShowHelp.dispose();
         this._onDidReceivePlotData.dispose();
         this._onDidStart.dispose();
+        this._onDidChangeKernelStatus.dispose();
         this._onDidOpenHelpComm.dispose();
         this._onDidOpenVariablesComm.dispose();
         this._onDidOpenDataExplorerComm.dispose();
@@ -225,6 +230,13 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         if (msg.event === 'httpgd_url' && msg.url) {
             this._onDidReceiveHttpgdUrl.fire(msg.url);
+            return;
+        }
+
+        if (msg.event === 'kernel_status') {
+            const status = typeof msg.status === 'string' ? msg.status : 'unknown';
+            this.outputChannel.appendLine(`Kernel status update: ${status}`);
+            this._onDidChangeKernelStatus.fire(status);
             return;
         }
 
