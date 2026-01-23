@@ -161,9 +161,9 @@ export class ArkSessionManager {
             + `- Session: ${nameLabel}\n`
             + `- PID: ${pidLabel}\n`
             + `- Connection: ${connectionFile ? '[Copy connection file](command:krarkode.copyArkConnectionFile)' : 'Not available'}\n\n`
-            + `[$(plug) Attach](command:krarkode.attachArkSession) `
-            + `[$(arrow-switch) Switch](command:krarkode.switchArkSession) `
-            + `[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession) `
+            + `[$(plug) Attach](command:krarkode.attachArkSession) | `
+            + `[$(arrow-swap) Switch](command:krarkode.switchArkSession) | `
+            + `[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession) | `
             + `[$(stop-circle) Kill](command:krarkode.stopActiveArkSession)`
         );
         md.isTrusted = true;
