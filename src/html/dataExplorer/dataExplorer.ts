@@ -185,6 +185,7 @@ const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
 const codeModal = document.getElementById('code-modal') as HTMLDivElement;
 const columnMenu = document.getElementById('column-menu') as HTMLDivElement;
 const columnMenuAddFilter = document.getElementById('column-menu-add-filter') as HTMLButtonElement;
+const columnMenuHideColumn = document.getElementById('column-menu-hide-column') as HTMLButtonElement;
 const rowFilterPanel = document.getElementById('row-filter-panel') as HTMLDivElement;
 const rowFilterColumn = document.getElementById('row-filter-column') as HTMLSelectElement;
 const rowFilterType = document.getElementById('row-filter-type') as HTMLSelectElement;
@@ -222,6 +223,7 @@ const rowCache = new Map<number, string[]>();
 const rowLabelCache = new Map<number, string>();
 const loadedBlocks = new Set<number>();
 const loadingBlocks = new Set<number>();
+const hiddenColumnIndices = new Set<number>();
 
 let state: BackendState | undefined;
 let schema: ColumnSchema[] = [];
@@ -403,6 +405,15 @@ columnMenuAddFilter.addEventListener('click', () => {
     openRowFilterEditor(undefined, undefined, selectedColumnIndex);
 });
 
+columnMenuHideColumn.addEventListener('click', () => {
+    if (columnMenuColumnIndex === null) {
+        return;
+    }
+    const selectedColumnIndex = columnMenuColumnIndex;
+    closeColumnMenu();
+    hideColumn(selectedColumnIndex);
+});
+
 document.addEventListener('click', (event) => {
     if (!columnMenu.classList.contains('open')) {
         return;
@@ -485,6 +496,12 @@ function applyColumnSearch() {
     }
 }
 
+function hideColumn(columnIndex: number): void {
+    hiddenColumnIndices.add(columnIndex);
+    log('Column hidden', { columnIndex });
+    applySchemaUpdate(resolveVisibleSchema());
+}
+
 function updateRowFilterBarVisibility(): void {
     const supported = isRowFilterSupported();
     rowFilterBar.style.display = supported ? 'flex' : 'none';
@@ -521,6 +538,7 @@ function isSetColumnFiltersSupported(): boolean {
 function openColumnMenu(x: number, y: number, columnIndex: number): void {
     columnMenuColumnIndex = columnIndex;
     columnMenuAddFilter.disabled = !isRowFilterSupported();
+    columnMenuHideColumn.disabled = schema.length <= 1;
     columnMenu.classList.add('open');
     const padding = 8;
     const { innerWidth, innerHeight } = window;
@@ -895,8 +913,7 @@ function handleSearchSchemaResult(matches: number[]): void {
     filterStatus.textContent = `Found ${matches.length} matching columns.`;
     columnFilterMatches = matches;
     if (!isSetColumnFiltersSupported()) {
-        const nextSchema = resolveSchemaMatches(matches);
-        applySchemaUpdate(nextSchema);
+        applySchemaUpdate(resolveVisibleSchema());
     }
 }
 
@@ -913,6 +930,13 @@ function resolveSchemaMatches(matches: number[]): ColumnSchema[] {
         }
     }
     return resolved;
+}
+
+function resolveVisibleSchema(): ColumnSchema[] {
+    const baseSchema = columnFilterMatches && !isSetColumnFiltersSupported()
+        ? resolveSchemaMatches(columnFilterMatches)
+        : fullSchema;
+    return baseSchema.filter((column) => !hiddenColumnIndices.has(column.column_index));
 }
 
 function applySchemaUpdate(nextSchema: ColumnSchema[]): void {
@@ -1084,7 +1108,7 @@ function handleSuggestCodeSyntaxResult(syntax: string): void {
 function handleInit(message: InitMessage) {
     state = message.state;
     fullSchema = message.schema ?? [];
-    schema = fullSchema;
+    schema = resolveVisibleSchema();
     rowCache.clear();
     rowLabelCache.clear();
     loadedBlocks.clear();
@@ -1103,7 +1127,7 @@ function handleInit(message: InitMessage) {
     renderRowFilterChips();
     updateRowFilterBarVisibility();
     if (columnFilterMatches && !isSetColumnFiltersSupported()) {
-        schema = resolveSchemaMatches(columnFilterMatches);
+        schema = resolveVisibleSchema();
     }
     renderHeader();
     setupTable();
@@ -1241,6 +1265,11 @@ function renderHeader() {
         .join(' ')}`;
 
     tableHeader.innerHTML = '';
+    const headerBar = document.createElement('div');
+    headerBar.className = 'table-header-bar';
+    headerBar.textContent = 'Columns';
+    tableHeader.appendChild(headerBar);
+
     const headerRow = document.createElement('div');
     headerRow.className = 'table-row header-row';
     headerRow.style.gridTemplateColumns = columnTemplate;
@@ -1257,13 +1286,49 @@ function renderHeader() {
         cell.className = 'table-cell header-cell';
         const headerLabel = getColumnLabel(column);
         cell.title = headerLabel;
+        const content = document.createElement('div');
+        content.className = 'header-content';
+        const labelRow = document.createElement('div');
+        labelRow.className = 'header-label-row';
         const label = document.createElement('span');
         label.className = 'header-label';
         label.textContent = headerLabel;
-        cell.appendChild(label);
+        labelRow.appendChild(label);
         const indicator = document.createElement('span');
         indicator.className = 'sort-indicator';
-        cell.appendChild(indicator);
+        labelRow.appendChild(indicator);
+        content.appendChild(labelRow);
+        const actions = document.createElement('div');
+        actions.className = 'header-actions';
+        const filterAction = document.createElement('button');
+        filterAction.className = 'header-action';
+        filterAction.textContent = 'Filter';
+        filterAction.title = 'Add row filter';
+        filterAction.disabled = !isRowFilterSupported();
+        filterAction.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (!isRowFilterSupported()) {
+                return;
+            }
+            log('Header filter action', { columnIndex: column.column_index });
+            openRowFilterEditor(undefined, undefined, column.column_index);
+        });
+        const hideAction = document.createElement('button');
+        hideAction.className = 'header-action';
+        hideAction.textContent = 'x';
+        hideAction.title = 'Hide column';
+        hideAction.disabled = schema.length <= 1;
+        hideAction.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (schema.length <= 1) {
+                return;
+            }
+            hideColumn(column.column_index);
+        });
+        actions.appendChild(filterAction);
+        actions.appendChild(hideAction);
+        content.appendChild(actions);
+        cell.appendChild(content);
         cell.dataset.columnIndex = String(column.column_index);
         if (sortSupported) {
             cell.classList.add('sortable');
