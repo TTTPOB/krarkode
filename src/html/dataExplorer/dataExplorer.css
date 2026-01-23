@@ -508,6 +508,8 @@ body {
     flex-direction: column;
     align-items: stretch;
     gap: 2px;
+    position: relative;
+    overflow: visible;
 }
 
 .header-content {
@@ -515,6 +517,7 @@ body {
     flex-direction: column;
     gap: 2px;
     width: 100%;
+    overflow: hidden;
 }
 
 .header-label-row {
@@ -571,6 +574,32 @@ body {
     opacity: 0.6;
     padding: 0 1px;
     font-size: 0.7em;
+}
+
+.column-resizer {
+    position: absolute;
+    top: 0;
+    right: -4px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 2;
+}
+
+.column-resizer::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 3px;
+    width: 2px;
+    background: var(--vscode-editorWidget-border);
+    opacity: 0.6;
+}
+
+body.column-resizing {
+    cursor: col-resize;
+    user-select: none;
 }
 
 .table-cell.header-cell.sortable {

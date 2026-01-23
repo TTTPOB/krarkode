@@ -221,6 +221,7 @@ const tableBody = document.getElementById('table-body') as HTMLDivElement;
 const ROW_HEIGHT = 26;
 const ROW_BLOCK_SIZE = 200;
 const COLUMN_WIDTH = 160;
+const MIN_COLUMN_WIDTH = 80;
 const ROW_LABEL_WIDTH = 72;
 const UNNAMED_COLUMN_PREFIX = 'Unnamed';
 
@@ -229,6 +230,7 @@ const rowLabelCache = new Map<number, string>();
 const loadedBlocks = new Set<number>();
 const loadingBlocks = new Set<number>();
 const hiddenColumnIndices = new Set<number>();
+const columnWidths = new Map<number, number>();
 
 let state: BackendState | undefined;
 let schema: ColumnSchema[] = [];
@@ -252,6 +254,7 @@ let columnFilterMatches: number[] | null = null;
 let columnMenuColumnIndex: number | null = null;
 let columnVisibilityDebounceId: number | undefined;
 let pendingRows: RowsMessage[] = [];
+let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
 
 function log(message: string, payload?: unknown): void {
     if (payload !== undefined) {
@@ -1288,6 +1291,7 @@ function handleInit(message: InitMessage) {
     rowLabelCache.clear();
     loadedBlocks.clear();
     loadingBlocks.clear();
+    columnWidths.clear();
     activeSort = resolveSortState(state.sort_keys);
     rowFilters = state.row_filters ?? [];
     rowFilterSupport = state.supported_features?.set_row_filters;
@@ -1449,10 +1453,7 @@ function renderHeader() {
 
     const sortSupported = isSortSupported();
     const columnCount = schema.length;
-    const totalWidth = ROW_LABEL_WIDTH + columnCount * COLUMN_WIDTH;
-    columnTemplate = `${ROW_LABEL_WIDTH}px ${Array.from({ length: columnCount })
-        .map(() => `${COLUMN_WIDTH}px`)
-        .join(' ')}`;
+    const totalWidth = updateColumnTemplate();
 
     tableHeader.innerHTML = '';
     const headerBar = document.createElement('div');
@@ -1471,7 +1472,8 @@ function renderHeader() {
     rowLabelHeader.textContent = state.has_row_labels ? '#' : 'Row';
     headerRow.appendChild(rowLabelHeader);
 
-    for (const column of schema) {
+    for (let columnIndex = 0; columnIndex < schema.length; columnIndex += 1) {
+        const column = schema[columnIndex];
         const cell = document.createElement('div');
         cell.className = 'table-cell header-cell';
         const headerLabel = getColumnLabel(column);
@@ -1546,6 +1548,13 @@ function renderHeader() {
         actions.appendChild(hideAction);
         content.appendChild(actions);
         cell.appendChild(content);
+        if (columnIndex < columnCount - 1) {
+            const resizer = document.createElement('div');
+            resizer.className = 'column-resizer';
+            resizer.addEventListener('mousedown', (event) => startColumnResize(event, column.column_index));
+            resizer.addEventListener('click', (event) => event.stopPropagation());
+            cell.appendChild(resizer);
+        }
         cell.dataset.columnIndex = String(column.column_index);
         if (sortSupported) {
             cell.classList.add('sortable');
@@ -1657,6 +1666,84 @@ function updateHeaderScroll(scrollLeft: number): void {
     headerRowElement.style.transform = `translateX(${-scrollLeft}px)`;
 }
 
+function resolveColumnWidths(): number[] {
+    return schema.map((column) => {
+        const existing = columnWidths.get(column.column_index);
+        if (existing !== undefined) {
+            return existing;
+        }
+        columnWidths.set(column.column_index, COLUMN_WIDTH);
+        return COLUMN_WIDTH;
+    });
+}
+
+function updateColumnTemplate(): number {
+    const widths = resolveColumnWidths();
+    const columnWidthsText = widths.map((width) => `${width}px`).join(' ');
+    columnTemplate = columnWidthsText
+        ? `${ROW_LABEL_WIDTH}px ${columnWidthsText}`
+        : `${ROW_LABEL_WIDTH}px`;
+    const totalWidth = widths.reduce((sum, width) => sum + width, 0);
+    return ROW_LABEL_WIDTH + totalWidth;
+}
+
+function applyColumnLayout(): void {
+    const totalWidth = updateColumnTemplate();
+    if (headerRowElement) {
+        headerRowElement.style.gridTemplateColumns = columnTemplate;
+        headerRowElement.style.width = `${totalWidth}px`;
+    }
+    if (bodyInner) {
+        bodyInner.style.width = `${totalWidth}px`;
+        bodyInner.querySelectorAll<HTMLDivElement>('.table-row').forEach((row) => {
+            row.style.gridTemplateColumns = columnTemplate;
+        });
+    }
+}
+
+function startColumnResize(event: MouseEvent, columnIndex: number): void {
+    event.preventDefault();
+    event.stopPropagation();
+    const startWidth = columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
+    activeColumnResize = {
+        columnIndex,
+        startX: event.clientX,
+        startWidth,
+    };
+    document.body.classList.add('column-resizing');
+    log('Column resize started', { columnIndex, startWidth });
+    window.addEventListener('mousemove', handleColumnResizeMove);
+    window.addEventListener('mouseup', handleColumnResizeEnd);
+}
+
+function handleColumnResizeMove(event: MouseEvent): void {
+    if (!activeColumnResize) {
+        return;
+    }
+    const delta = event.clientX - activeColumnResize.startX;
+    const nextWidth = Math.max(MIN_COLUMN_WIDTH, activeColumnResize.startWidth + delta);
+    const currentWidth = columnWidths.get(activeColumnResize.columnIndex) ?? COLUMN_WIDTH;
+    if (currentWidth === nextWidth) {
+        return;
+    }
+    columnWidths.set(activeColumnResize.columnIndex, nextWidth);
+    log('Column resize update', { columnIndex: activeColumnResize.columnIndex, width: nextWidth });
+    applyColumnLayout();
+}
+
+function handleColumnResizeEnd(): void {
+    if (!activeColumnResize) {
+        return;
+    }
+    const columnIndex = activeColumnResize.columnIndex;
+    const width = columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
+    log('Column resize ended', { columnIndex, width });
+    activeColumnResize = null;
+    document.body.classList.remove('column-resizing');
+    window.removeEventListener('mousemove', handleColumnResizeMove);
+    window.removeEventListener('mouseup', handleColumnResizeEnd);
+}
+
 function renderRows() {
     if (!state || !rowModel || !rowVirtualizer || !bodyInner) {
         return;
@@ -1665,7 +1752,7 @@ function renderRows() {
     const virtualItems = rowVirtualizer.getVirtualItems();
     const totalHeight = rowVirtualizer.getTotalSize();
     const columnCount = schema.length;
-    const totalWidth = ROW_LABEL_WIDTH + columnCount * COLUMN_WIDTH;
+    const totalWidth = updateColumnTemplate();
     bodyInner.style.height = `${totalHeight}px`;
     bodyInner.style.width = `${totalWidth}px`;
     bodyInner.innerHTML = '';
