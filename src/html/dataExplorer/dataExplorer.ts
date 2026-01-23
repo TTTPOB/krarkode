@@ -1289,7 +1289,12 @@ function handleRows(message: RowsMessage) {
         loadedBlocks.add(block);
     }
 
+    if (rowVirtualizer) {
+        rowVirtualizer.measure();
+    }
     renderRows();
+    requestVisibleBlocks();
+    log('Rows rendered', { startIndex, endIndex, rows: rowCount, columns: columnCount });
 }
 
 function setupTable() {
