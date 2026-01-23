@@ -1247,8 +1247,6 @@ function handleInit(message: InitMessage) {
     statsText.textContent = '';
     clearHistogram();
     codePreview.textContent = '';
-    (document.getElementById('column-search') as HTMLInputElement).value = '';
-    (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
     renderRowFilterChips();
     updateRowFilterBarVisibility();
     if (columnFilterMatches && !isSetColumnFiltersSupported()) {
