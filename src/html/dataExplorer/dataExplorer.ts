@@ -255,6 +255,7 @@ let columnMenuColumnIndex: number | null = null;
 let columnVisibilityDebounceId: number | undefined;
 let pendingRows: RowsMessage[] = [];
 let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
+let ignoreHeaderSortClick = false;
 
 function log(message: string, payload?: unknown): void {
     if (payload !== undefined) {
@@ -1565,7 +1566,14 @@ function renderHeader() {
         cell.dataset.columnIndex = String(column.column_index);
         if (sortSupported) {
             cell.classList.add('sortable');
-            cell.addEventListener('click', () => handleHeaderSort(column.column_index));
+            cell.addEventListener('click', (event) => {
+                if (ignoreHeaderSortClick) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+                handleHeaderSort(column.column_index);
+            });
         }
         cell.addEventListener('contextmenu', (event) => {
             event.preventDefault();
@@ -1749,6 +1757,10 @@ function handleColumnResizeEnd(): void {
     document.body.classList.remove('column-resizing');
     window.removeEventListener('mousemove', handleColumnResizeMove);
     window.removeEventListener('mouseup', handleColumnResizeEnd);
+    ignoreHeaderSortClick = true;
+    window.setTimeout(() => {
+        ignoreHeaderSortClick = false;
+    }, 0);
 }
 
 function renderRows() {
