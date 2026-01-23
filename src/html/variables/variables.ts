@@ -56,6 +56,8 @@ window.addEventListener('message', event => {
     }
 });
 
+vscode.postMessage({ type: 'ready' });
+
 function handleUpdate(event: VariablesEvent) {
     if (event.method === 'refresh') {
         variables = (event.params as RefreshParams).variables;

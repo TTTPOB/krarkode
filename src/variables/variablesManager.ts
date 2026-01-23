@@ -31,6 +31,13 @@ export class VariablesManager implements vscode.WebviewViewProvider {
 
         webviewView.webview.onDidReceiveMessage(data => {
             switch (data.type) {
+                case 'ready':
+                    this.updateView({
+                        method: 'connection',
+                        params: { connected: this._service.isConnected() }
+                    });
+                    this._service.refresh();
+                    break;
                 case 'view':
                     this._service.view(data.path);
                     break;
@@ -43,13 +50,7 @@ export class VariablesManager implements vscode.WebviewViewProvider {
             }
         });
 
-        this.updateView({
-            method: 'connection',
-            params: { connected: this._service.isConnected() }
-        });
-
-        // Request initial refresh when view is visible
-        this._service.refresh();
+        // Initial state is sent when the webview signals ready.
     }
 
     private updateView(event: VariablesEvent) {
