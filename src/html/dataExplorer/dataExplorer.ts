@@ -408,6 +408,30 @@ document.addEventListener('click', (event) => {
     closeColumnMenu();
 });
 
+document.addEventListener('click', (event) => {
+    const target = event.target as Node;
+    if (filterPanel.classList.contains('open')
+        && !filterPanel.contains(target)
+        && !filterButton.contains(target)) {
+        filterPanel.classList.remove('open');
+    }
+    if (statsPanel.classList.contains('open')
+        && !statsPanel.contains(target)
+        && !statsButton.contains(target)) {
+        statsPanel.classList.remove('open');
+    }
+    if (codeModal.classList.contains('open')
+        && !codeModal.contains(target)
+        && !codeButton.contains(target)) {
+        codeModal.classList.remove('open');
+    }
+    if (rowFilterPanel.classList.contains('open')
+        && !rowFilterPanel.contains(target)
+        && !addRowFilterButton.contains(target)) {
+        rowFilterPanel.classList.remove('open');
+    }
+});
+
 document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
         closeColumnMenu();
