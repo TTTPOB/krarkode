@@ -26,9 +26,13 @@ interface InspectResult {
     length: number;
 }
 
+interface ConnectionParams {
+    connected: boolean;
+}
+
 interface VariablesEvent {
-    method: 'refresh' | 'update' | 'inspect';
-    params: RefreshParams | InspectResult | any; // UpdateParams is complex, using any for now
+    method: 'refresh' | 'update' | 'inspect' | 'connection';
+    params: RefreshParams | InspectResult | ConnectionParams | any; // UpdateParams is complex, using any for now
 }
 
 declare function acquireVsCodeApi(): any;
@@ -36,6 +40,7 @@ const vscode = acquireVsCodeApi();
 
 const listElement = document.getElementById('variables-list')!;
 let variables: Variable[] = [];
+let isConnected = false;
 const childrenByPath = new Map<string, Variable[]>();
 const childrenLengthByPath = new Map<string, number>();
 const expandedPaths = new Set<string>();
@@ -55,6 +60,14 @@ function handleUpdate(event: VariablesEvent) {
     if (event.method === 'refresh') {
         variables = (event.params as RefreshParams).variables;
         resetTreeState();
+        render();
+    } else if (event.method === 'connection') {
+        const params = event.params as ConnectionParams;
+        isConnected = params.connected;
+        if (!isConnected) {
+            variables = [];
+            resetTreeState();
+        }
         render();
     } else if (event.method === 'update') {
         // Handle partial update
@@ -97,6 +110,15 @@ function resetTreeState() {
 
 function render() {
     listElement.innerHTML = '';
+
+    if (!isConnected) {
+        const empty = document.createElement('div');
+        empty.style.padding = '10px';
+        empty.style.opacity = '0.7';
+        empty.textContent = 'Disconnected';
+        listElement.appendChild(empty);
+        return;
+    }
 
     // Group variables
     const dataVars = variables.filter(v => v.kind === 'table' || v.kind === 'dataframe');

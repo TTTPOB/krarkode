@@ -32,9 +32,13 @@ export interface InspectResult {
     length: number;
 }
 
+export interface ConnectionParams {
+    connected: boolean;
+}
+
 export interface VariablesEvent {
-    method: 'refresh' | 'update' | 'inspect';
-    params: RefreshParams | UpdateParams | InspectResult;
+    method: 'refresh' | 'update' | 'inspect' | 'connection';
+    params: RefreshParams | UpdateParams | InspectResult | ConnectionParams;
 }
 
 export interface ViewParams {

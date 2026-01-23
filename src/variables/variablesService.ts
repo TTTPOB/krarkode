@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
-import { InspectResult, RefreshParams, UpdateParams, VariablesEvent } from './protocol';
+import { ConnectionParams, InspectResult, RefreshParams, UpdateParams, VariablesEvent } from './protocol';
 
 type VariablesMessage = {
     jsonrpc?: string;
@@ -14,6 +14,7 @@ type VariablesMessage = {
 
 export class VariablesService {
     private commId: string | undefined;
+    private connected = false;
     private readonly outputChannel = vscode.window.createOutputChannel('Ark Variables');
     private readonly pendingInspectPaths: string[][] = [];
     private readonly _onDidReceiveUpdate = new vscode.EventEmitter<VariablesEvent>();
@@ -27,12 +28,14 @@ export class VariablesService {
             }
 
             this.commId = e.commId;
+            this.updateConnectionState(true, 'comm opened');
             this.log(`Variables comm opened: ${e.commId}`);
             this.refresh();
         });
 
         this.commId = sidecarManager.getVariablesCommId();
         if (this.commId) {
+            this.updateConnectionState(true, 'comm reused');
             this.log(`Variables comm reused: ${this.commId}`);
             this.refresh();
         }
@@ -104,6 +107,19 @@ export class VariablesService {
         this.outputChannel.appendLine(message);
     }
 
+    private updateConnectionState(connected: boolean, reason: string) {
+        if (this.connected === connected) {
+            return;
+        }
+        this.connected = connected;
+        const params: ConnectionParams = { connected };
+        this.log(`Variables connection state updated: ${connected ? 'connected' : 'disconnected'} (${reason}).`);
+        this._onDidReceiveUpdate.fire({
+            method: 'connection',
+            params,
+        });
+    }
+
     private sendRpc(method: string, params?: Record<string, unknown>) {
         this.commId ??= this.sidecarManager.ensureVariablesCommOpen();
         if (!this.commId) {
@@ -136,5 +152,15 @@ export class VariablesService {
 
     public view(path: string[]) {
         this.sendRpc('view', { path });
+    }
+
+    public disconnect(reason = 'session disconnected') {
+        this.commId = undefined;
+        this.pendingInspectPaths.length = 0;
+        this.updateConnectionState(false, reason);
+    }
+
+    public isConnected(): boolean {
+        return this.connected;
     }
 }

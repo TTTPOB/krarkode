@@ -43,6 +43,11 @@ export class VariablesManager implements vscode.WebviewViewProvider {
             }
         });
 
+        this.updateView({
+            method: 'connection',
+            params: { connected: this._service.isConnected() }
+        });
+
         // Request initial refresh when view is visible
         this._service.refresh();
     }
