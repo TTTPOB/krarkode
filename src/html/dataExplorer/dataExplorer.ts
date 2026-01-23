@@ -187,6 +187,10 @@ const columnMenu = document.getElementById('column-menu') as HTMLDivElement;
 const columnMenuAddFilter = document.getElementById('column-menu-add-filter') as HTMLButtonElement;
 const columnMenuHideColumn = document.getElementById('column-menu-hide-column') as HTMLButtonElement;
 const columnVisibilityList = document.getElementById('column-visibility-list') as HTMLDivElement;
+const columnVisibilitySearch = document.getElementById('column-visibility-search') as HTMLInputElement;
+const columnVisibilityApply = document.getElementById('apply-column-visibility-filter') as HTMLButtonElement;
+const columnVisibilityClear = document.getElementById('clear-column-visibility-filter') as HTMLButtonElement;
+const columnVisibilityStatus = document.getElementById('column-visibility-status') as HTMLDivElement;
 const rowFilterPanel = document.getElementById('row-filter-panel') as HTMLDivElement;
 const rowFilterColumn = document.getElementById('row-filter-column') as HTMLSelectElement;
 const rowFilterType = document.getElementById('row-filter-type') as HTMLSelectElement;
@@ -307,6 +311,22 @@ columnsButton.addEventListener('click', () => {
     rowFilterPanel.classList.remove('open');
     if (columnVisibilityPanel.classList.contains('open')) {
         renderColumnVisibilityList();
+        columnVisibilitySearch.focus();
+    }
+});
+
+columnVisibilityApply.addEventListener('click', () => {
+    applyColumnSearch();
+});
+
+columnVisibilityClear.addEventListener('click', () => {
+    columnVisibilitySearch.value = '';
+    applyColumnSearch();
+});
+
+columnVisibilitySearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+        applyColumnSearch();
     }
 });
 
@@ -463,7 +483,32 @@ function populateStatsColumnSelect() {
 }
 
 function applyColumnSearch() {
-    return;
+    if (!isColumnFilterSupported()) {
+        columnVisibilityStatus.textContent = 'Column filtering is not supported.';
+        log('Column filter unavailable; search_schema unsupported.');
+        return;
+    }
+    const searchTerm = columnVisibilitySearch.value.trim();
+    const sortOrder = 'original';
+
+    const filters: ColumnFilter[] = [];
+    if (searchTerm) {
+        filters.push({
+            filter_type: 'text_search',
+            params: {
+                search_type: 'contains',
+                term: searchTerm,
+                case_sensitive: false,
+            },
+        });
+    }
+
+    log('Applying column search', { term: searchTerm, filters: filters.length });
+    columnVisibilityStatus.textContent = 'Searching...';
+    vscode.postMessage({ type: 'searchSchema', filters, sortOrder });
+    if (isSetColumnFiltersSupported()) {
+        vscode.postMessage({ type: 'setColumnFilters', filters });
+    }
 }
 
 function hideColumn(columnIndex: number): void {
@@ -497,7 +542,8 @@ function toggleColumnVisibility(columnIndex: number): void {
 
 function renderColumnVisibilityList(): void {
     columnVisibilityList.innerHTML = '';
-    if (!fullSchema.length) {
+    const baseSchema = columnFilterMatches ? resolveSchemaMatches(columnFilterMatches) : fullSchema;
+    if (!baseSchema.length) {
         const empty = document.createElement('div');
         empty.className = 'column-visibility-empty';
         empty.textContent = 'No columns available.';
@@ -506,7 +552,7 @@ function renderColumnVisibilityList(): void {
     }
 
     const visibleCount = resolveVisibleSchema().length;
-    for (const column of fullSchema) {
+    for (const column of baseSchema) {
         const item = document.createElement('div');
         item.className = 'column-visibility-item';
 
@@ -960,6 +1006,9 @@ function handleSearchSchemaResult(matches: number[]): void {
     if (!isSetColumnFiltersSupported()) {
         applySchemaUpdate(resolveVisibleSchema());
     }
+    columnVisibilityStatus.textContent = `Found ${matches.length} matching columns.`;
+    log('Column search results', { matches: matches.length });
+    renderColumnVisibilityList();
 }
 
 function resolveSchemaMatches(matches: number[]): ColumnSchema[] {
@@ -1164,6 +1213,7 @@ function handleInit(message: InitMessage) {
     rowFilterSupport = state.supported_features?.set_row_filters;
     columnFilterSupport = state.supported_features?.search_schema;
     setColumnFilterSupport = state.supported_features?.set_column_filters;
+    columnVisibilityStatus.textContent = '';
     statsText.textContent = '';
     clearHistogram();
     codePreview.textContent = '';
