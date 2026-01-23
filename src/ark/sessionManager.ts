@@ -66,7 +66,7 @@ export class ArkSessionManager {
     private kernelStatus: ArkKernelStatus | undefined;
 
     constructor() {
-        this.statusBarItem.command = 'krarkode.openArkConsole';
+        this.statusBarItem.command = 'krarkode.showArkSessionMenu';
         this.updateStatusBar(undefined);
         this.statusBarItem.show();
     }
@@ -77,7 +77,8 @@ export class ArkSessionManager {
             vscode.commands.registerCommand('krarkode.attachArkSession', () => this.attachSession()),
             vscode.commands.registerCommand('krarkode.openArkConsole', () => this.openConsole()),
             vscode.commands.registerCommand('krarkode.stopArkSession', () => this.stopSession()),
-            vscode.commands.registerCommand('krarkode.interruptArkSession', () => this.interruptSession())
+            vscode.commands.registerCommand('krarkode.interruptArkSession', () => this.interruptSession()),
+            vscode.commands.registerCommand('krarkode.showArkSessionMenu', () => this.showStatusMenu())
         );
     }
 
@@ -136,10 +137,84 @@ export class ArkSessionManager {
             this.statusBarItem.backgroundColor = undefined;
         } else {
             this.statusBarItem.text = `$(circle-slash) Ark: No Session`;
-            this.statusBarItem.tooltip = 'Click to open Ark Console';
+            this.statusBarItem.tooltip = 'Click to manage Ark session';
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         }
         this.statusBarItem.show();
+    }
+
+    private async showStatusMenu(): Promise<void> {
+        this.outputChannel.appendLine('Opening Ark status menu.');
+        const activeSession = sessionRegistry.getActiveSession();
+        const pidLabel = activeSession?.pid ? String(activeSession.pid) : 'unknown';
+        const status = this.formatKernelStatus();
+
+        type StatusMenuItem = vscode.QuickPickItem & { action?: () => Promise<void> };
+        const items: StatusMenuItem[] = [];
+
+        if (activeSession) {
+            items.push({
+                label: `$(info) ${activeSession.name}`,
+                description: `PID: ${pidLabel}`,
+                detail: `Status: ${status.label}`
+            });
+        } else {
+            items.push({
+                label: 'No active Ark session',
+                detail: 'Attach or switch a session to connect.'
+            });
+        }
+
+        items.push({ label: 'Actions', kind: vscode.QuickPickItemKind.Separator });
+        items.push({
+            label: 'Attach current console',
+            description: 'Use active terminal',
+            action: async () => {
+                this.outputChannel.appendLine('Status menu: attach current console.');
+                await this.attachSession();
+            }
+        });
+        items.push({
+            label: 'Switch session',
+            description: 'Choose from registry',
+            action: async () => {
+                this.outputChannel.appendLine('Status menu: switch session.');
+                await this.switchSession();
+            }
+        });
+
+        if (activeSession) {
+            items.push({ label: 'Active Session', kind: vscode.QuickPickItemKind.Separator });
+            items.push({
+                label: 'Interrupt active session',
+                description: 'Send Ctrl+C',
+                action: async () => {
+                    this.outputChannel.appendLine('Status menu: interrupt active session.');
+                    await this.interruptActiveSession();
+                }
+            });
+            items.push({
+                label: 'Kill active session',
+                description: 'Stop kernel',
+                action: async () => {
+                    this.outputChannel.appendLine('Status menu: kill active session.');
+                    await this.stopActiveSession();
+                }
+            });
+        }
+
+        const selection = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Ark session actions'
+        });
+
+        if (!selection?.action) {
+            if (selection) {
+                this.outputChannel.appendLine(`Status menu: no action for ${selection.label}.`);
+            }
+            return;
+        }
+
+        await selection.action();
     }
 
     private normalizeKernelStatus(status: string | undefined): ArkKernelStatus | undefined {
@@ -403,36 +478,7 @@ export class ArkSessionManager {
         if (!entry) {
             return;
         }
-
-        if (entry.mode === 'tmux') {
-            if (entry.tmuxSessionName && entry.tmuxWindowName) {
-                await this.killTmuxWindow(entry.tmuxSessionName, entry.tmuxWindowName);
-            } else {
-                void vscode.window.showWarningMessage('缺少 tmux window 信息，无法停止该 Ark kernel。');
-            }
-        }
-
-        // Clean up session directory
-        try {
-            const sessionsDir = sessionRegistry.getSessionsDir();
-            const sessionDir = path.join(sessionsDir, entry.name);
-            if (fs.existsSync(sessionDir)) {
-                fs.rmSync(sessionDir, { recursive: true, force: true });
-            }
-        } catch (err) {
-            this.outputChannel.appendLine(`Failed to remove session directory: ${err}`);
-        }
-
-        const nextRegistry = registry.filter((item) => item.name !== entry.name);
-        sessionRegistry.saveRegistry(nextRegistry);
-        
-        let nextActive: ArkSessionEntry | undefined;
-        if (sessionRegistry.getActiveSessionName() !== entry.name) {
-            nextActive = sessionRegistry.getActiveSession();
-        }
-        this.setActiveSession(nextActive);
-
-        void vscode.window.showInformationMessage(`Stopped Ark session "${entry.name}".`);
+        await this.stopSessionEntry(entry);
     }
 
     private async interruptSession(): Promise<void> {
@@ -463,7 +509,59 @@ export class ArkSessionManager {
         if (!entry) {
             return;
         }
+        await this.interruptSessionEntry(entry);
+    }
 
+    private async interruptActiveSession(): Promise<void> {
+        const entry = sessionRegistry.getActiveSession();
+        if (!entry) {
+            void vscode.window.showWarningMessage('No active Ark session to interrupt.');
+            return;
+        }
+
+        await this.interruptSessionEntry(entry);
+    }
+
+    private async stopActiveSession(): Promise<void> {
+        const entry = sessionRegistry.getActiveSession();
+        if (!entry) {
+            void vscode.window.showWarningMessage('No active Ark session to stop.');
+            return;
+        }
+
+        await this.stopSessionEntry(entry);
+    }
+
+    private async switchSession(): Promise<void> {
+        const registry = sessionRegistry.loadRegistry();
+        if (registry.length === 0) {
+            void vscode.window.showInformationMessage('No Ark sessions found.');
+            return;
+        }
+
+        const selected = await vscode.window.showQuickPick(
+            registry.map((entry) => ({
+                label: entry.name,
+                description: entry.tmuxSessionName ?? entry.mode,
+                detail: entry.connectionFilePath,
+            })),
+            { placeHolder: 'Select an Ark session to activate' }
+        );
+        if (!selected) {
+            return;
+        }
+
+        const entry = registry.find((item) => item.name === selected.label);
+        if (!entry) {
+            return;
+        }
+
+        sessionRegistry.updateSessionAttachment(entry.name, nowIso());
+        this.setActiveSession(entry);
+        this.outputChannel.appendLine(`Switched active Ark session to ${entry.name}.`);
+    }
+
+    private async interruptSessionEntry(entry: ArkSessionEntry): Promise<void> {
         if (!entry.pid) {
             this.outputChannel.appendLine(`Interrupt requested for ${entry.name}, but PID is missing.`);
             void vscode.window.showWarningMessage(`Ark session "${entry.name}" does not have a PID to interrupt.`);
@@ -480,6 +578,38 @@ export class ArkSessionManager {
             this.outputChannel.appendLine(`Failed to interrupt Ark session ${entry.name}: ${message}`);
             void vscode.window.showErrorMessage(`Failed to interrupt Ark session "${entry.name}": ${message}`);
         }
+    }
+
+    private async stopSessionEntry(entry: ArkSessionEntry): Promise<void> {
+        if (entry.mode === 'tmux') {
+            if (entry.tmuxSessionName && entry.tmuxWindowName) {
+                await this.killTmuxWindow(entry.tmuxSessionName, entry.tmuxWindowName);
+            } else {
+                void vscode.window.showWarningMessage('缺少 tmux window 信息，无法停止该 Ark kernel。');
+            }
+        }
+
+        try {
+            const sessionsDir = sessionRegistry.getSessionsDir();
+            const sessionDir = path.join(sessionsDir, entry.name);
+            if (fs.existsSync(sessionDir)) {
+                fs.rmSync(sessionDir, { recursive: true, force: true });
+            }
+        } catch (err) {
+            this.outputChannel.appendLine(`Failed to remove session directory: ${err}`);
+        }
+
+        const registry = sessionRegistry.loadRegistry();
+        const nextRegistry = registry.filter((item) => item.name !== entry.name);
+        sessionRegistry.saveRegistry(nextRegistry);
+
+        let nextActive: ArkSessionEntry | undefined;
+        if (sessionRegistry.getActiveSessionName() !== entry.name) {
+            nextActive = sessionRegistry.getActiveSession();
+        }
+        this.setActiveSession(nextActive);
+
+        void vscode.window.showInformationMessage(`Stopped Ark session "${entry.name}".`);
     }
 
     private async openConsoleForEntry(entry: ArkSessionEntry): Promise<void> {
