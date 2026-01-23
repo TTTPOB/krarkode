@@ -249,6 +249,7 @@ let columnFilterSupport: SearchSchemaFeatures | undefined;
 let setColumnFilterSupport: SetColumnFiltersFeatures | undefined;
 let columnFilterMatches: number[] | null = null;
 let columnMenuColumnIndex: number | null = null;
+let columnVisibilityDebounceId: number | undefined;
 
 function log(message: string, payload?: unknown): void {
     if (payload !== undefined) {
@@ -328,6 +329,10 @@ columnVisibilitySearch.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
         applyColumnSearch();
     }
+});
+
+columnVisibilitySearch.addEventListener('input', () => {
+    scheduleColumnVisibilitySearch();
 });
 
 addRowFilterButton.addEventListener('click', () => {
@@ -509,6 +514,15 @@ function applyColumnSearch() {
     if (isSetColumnFiltersSupported()) {
         vscode.postMessage({ type: 'setColumnFilters', filters });
     }
+}
+
+function scheduleColumnVisibilitySearch(): void {
+    if (columnVisibilityDebounceId !== undefined) {
+        window.clearTimeout(columnVisibilityDebounceId);
+    }
+    columnVisibilityDebounceId = window.setTimeout(() => {
+        applyColumnSearch();
+    }, 250);
 }
 
 function hideColumn(columnIndex: number): void {
