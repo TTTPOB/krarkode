@@ -548,7 +548,7 @@ body {
     font-size: 0.7em;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 0;
 }
 
 .header-action:hover {
@@ -564,11 +564,6 @@ body {
 
 .header-action .codicon {
     font-size: 0.95em;
-}
-
-.header-action-label {
-    font-size: 0.95em;
-    letter-spacing: 0.02em;
 }
 
 .header-action-separator {

@@ -1496,11 +1496,7 @@ function renderHeader() {
         filterAction.setAttribute('aria-label', 'Filter rows by this column');
         const filterIcon = document.createElement('span');
         filterIcon.className = 'codicon codicon-filter';
-        const filterLabel = document.createElement('span');
-        filterLabel.className = 'header-action-label';
-        filterLabel.textContent = 'Filter';
         filterAction.appendChild(filterIcon);
-        filterAction.appendChild(filterLabel);
         filterAction.disabled = !isRowFilterSupported();
         filterAction.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -1516,11 +1512,7 @@ function renderHeader() {
         statsAction.setAttribute('aria-label', 'Show statistics for this column');
         const statsIcon = document.createElement('span');
         statsIcon.className = 'codicon codicon-graph';
-        const statsLabel = document.createElement('span');
-        statsLabel.className = 'header-action-label';
-        statsLabel.textContent = 'Stats';
         statsAction.appendChild(statsIcon);
-        statsAction.appendChild(statsLabel);
         statsAction.addEventListener('click', (event) => {
             event.stopPropagation();
             log('Header stats action', { columnIndex: column.column_index });
@@ -1532,11 +1524,7 @@ function renderHeader() {
         hideAction.setAttribute('aria-label', 'Hide this column');
         const hideIcon = document.createElement('span');
         hideIcon.className = 'codicon codicon-eye-closed';
-        const hideLabel = document.createElement('span');
-        hideLabel.className = 'header-action-label';
-        hideLabel.textContent = 'Hide';
         hideAction.appendChild(hideIcon);
-        hideAction.appendChild(hideLabel);
         hideAction.disabled = schema.length <= 1;
         hideAction.addEventListener('click', (event) => {
             event.stopPropagation();
