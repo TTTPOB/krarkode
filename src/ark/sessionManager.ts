@@ -74,7 +74,8 @@ export class ArkSessionManager {
             vscode.commands.registerCommand('krarkode.createArkSession', () => this.createSession()),
             vscode.commands.registerCommand('krarkode.attachArkSession', () => this.attachSession()),
             vscode.commands.registerCommand('krarkode.openArkConsole', () => this.openConsole()),
-            vscode.commands.registerCommand('krarkode.stopArkSession', () => this.stopSession())
+            vscode.commands.registerCommand('krarkode.stopArkSession', () => this.stopSession()),
+            vscode.commands.registerCommand('krarkode.interruptArkSession', () => this.interruptSession())
         );
     }
 
@@ -389,6 +390,53 @@ export class ArkSessionManager {
         this.setActiveSession(nextActive);
 
         void vscode.window.showInformationMessage(`Stopped Ark session "${entry.name}".`);
+    }
+
+    private async interruptSession(): Promise<void> {
+        if (process.platform === 'win32') {
+            void vscode.window.showErrorMessage('Ark console backend 暂不支持 Windows。');
+            return;
+        }
+
+        const registry = sessionRegistry.loadRegistry();
+        if (registry.length === 0) {
+            void vscode.window.showInformationMessage('No Ark sessions found.');
+            return;
+        }
+
+        const selected = await vscode.window.showQuickPick(
+            registry.map((entry) => ({
+                label: entry.name,
+                description: entry.tmuxSessionName ?? entry.mode,
+                detail: entry.pid ? `PID: ${entry.pid}` : 'PID: unknown',
+            })),
+            { placeHolder: 'Select an Ark session to interrupt' }
+        );
+        if (!selected) {
+            return;
+        }
+
+        const entry = registry.find((item) => item.name === selected.label);
+        if (!entry) {
+            return;
+        }
+
+        if (!entry.pid) {
+            this.outputChannel.appendLine(`Interrupt requested for ${entry.name}, but PID is missing.`);
+            void vscode.window.showWarningMessage(`Ark session "${entry.name}" does not have a PID to interrupt.`);
+            return;
+        }
+
+        this.outputChannel.appendLine(`Sending SIGINT to Ark session ${entry.name} (PID ${entry.pid}).`);
+        try {
+            process.kill(entry.pid, 'SIGINT');
+            this.outputChannel.appendLine(`SIGINT delivered to Ark session ${entry.name}.`);
+            void vscode.window.showInformationMessage(`Sent Ctrl+C to Ark session "${entry.name}".`);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            this.outputChannel.appendLine(`Failed to interrupt Ark session ${entry.name}: ${message}`);
+            void vscode.window.showErrorMessage(`Failed to interrupt Ark session "${entry.name}": ${message}`);
+        }
     }
 
     private async openConsoleForEntry(entry: ArkSessionEntry): Promise<void> {

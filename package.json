@@ -18,6 +18,7 @@
     "onCommand:krarkode.attachArkSession",
     "onCommand:krarkode.openArkConsole",
     "onCommand:krarkode.stopArkSession",
+    "onCommand:krarkode.interruptArkSession",
     "onCommand:krarkode.restartArkLanguageServer",
     "onView:krarkode.help",
     "onView:krarkodeVariables"
@@ -61,6 +62,11 @@
       {
         "command": "krarkode.stopArkSession",
         "title": "Stop Ark Session",
+        "category": "Krarkode"
+      },
+      {
+        "command": "krarkode.interruptArkSession",
+        "title": "Interrupt Ark Session (Send Ctrl+C)",
         "category": "Krarkode"
       },
       {
