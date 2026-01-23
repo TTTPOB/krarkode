@@ -378,8 +378,9 @@ columnMenuAddFilter.addEventListener('click', () => {
     if (columnMenuColumnIndex === null) {
         return;
     }
+    const selectedColumnIndex = columnMenuColumnIndex;
     closeColumnMenu();
-    openRowFilterEditor(undefined, undefined, columnMenuColumnIndex);
+    openRowFilterEditor(undefined, undefined, selectedColumnIndex);
 });
 
 document.addEventListener('click', (event) => {
