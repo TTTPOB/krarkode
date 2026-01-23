@@ -649,7 +649,8 @@ function renderColumnVisibilityList(): void {
         const icon = document.createElement('span');
         icon.className = `codicon ${isHidden ? 'codicon-eye-closed' : 'codicon-eye'}`;
         toggle.appendChild(icon);
-        toggle.addEventListener('click', () => {
+        toggle.addEventListener('click', (event) => {
+            event.stopPropagation();
             toggleColumnVisibility(column.column_index);
         });
 
