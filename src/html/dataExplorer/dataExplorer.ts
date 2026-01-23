@@ -354,13 +354,13 @@ document.getElementById('cancel-row-filter')?.addEventListener('click', () => {
 });
 
 document.getElementById('apply-filter')?.addEventListener('click', () => {
-    applyColumnFilter();
+    applyColumnSearch();
 });
 
 document.getElementById('clear-filter')?.addEventListener('click', () => {
     (document.getElementById('column-search') as HTMLInputElement).value = '';
     (document.getElementById('sort-order') as HTMLSelectElement).value = 'original';
-    applyColumnFilter();
+    applyColumnSearch();
 });
 
 document.getElementById('save-row-filter')?.addEventListener('click', () => {
@@ -458,7 +458,7 @@ function populateStatsColumnSelect() {
     });
 }
 
-function applyColumnFilter() {
+function applyColumnSearch() {
     if (!isColumnFilterSupported()) {
         filterStatus.textContent = 'Column filtering is not supported.';
         return;
