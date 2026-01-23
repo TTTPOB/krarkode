@@ -599,6 +599,7 @@ class DataExplorerPanel implements vscode.Disposable {
                 columns: data.columns,
                 rowLabels: rowLabels ?? [],
             });
+            this.log(`Rows delivered to webview ${startIndex}-${endIndex}.`);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             this.log(`Failed to fetch rows: ${message}`);

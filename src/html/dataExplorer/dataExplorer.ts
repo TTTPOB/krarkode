@@ -250,6 +250,7 @@ let setColumnFilterSupport: SetColumnFiltersFeatures | undefined;
 let columnFilterMatches: number[] | null = null;
 let columnMenuColumnIndex: number | null = null;
 let columnVisibilityDebounceId: number | undefined;
+let pendingRows: RowsMessage[] = [];
 
 function log(message: string, payload?: unknown): void {
     if (payload !== undefined) {
@@ -1255,6 +1256,12 @@ function handleInit(message: InitMessage) {
     }
     renderColumnVisibilityList();
     applySchemaUpdate(schema);
+    if (pendingRows.length > 0) {
+        const queued = [...pendingRows];
+        pendingRows = [];
+        queued.forEach((rowsMessage) => handleRows(rowsMessage));
+        log('Applied pending rows', { count: queued.length });
+    }
     log('Data explorer initialized', {
         rows: state.table_shape.num_rows,
         columns: schema.length,
@@ -1262,6 +1269,11 @@ function handleInit(message: InitMessage) {
 }
 
 function handleRows(message: RowsMessage) {
+    if (!state || schema.length === 0) {
+        pendingRows.push(message);
+        log('Queued rows before init', { startIndex: message.startIndex, endIndex: message.endIndex });
+        return;
+    }
     const { startIndex, endIndex, columns, rowLabels } = message;
     const rowCount = endIndex - startIndex + 1;
     const columnCount = schema.length;
