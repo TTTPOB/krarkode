@@ -1259,6 +1259,17 @@ function handleInit(message: InitMessage) {
     renderRows();
     requestInitialBlock();
     requestVisibleBlocks();
+    log('Data explorer initialized', {
+        rows: state.table_shape.num_rows,
+        columns: schema.length,
+    });
+    requestAnimationFrame(() => {
+        rowVirtualizer?.measure();
+        renderRows();
+        requestInitialBlock();
+        requestVisibleBlocks();
+        log('Data explorer post-init refresh');
+    });
 }
 
 function handleRows(message: RowsMessage) {
