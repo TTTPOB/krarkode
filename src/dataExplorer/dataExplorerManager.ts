@@ -22,9 +22,19 @@ type RowRangeRequest = {
     endIndex: number;
 };
 
-const SMALL_HISTOGRAM_NUM_BINS = 80;
-const SMALL_FREQUENCY_TABLE_LIMIT = 8;
+const DEFAULT_HISTOGRAM_NUM_BINS = 20;
+const DEFAULT_FREQUENCY_TABLE_LIMIT = 10;
 const INITIAL_ROW_BLOCK_SIZE = 200;
+
+type HistogramParamsInput = {
+    method?: string;
+    num_bins?: number;
+    quantiles?: number[];
+};
+
+type FrequencyParamsInput = {
+    limit?: number;
+};
 
 class DataExplorerPanel implements vscode.Disposable {
     private readonly panel: vscode.WebviewPanel;
@@ -178,7 +188,9 @@ class DataExplorerPanel implements vscode.Disposable {
             case 'getColumnProfiles': {
                 const columnIndex = message.columnIndex as number;
                 const profileTypes = message.profileTypes as string[];
-                void this.getColumnProfiles(columnIndex, profileTypes);
+                const histogramParams = message.histogramParams as HistogramParamsInput | undefined;
+                const frequencyParams = message.frequencyParams as FrequencyParamsInput | undefined;
+                void this.getColumnProfiles(columnIndex, profileTypes, histogramParams, frequencyParams);
                 return;
             }
             case 'exportData': {
@@ -385,7 +397,12 @@ class DataExplorerPanel implements vscode.Disposable {
         }
     }
 
-    private async getColumnProfiles(columnIndex: number, profileTypes: string[]): Promise<void> {
+    private async getColumnProfiles(
+        columnIndex: number,
+        profileTypes: string[],
+        histogramParams?: HistogramParamsInput,
+        frequencyParams?: FrequencyParamsInput
+    ): Promise<void> {
         if (!this.state) {
             return;
         }
@@ -393,7 +410,10 @@ class DataExplorerPanel implements vscode.Disposable {
             this.log('Column profiles request ignored; backend does not support get_column_profiles.');
             return;
         }
-        if (profileTypes.length === 0) {
+        const resolvedProfileTypes = profileTypes.filter((profileType): profileType is ColumnProfileType =>
+            Object.values(ColumnProfileType).includes(profileType as ColumnProfileType)
+        );
+        if (resolvedProfileTypes.length === 0) {
             this.log('Column profiles request ignored; no profile types selected.');
             void this.panel.webview.postMessage({
                 type: 'error',
@@ -401,11 +421,16 @@ class DataExplorerPanel implements vscode.Disposable {
             });
             return;
         }
-        this.log(`Getting column profiles for column ${columnIndex}: ${profileTypes.join(', ')}`);
+        this.log(`Getting column profiles for column ${columnIndex}: ${resolvedProfileTypes.join(', ')}`);
+        if (histogramParams || frequencyParams) {
+            this.log('Column profile params', { histogramParams, frequencyParams });
+        }
         const callbackId = crypto.randomUUID();
         const profiles: ColumnProfileRequest[] = [{
             column_index: columnIndex,
-            profiles: profileTypes.map((pt) => this.buildColumnProfileSpec(pt as ColumnProfileType)),
+            profiles: resolvedProfileTypes.map((profileType) =>
+                this.buildColumnProfileSpec(profileType, histogramParams, frequencyParams)
+            ),
         }];
         try {
             this.pendingProfileCallbacks.set(callbackId, { columnIndex });
@@ -421,25 +446,73 @@ class DataExplorerPanel implements vscode.Disposable {
         }
     }
 
-    private buildColumnProfileSpec(profileType: ColumnProfileType): ColumnProfileSpec {
-        if (profileType === 'small_histogram') {
+    private buildColumnProfileSpec(
+        profileType: ColumnProfileType,
+        histogramParams?: HistogramParamsInput,
+        frequencyParams?: FrequencyParamsInput
+    ): ColumnProfileSpec {
+        if (profileType === ColumnProfileType.SmallHistogram || profileType === ColumnProfileType.LargeHistogram) {
+            const resolvedHistogramParams = this.resolveHistogramParams(histogramParams);
             return {
                 profile_type: profileType,
-                params: {
-                    method: ColumnHistogramParamsMethod.FreedmanDiaconis,
-                    num_bins: SMALL_HISTOGRAM_NUM_BINS,
-                },
+                params: resolvedHistogramParams,
             };
         }
-        if (profileType === 'small_frequency_table') {
+        if (profileType === ColumnProfileType.SmallFrequencyTable || profileType === ColumnProfileType.LargeFrequencyTable) {
             return {
                 profile_type: profileType,
                 params: {
-                    limit: SMALL_FREQUENCY_TABLE_LIMIT,
+                    limit: this.resolveFrequencyLimit(frequencyParams),
                 },
             };
         }
         return { profile_type: profileType };
+    }
+
+    private resolveHistogramParams(histogramParams?: HistogramParamsInput): {
+        method: ColumnHistogramParamsMethod;
+        num_bins: number;
+        quantiles?: number[];
+    } {
+        const method = this.resolveHistogramMethod(histogramParams?.method);
+        const numBins = this.resolveHistogramBins(histogramParams?.num_bins);
+        const quantiles = Array.isArray(histogramParams?.quantiles)
+            ? histogramParams?.quantiles.filter((quantile) => typeof quantile === 'number' && quantile >= 0 && quantile <= 1)
+            : undefined;
+        return {
+            method,
+            num_bins: numBins,
+            ...(quantiles && quantiles.length > 0 ? { quantiles } : {}),
+        };
+    }
+
+    private resolveHistogramMethod(method?: string): ColumnHistogramParamsMethod {
+        switch (method) {
+            case ColumnHistogramParamsMethod.Sturges:
+                return ColumnHistogramParamsMethod.Sturges;
+            case ColumnHistogramParamsMethod.Scott:
+                return ColumnHistogramParamsMethod.Scott;
+            case ColumnHistogramParamsMethod.Fixed:
+                return ColumnHistogramParamsMethod.Fixed;
+            case ColumnHistogramParamsMethod.FreedmanDiaconis:
+            default:
+                return ColumnHistogramParamsMethod.FreedmanDiaconis;
+        }
+    }
+
+    private resolveHistogramBins(numBins?: number): number {
+        if (typeof numBins !== 'number' || !Number.isFinite(numBins)) {
+            return DEFAULT_HISTOGRAM_NUM_BINS;
+        }
+        return Math.max(5, Math.round(numBins));
+    }
+
+    private resolveFrequencyLimit(frequencyParams?: FrequencyParamsInput): number {
+        const limit = frequencyParams?.limit;
+        if (typeof limit !== 'number' || !Number.isFinite(limit)) {
+            return DEFAULT_FREQUENCY_TABLE_LIMIT;
+        }
+        return Math.max(5, Math.round(limit));
     }
 
     private async exportData(format: ExportFormat): Promise<void> {
@@ -746,6 +819,7 @@ class DataExplorerPanel implements vscode.Disposable {
                     </div>
                 </div>
                 <div class="side-panel" id="stats-panel">
+                    <div class="panel-resizer" id="stats-panel-resizer"></div>
                     <div class="panel-header">
                         <span>Column Statistics</span>
                         <button class="close-btn" id="close-stats">&times;</button>
@@ -757,21 +831,65 @@ class DataExplorerPanel implements vscode.Disposable {
                                 <option value="">Choose column...</option>
                             </select>
                         </div>
-                        <div class="stats-section">
-                            <label>Statistics</label>
-                            <div class="checkbox-group">
-                                <label><input type="checkbox" id="stat-null-count" checked> Null Count</label>
-                                <label><input type="checkbox" id="stat-summary"> Summary Stats</label>
-                                <label><input type="checkbox" id="stat-histogram"> Histogram</label>
-                                <label><input type="checkbox" id="stat-frequency"> Frequency</label>
-                            </div>
-                        </div>
-                        <div class="filter-actions">
-                            <button class="action" id="get-stats">Get Stats</button>
-                        </div>
                         <div class="stats-results" id="stats-results">
-                            <pre id="stats-text"></pre>
-                            <div class="chart-container" id="histogram-chart"></div>
+                            <div class="stats-message" id="stats-message">Select a column to view statistics.</div>
+                            <div class="stats-sections" id="stats-sections">
+                                <div class="stats-section collapsible" data-section="overview">
+                                    <button class="section-header" type="button" data-target="stats-overview-section">
+                                        <span class="codicon codicon-chevron-down"></span>
+                                        <span>Overview</span>
+                                    </button>
+                                    <div class="section-content" id="stats-overview-section">
+                                        <table class="stats-table" id="stats-overview-table"></table>
+                                    </div>
+                                </div>
+                                <div class="stats-section collapsible" data-section="summary">
+                                    <button class="section-header" type="button" data-target="stats-summary-section">
+                                        <span class="codicon codicon-chevron-down"></span>
+                                        <span>Summary Statistics</span>
+                                    </button>
+                                    <div class="section-content" id="stats-summary-section">
+                                        <table class="stats-table" id="stats-summary-table"></table>
+                                    </div>
+                                </div>
+                                <div class="stats-section collapsible" data-section="distribution">
+                                    <button class="section-header" type="button" data-target="stats-distribution-section">
+                                        <span class="codicon codicon-chevron-down"></span>
+                                        <span>Distribution</span>
+                                    </button>
+                                    <div class="section-content" id="stats-distribution-section">
+                                        <div class="chart-container" id="histogram-chart"></div>
+                                        <div class="slider-row">
+                                            <label for="histogram-bins">Bins</label>
+                                            <input type="range" id="histogram-bins" min="5" max="200" value="20">
+                                            <input type="number" id="histogram-bins-input" min="5" max="200" value="20">
+                                            <select id="histogram-method">
+                                                <option value="freedman_diaconis">Auto (F-D)</option>
+                                                <option value="sturges">Sturges</option>
+                                                <option value="scott">Scott</option>
+                                                <option value="fixed">Fixed</option>
+                                            </select>
+                                        </div>
+                                        <div class="stats-subheader">Quantiles</div>
+                                        <table class="stats-table" id="stats-quantiles-table"></table>
+                                    </div>
+                                </div>
+                                <div class="stats-section collapsible" data-section="frequency">
+                                    <button class="section-header" type="button" data-target="stats-frequency-section">
+                                        <span class="codicon codicon-chevron-down"></span>
+                                        <span>Top Values</span>
+                                    </button>
+                                    <div class="section-content" id="stats-frequency-section">
+                                        <div class="chart-container" id="frequency-chart"></div>
+                                        <div class="slider-row">
+                                            <label for="frequency-limit">Show top</label>
+                                            <input type="range" id="frequency-limit" min="5" max="50" value="10">
+                                            <input type="number" id="frequency-limit-input" min="5" max="50" value="10">
+                                        </div>
+                                        <div class="stats-footnote" id="frequency-footnote"></div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

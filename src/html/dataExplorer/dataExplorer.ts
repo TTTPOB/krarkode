@@ -87,26 +87,68 @@ interface RowFilter {
     params?: Record<string, unknown>;
 }
 
+interface ColumnSummaryStats {
+    type_display: string;
+    number_stats?: {
+        min_value?: string;
+        max_value?: string;
+        mean?: string;
+        median?: string;
+        stdev?: string;
+    };
+    string_stats?: {
+        num_empty?: number;
+        num_unique?: number;
+    };
+    boolean_stats?: {
+        true_count?: number;
+        false_count?: number;
+    };
+    date_stats?: {
+        num_unique?: number;
+        min_date?: string;
+        mean_date?: string;
+        median_date?: string;
+        max_date?: string;
+    };
+    datetime_stats?: {
+        num_unique?: number;
+        min_date?: string;
+        mean_date?: string;
+        median_date?: string;
+        max_date?: string;
+        timezone?: string;
+    };
+    other_stats?: {
+        num_unique?: number;
+    };
+}
+
+interface ColumnQuantileValue {
+    q: number;
+    value: string;
+    exact: boolean;
+}
+
+interface ColumnHistogram {
+    bin_edges: string[];
+    bin_counts: number[];
+    quantiles?: ColumnQuantileValue[];
+}
+
+interface ColumnFrequencyTable {
+    values: ColumnValue[];
+    counts: number[];
+    other_count?: number;
+}
+
 interface ColumnProfileResult {
     null_count?: number;
-    summary_stats?: {
-        type_display: string;
-        number_stats?: Record<string, string>;
-        string_stats?: Record<string, number>;
-        boolean_stats?: Record<string, number>;
-        date_stats?: Record<string, string>;
-        datetime_stats?: Record<string, string>;
-        other_stats?: Record<string, number>;
-    };
-    small_histogram?: {
-        bin_edges: string[];
-        bin_counts: number[];
-    };
-    small_frequency_table?: {
-        values: ColumnValue[];
-        counts: number[];
-        other_count?: number;
-    };
+    summary_stats?: ColumnSummaryStats;
+    small_histogram?: ColumnHistogram;
+    large_histogram?: ColumnHistogram;
+    small_frequency_table?: ColumnFrequencyTable;
+    large_frequency_table?: ColumnFrequencyTable;
 }
 
 interface SetSortColumnsFeatures {
@@ -211,9 +253,22 @@ const rowFilterBetweenSection = document.getElementById('row-filter-between-sect
 const rowFilterSearchSection = document.getElementById('row-filter-search-section') as HTMLDivElement;
 const rowFilterSetSection = document.getElementById('row-filter-set-section') as HTMLDivElement;
 const rowFilterConditionSection = document.getElementById('row-filter-condition-section') as HTMLDivElement;
+const statsPanelResizer = document.getElementById('stats-panel-resizer') as HTMLDivElement;
+const statsColumnSelect = document.getElementById('stats-column') as HTMLSelectElement;
 const statsResults = document.getElementById('stats-results') as HTMLDivElement;
-const statsText = document.getElementById('stats-text') as HTMLPreElement;
+const statsMessage = document.getElementById('stats-message') as HTMLDivElement;
+const statsSections = document.getElementById('stats-sections') as HTMLDivElement;
+const statsOverviewTable = document.getElementById('stats-overview-table') as HTMLTableElement;
+const statsSummaryTable = document.getElementById('stats-summary-table') as HTMLTableElement;
+const statsQuantilesTable = document.getElementById('stats-quantiles-table') as HTMLTableElement;
 const histogramContainer = document.getElementById('histogram-chart') as HTMLDivElement;
+const histogramBinsSlider = document.getElementById('histogram-bins') as HTMLInputElement;
+const histogramBinsInput = document.getElementById('histogram-bins-input') as HTMLInputElement;
+const histogramMethodSelect = document.getElementById('histogram-method') as HTMLSelectElement;
+const frequencyContainer = document.getElementById('frequency-chart') as HTMLDivElement;
+const frequencyLimitSlider = document.getElementById('frequency-limit') as HTMLInputElement;
+const frequencyLimitInput = document.getElementById('frequency-limit-input') as HTMLInputElement;
+const frequencyFootnote = document.getElementById('frequency-footnote') as HTMLDivElement;
 const codePreview = document.getElementById('code-preview') as HTMLPreElement;
 const tableHeader = document.getElementById('table-header') as HTMLDivElement;
 const tableBody = document.getElementById('table-body') as HTMLDivElement;
@@ -224,6 +279,17 @@ const COLUMN_WIDTH = 160;
 const MIN_COLUMN_WIDTH = 80;
 const ROW_LABEL_WIDTH = 72;
 const UNNAMED_COLUMN_PREFIX = 'Unnamed';
+const DEFAULT_HISTOGRAM_BINS = 20;
+const DEFAULT_FREQUENCY_LIMIT = 10;
+const HISTOGRAM_BINS_MIN = 5;
+const HISTOGRAM_BINS_MAX = 200;
+const FREQUENCY_LIMIT_MIN = 5;
+const FREQUENCY_LIMIT_MAX = 50;
+const SMALL_HISTOGRAM_MAX_BINS = 80;
+const SMALL_FREQUENCY_MAX_LIMIT = 12;
+const STATS_REFRESH_DEBOUNCE_MS = 300;
+const STATS_PANEL_MIN_WIDTH = 280;
+const STATS_PANEL_MAX_WIDTH = 600;
 
 const rowCache = new Map<number, string[]>();
 const rowLabelCache = new Map<number, string>();
@@ -245,6 +311,7 @@ let headerRowElement: HTMLDivElement | undefined;
 let rowVirtualizerCleanup: (() => void) | undefined;
 let activeSort: SortState | null = null;
 let histogramChart: echarts.ECharts | null = null;
+let frequencyChart: echarts.ECharts | null = null;
 let rowFilters: RowFilter[] = [];
 let editingRowFilterIndex: number | null = null;
 let rowFilterSupport: SetRowFiltersFeatures | undefined;
@@ -253,6 +320,9 @@ let setColumnFilterSupport: SetColumnFiltersFeatures | undefined;
 let columnFilterMatches: number[] | null = null;
 let columnMenuColumnIndex: number | null = null;
 let columnVisibilityDebounceId: number | undefined;
+let statsRefreshDebounceId: number | undefined;
+let activeStatsColumnIndex: number | null = null;
+let statsPanelResizeState: { startX: number; startWidth: number } | null = null;
 let pendingRows: RowsMessage[] = [];
 let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
 let ignoreHeaderSortClick = false;
@@ -392,8 +462,60 @@ rowFilterType.addEventListener('change', () => {
     updateRowFilterSections(rowFilterType.value as RowFilterType);
 });
 
-document.getElementById('get-stats')?.addEventListener('click', () => {
-    getColumnStats();
+statsColumnSelect.addEventListener('change', () => {
+    const columnIndex = parseInt(statsColumnSelect.value, 10);
+    if (Number.isNaN(columnIndex)) {
+        activeStatsColumnIndex = null;
+        setStatsMessage('Select a column to view statistics.', 'empty');
+        clearStatsContent();
+        return;
+    }
+    activeStatsColumnIndex = columnIndex;
+    requestColumnProfiles('column-change');
+});
+
+histogramBinsSlider.addEventListener('input', () => {
+    syncHistogramBins('slider');
+});
+
+histogramBinsInput.addEventListener('input', () => {
+    syncHistogramBins('input');
+});
+
+histogramMethodSelect.addEventListener('change', () => {
+    scheduleStatsRefresh('histogram-method');
+});
+
+frequencyLimitSlider.addEventListener('input', () => {
+    syncFrequencyLimit('slider');
+});
+
+frequencyLimitInput.addEventListener('input', () => {
+    syncFrequencyLimit('input');
+});
+
+statsPanelResizer.addEventListener('mousedown', (event) => {
+    statsPanelResizeState = {
+        startX: event.clientX,
+        startWidth: statsPanel.getBoundingClientRect().width,
+    };
+    document.body.classList.add('panel-resizing');
+    event.preventDefault();
+});
+
+document.querySelectorAll('.stats-section.collapsible .section-header').forEach((element) => {
+    element.addEventListener('click', () => {
+        const header = element as HTMLElement;
+        const parent = header.closest('.stats-section.collapsible');
+        if (!parent) {
+            return;
+        }
+        parent.classList.toggle('is-collapsed');
+        requestAnimationFrame(() => {
+            histogramChart?.resize();
+            frequencyChart?.resize();
+        });
+    });
 });
 
 document.getElementById('convert-code')?.addEventListener('click', () => {
@@ -475,6 +597,16 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener('resize', () => {
     closeColumnMenu();
+    histogramChart?.resize();
+    frequencyChart?.resize();
+});
+
+document.addEventListener('mousemove', (event) => {
+    handleStatsPanelResize(event);
+});
+
+document.addEventListener('mouseup', () => {
+    finishStatsPanelResize();
 });
 
 function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
@@ -491,23 +623,35 @@ function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}
     statsPanel.classList.add('open');
     populateStatsColumnSelect();
     if (columnIndex !== undefined) {
-        const select = document.getElementById('stats-column') as HTMLSelectElement;
-        select.value = String(columnIndex);
+        statsColumnSelect.value = String(columnIndex);
+    }
+    const resolvedIndex = parseInt(statsColumnSelect.value, 10);
+    if (!Number.isNaN(resolvedIndex)) {
+        activeStatsColumnIndex = resolvedIndex;
+        requestColumnProfiles('panel-open');
+    } else {
+        activeStatsColumnIndex = null;
+        setStatsMessage('Select a column to view statistics.', 'empty');
+        clearStatsContent();
     }
     requestAnimationFrame(() => {
         histogramChart?.resize();
+        frequencyChart?.resize();
     });
 }
 
 function populateStatsColumnSelect() {
-    const select = document.getElementById('stats-column') as HTMLSelectElement;
-    select.innerHTML = '<option value="">Choose column...</option>';
+    const previousValue = statsColumnSelect.value;
+    statsColumnSelect.innerHTML = '<option value="">Choose column...</option>';
     schema.forEach((col) => {
         const option = document.createElement('option');
         option.value = String(col.column_index);
         option.textContent = getColumnLabel(col);
-        select.appendChild(option);
+        statsColumnSelect.appendChild(option);
     });
+    if (previousValue) {
+        statsColumnSelect.value = previousValue;
+    }
 }
 
 function applyColumnSearch() {
@@ -1016,29 +1160,258 @@ function removeRowFilter(index: number): void {
     log('Row filter removed', { index, count: rowFilters.length });
 }
 
-function getColumnStats() {
-    const columnIndex = parseInt((document.getElementById('stats-column') as HTMLSelectElement).value, 10);
-    if (isNaN(columnIndex)) {
+type StatsMessageState = 'loading' | 'empty' | 'error';
+
+type StatsRow = {
+    label: string;
+    value: string;
+};
+
+function setStatsMessage(message: string, state: StatsMessageState): void {
+    statsMessage.textContent = message;
+    statsMessage.classList.remove('is-hidden', 'is-loading', 'is-error');
+    statsMessage.classList.toggle('is-loading', state === 'loading');
+    statsMessage.classList.toggle('is-error', state === 'error');
+    statsSections.classList.add('is-hidden');
+    setStatsControlsEnabled(state !== 'empty');
+}
+
+function showStatsSections(): void {
+    statsMessage.classList.add('is-hidden');
+    statsSections.classList.remove('is-hidden');
+    setStatsControlsEnabled(true);
+}
+
+function clearStatsContent(): void {
+    statsOverviewTable.innerHTML = '';
+    statsSummaryTable.innerHTML = '';
+    statsQuantilesTable.innerHTML = '';
+    frequencyFootnote.textContent = '';
+    clearHistogram();
+    clearFrequency();
+    statsResults.scrollTop = 0;
+}
+
+function setStatsControlsEnabled(enabled: boolean): void {
+    histogramBinsSlider.disabled = !enabled;
+    histogramBinsInput.disabled = !enabled;
+    histogramMethodSelect.disabled = !enabled;
+    frequencyLimitSlider.disabled = !enabled;
+    frequencyLimitInput.disabled = !enabled;
+}
+
+function clampNumber(value: number, min: number, max: number, fallback: number): number {
+    if (!Number.isFinite(value)) {
+        return fallback;
+    }
+    return Math.min(Math.max(Math.round(value), min), max);
+}
+
+function syncHistogramBins(source: 'slider' | 'input'): void {
+    const rawValue = source === 'slider' ? parseInt(histogramBinsSlider.value, 10) : parseInt(histogramBinsInput.value, 10);
+    const nextValue = clampNumber(rawValue, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
+    histogramBinsSlider.value = String(nextValue);
+    histogramBinsInput.value = String(nextValue);
+    log('Histogram bins updated', { value: nextValue, source });
+    scheduleStatsRefresh('histogram-bins');
+}
+
+function syncFrequencyLimit(source: 'slider' | 'input'): void {
+    const rawValue = source === 'slider' ? parseInt(frequencyLimitSlider.value, 10) : parseInt(frequencyLimitInput.value, 10);
+    const nextValue = clampNumber(rawValue, FREQUENCY_LIMIT_MIN, FREQUENCY_LIMIT_MAX, DEFAULT_FREQUENCY_LIMIT);
+    frequencyLimitSlider.value = String(nextValue);
+    frequencyLimitInput.value = String(nextValue);
+    log('Frequency limit updated', { value: nextValue, source });
+    scheduleStatsRefresh('frequency-limit');
+}
+
+function scheduleStatsRefresh(reason: string): void {
+    if (activeStatsColumnIndex === null) {
         return;
     }
+    if (statsRefreshDebounceId !== undefined) {
+        window.clearTimeout(statsRefreshDebounceId);
+    }
+    statsRefreshDebounceId = window.setTimeout(() => {
+        requestColumnProfiles(reason);
+    }, STATS_REFRESH_DEBOUNCE_MS);
+}
 
-    const profileTypes: string[] = [];
-    if ((document.getElementById('stat-null-count') as HTMLInputElement).checked) {
-        profileTypes.push('null_count');
+function requestColumnProfiles(reason: string): void {
+    if (activeStatsColumnIndex === null) {
+        return;
     }
-    if ((document.getElementById('stat-summary') as HTMLInputElement).checked) {
-        profileTypes.push('summary_stats');
-    }
-    if ((document.getElementById('stat-histogram') as HTMLInputElement).checked) {
-        profileTypes.push('small_histogram');
-    }
-    if ((document.getElementById('stat-frequency') as HTMLInputElement).checked) {
-        profileTypes.push('small_frequency_table');
-    }
+    const histogramBins = clampNumber(parseInt(histogramBinsInput.value, 10), HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
+    const frequencyLimit = clampNumber(
+        parseInt(frequencyLimitInput.value, 10),
+        FREQUENCY_LIMIT_MIN,
+        FREQUENCY_LIMIT_MAX,
+        DEFAULT_FREQUENCY_LIMIT
+    );
+    const histogramMethod = histogramMethodSelect.value;
+    const histogramProfile = histogramBins > SMALL_HISTOGRAM_MAX_BINS ? 'large_histogram' : 'small_histogram';
+    const frequencyProfile = frequencyLimit > SMALL_FREQUENCY_MAX_LIMIT ? 'large_frequency_table' : 'small_frequency_table';
+    const profileTypes = ['null_count', 'summary_stats', histogramProfile, frequencyProfile];
+    const histogramParams = {
+        method: histogramMethod,
+        num_bins: histogramBins,
+        quantiles: [0.25, 0.5, 0.75],
+    };
+    const frequencyParams = {
+        limit: frequencyLimit,
+    };
 
-    statsText.textContent = 'Loading statistics...';
-    clearHistogram();
-    vscode.postMessage({ type: 'getColumnProfiles', columnIndex, profileTypes });
+    log('Requesting column profiles', {
+        columnIndex: activeStatsColumnIndex,
+        profileTypes,
+        histogramParams,
+        frequencyParams,
+        reason,
+    });
+
+    setStatsMessage('Loading statistics...', 'loading');
+    clearStatsContent();
+    vscode.postMessage({
+        type: 'getColumnProfiles',
+        columnIndex: activeStatsColumnIndex,
+        profileTypes,
+        histogramParams,
+        frequencyParams,
+    });
+}
+
+function setStatsPanelWidth(width: number): void {
+    statsPanel.style.setProperty('--stats-panel-width', `${width}px`);
+    requestAnimationFrame(() => {
+        histogramChart?.resize();
+        frequencyChart?.resize();
+    });
+}
+
+function handleStatsPanelResize(event: MouseEvent): void {
+    if (!statsPanelResizeState) {
+        return;
+    }
+    const delta = statsPanelResizeState.startX - event.clientX;
+    const nextWidth = clampNumber(
+        statsPanelResizeState.startWidth + delta,
+        STATS_PANEL_MIN_WIDTH,
+        STATS_PANEL_MAX_WIDTH,
+        statsPanelResizeState.startWidth
+    );
+    setStatsPanelWidth(nextWidth);
+}
+
+function finishStatsPanelResize(): void {
+    if (!statsPanelResizeState) {
+        return;
+    }
+    statsPanelResizeState = null;
+    document.body.classList.remove('panel-resizing');
+}
+
+function setStatsTableRows(table: HTMLTableElement, rows: StatsRow[], emptyMessage: string): void {
+    table.innerHTML = '';
+    if (rows.length === 0) {
+        const emptyRow = table.insertRow();
+        const cell = emptyRow.insertCell();
+        cell.colSpan = 2;
+        cell.textContent = emptyMessage;
+        cell.classList.add('stats-empty');
+        return;
+    }
+    rows.forEach((row) => {
+        const tableRow = table.insertRow();
+        const labelCell = tableRow.insertCell();
+        const valueCell = tableRow.insertCell();
+        labelCell.textContent = row.label;
+        valueCell.textContent = row.value;
+    });
+}
+
+function formatStatValue(value: string | number | undefined | null): string {
+    if (value === undefined || value === null || value === '') {
+        return '-';
+    }
+    return String(value);
+}
+
+function formatQuantileValue(quantile: ColumnQuantileValue): string {
+    const prefix = quantile.exact ? '' : '~';
+    return `${prefix}${quantile.value}`;
+}
+
+function formatQuantileLabel(q: number): string {
+    if (q === 0.25) {
+        return 'Q1 (25%)';
+    }
+    if (q === 0.5) {
+        return 'Median (50%)';
+    }
+    if (q === 0.75) {
+        return 'Q3 (75%)';
+    }
+    const percentage = Math.round(q * 100);
+    return `${percentage}%`;
+}
+
+function buildSummaryRows(summaryStats: ColumnSummaryStats | undefined): StatsRow[] {
+    if (!summaryStats) {
+        return [];
+    }
+    if (summaryStats.number_stats) {
+        return [
+            { label: 'Minimum', value: formatStatValue(summaryStats.number_stats.min_value) },
+            { label: 'Maximum', value: formatStatValue(summaryStats.number_stats.max_value) },
+            { label: 'Mean', value: formatStatValue(summaryStats.number_stats.mean) },
+            { label: 'Median', value: formatStatValue(summaryStats.number_stats.median) },
+            { label: 'Std Dev', value: formatStatValue(summaryStats.number_stats.stdev) },
+        ];
+    }
+    if (summaryStats.string_stats) {
+        return [
+            { label: 'Empty Count', value: formatStatValue(summaryStats.string_stats.num_empty) },
+            { label: 'Unique Count', value: formatStatValue(summaryStats.string_stats.num_unique) },
+        ];
+    }
+    if (summaryStats.boolean_stats) {
+        return [
+            { label: 'True Count', value: formatStatValue(summaryStats.boolean_stats.true_count) },
+            { label: 'False Count', value: formatStatValue(summaryStats.boolean_stats.false_count) },
+        ];
+    }
+    if (summaryStats.date_stats) {
+        return [
+            { label: 'Minimum', value: formatStatValue(summaryStats.date_stats.min_date) },
+            { label: 'Mean', value: formatStatValue(summaryStats.date_stats.mean_date) },
+            { label: 'Median', value: formatStatValue(summaryStats.date_stats.median_date) },
+            { label: 'Maximum', value: formatStatValue(summaryStats.date_stats.max_date) },
+            { label: 'Unique Count', value: formatStatValue(summaryStats.date_stats.num_unique) },
+        ];
+    }
+    if (summaryStats.datetime_stats) {
+        return [
+            { label: 'Minimum', value: formatStatValue(summaryStats.datetime_stats.min_date) },
+            { label: 'Mean', value: formatStatValue(summaryStats.datetime_stats.mean_date) },
+            { label: 'Median', value: formatStatValue(summaryStats.datetime_stats.median_date) },
+            { label: 'Maximum', value: formatStatValue(summaryStats.datetime_stats.max_date) },
+            { label: 'Unique Count', value: formatStatValue(summaryStats.datetime_stats.num_unique) },
+            { label: 'Timezone', value: formatStatValue(summaryStats.datetime_stats.timezone) },
+        ];
+    }
+    if (summaryStats.other_stats) {
+        return [{ label: 'Unique Count', value: formatStatValue(summaryStats.other_stats.num_unique) }];
+    }
+    return [];
+}
+
+function initializeStatsDefaults(): void {
+    histogramBinsSlider.value = String(DEFAULT_HISTOGRAM_BINS);
+    histogramBinsInput.value = String(DEFAULT_HISTOGRAM_BINS);
+    histogramMethodSelect.value = 'freedman_diaconis';
+    frequencyLimitSlider.value = String(DEFAULT_FREQUENCY_LIMIT);
+    frequencyLimitInput.value = String(DEFAULT_FREQUENCY_LIMIT);
+    setStatsControlsEnabled(false);
 }
 
 tableBody.addEventListener('scroll', () => {
@@ -1080,6 +1453,10 @@ window.addEventListener('message', (event) => {
             break;
     }
 });
+
+initializeStatsDefaults();
+setStatsMessage('Select a column to view statistics.', 'empty');
+clearStatsContent();
 
 vscode.postMessage({ type: 'ready' });
 
@@ -1130,6 +1507,18 @@ function applySchemaUpdate(nextSchema: ColumnSchema[]): void {
     requestVisibleBlocks();
     if (statsPanel.classList.contains('open')) {
         populateStatsColumnSelect();
+        if (activeStatsColumnIndex !== null) {
+            const stillExists = schema.some((column) => column.column_index === activeStatsColumnIndex);
+            if (stillExists) {
+                statsColumnSelect.value = String(activeStatsColumnIndex);
+                requestColumnProfiles('schema-update');
+            } else {
+                activeStatsColumnIndex = null;
+                statsColumnSelect.value = '';
+                setStatsMessage('Select a column to view statistics.', 'empty');
+                clearStatsContent();
+            }
+        }
     }
 }
 
@@ -1145,7 +1534,21 @@ function clearHistogram(): void {
     histogramChart?.clear();
 }
 
-function renderHistogram(histogram: ColumnProfileResult['small_histogram'], columnLabel: string): void {
+function ensureFrequencyChart(): echarts.ECharts {
+    if (!frequencyChart) {
+        frequencyChart = echarts.init(frequencyContainer);
+    }
+    return frequencyChart;
+}
+
+function clearFrequency(): void {
+    frequencyContainer.style.display = 'none';
+    frequencyFootnote.textContent = '';
+    frequencyFootnote.style.display = 'none';
+    frequencyChart?.clear();
+}
+
+function renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): void {
     if (!histogram) {
         clearHistogram();
         return;
@@ -1171,18 +1574,11 @@ function renderHistogram(histogram: ColumnProfileResult['small_histogram'], colu
     const chartColor = getComputedStyle(document.body).getPropertyValue('--vscode-charts-blue').trim() || '#4e79a7';
 
     chart.setOption({
-        title: {
-            text: `Histogram: ${columnLabel}`,
-            textStyle: {
-                fontSize: 12,
-                color: getComputedStyle(document.body).getPropertyValue('--vscode-foreground').trim() || '#cccccc',
-            },
-        },
         tooltip: {
             trigger: 'axis',
             axisPointer: { type: 'shadow' },
         },
-        grid: { left: 40, right: 20, top: 30, bottom: 40 },
+        grid: { left: 44, right: 18, top: 10, bottom: 46 },
         xAxis: {
             type: 'category',
             data: labels,
@@ -1216,51 +1612,154 @@ function renderHistogram(histogram: ColumnProfileResult['small_histogram'], colu
     chart.resize();
 }
 
+function renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
+    if (!frequency) {
+        clearFrequency();
+        return;
+    }
+    const values = frequency.values ?? [];
+    const counts = frequency.counts ?? [];
+    if (values.length === 0 || counts.length === 0) {
+        clearFrequency();
+        return;
+    }
+
+    log('Rendering frequency chart', { values: values.length });
+
+    const displayValues = values.map((value) => String(value));
+    const reversedValues = [...displayValues].reverse();
+    const reversedCounts = [...counts].reverse();
+    const chartHeight = Math.max(160, reversedValues.length * 18 + 40);
+    frequencyContainer.style.display = 'block';
+    frequencyContainer.style.height = `${chartHeight}px`;
+    const chart = ensureFrequencyChart();
+    const chartColor = getComputedStyle(document.body).getPropertyValue('--vscode-charts-blue').trim() || '#4e79a7';
+
+    chart.setOption({
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+        },
+        grid: { left: 100, right: 30, top: 10, bottom: 20 },
+        xAxis: {
+            type: 'value',
+            axisLabel: {
+                color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
+            },
+            splitLine: {
+                lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
+            },
+        },
+        yAxis: {
+            type: 'category',
+            data: reversedValues,
+            axisLabel: {
+                color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
+                width: 84,
+                overflow: 'truncate',
+                formatter: (value: string) => (value.length > 18 ? `${value.slice(0, 15)}...` : value),
+            },
+            axisLine: {
+                lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
+            },
+        },
+        series: [
+            {
+                type: 'bar',
+                data: reversedCounts,
+                itemStyle: {
+                    color: chartColor,
+                },
+                label: {
+                    show: true,
+                    position: 'right',
+                    fontSize: 10,
+                    color: getComputedStyle(document.body).getPropertyValue('--vscode-foreground').trim() || '#cccccc',
+                },
+            },
+        ],
+    });
+    chart.resize();
+}
+
 function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfileResult[], errorMessage?: string): void {
+    if (activeStatsColumnIndex !== null && columnIndex !== activeStatsColumnIndex) {
+        log('Ignoring stale column profiles', { columnIndex, activeStatsColumnIndex });
+        return;
+    }
     if (errorMessage) {
-        statsText.textContent = `Error: ${errorMessage}`;
-        clearHistogram();
+        setStatsMessage(`Error: ${errorMessage}`, 'error');
+        clearStatsContent();
         return;
     }
 
     log('Column profiles received', { columnIndex, profiles });
-    const lines: string[] = [`Column ${columnIndex + 1} profiles:`];
-    let histogram: ColumnProfileResult['small_histogram'] | undefined;
+    if (!profiles || profiles.length === 0) {
+        setStatsMessage('No statistics available for this column.', 'empty');
+        clearStatsContent();
+        return;
+    }
+
+    const combined: ColumnProfileResult = {};
     profiles.forEach((profile) => {
         if (profile.null_count !== undefined) {
-            lines.push(`Null count: ${profile.null_count}`);
+            combined.null_count = profile.null_count;
         }
         if (profile.summary_stats) {
-            const stats = profile.summary_stats;
-            lines.push(`Summary (${stats.type_display}):`);
-            const details = stats.number_stats || stats.string_stats || stats.boolean_stats || stats.date_stats || stats.datetime_stats || stats.other_stats;
-            if (details) {
-                Object.entries(details).forEach(([key, value]) => {
-                    lines.push(`  ${key}: ${value}`);
-                });
-            }
+            combined.summary_stats = profile.summary_stats;
         }
         if (profile.small_histogram) {
-            histogram = profile.small_histogram;
-            lines.push(`Histogram bins: ${profile.small_histogram.bin_counts.length}`);
+            combined.small_histogram = profile.small_histogram;
+        }
+        if (profile.large_histogram) {
+            combined.large_histogram = profile.large_histogram;
         }
         if (profile.small_frequency_table) {
-            lines.push('Top values:');
-            profile.small_frequency_table.values.forEach((value, idx) => {
-                const count = profile.small_frequency_table.counts[idx];
-                lines.push(`  ${value}: ${count}`);
-            });
-            if (profile.small_frequency_table.other_count !== undefined) {
-                lines.push(`  Other: ${profile.small_frequency_table.other_count}`);
-            }
+            combined.small_frequency_table = profile.small_frequency_table;
+        }
+        if (profile.large_frequency_table) {
+            combined.large_frequency_table = profile.large_frequency_table;
         }
     });
 
-    statsText.textContent = lines.join('\n');
-    statsResults.scrollTop = 0;
     const column = schema.find((col) => col.column_index === columnIndex);
     const columnLabel = column ? getColumnLabel(column) : `Column ${columnIndex + 1}`;
+    const summaryStats = combined.summary_stats;
+    const histogram = combined.large_histogram ?? combined.small_histogram;
+    const frequency = combined.large_frequency_table ?? combined.small_frequency_table;
+
+    setStatsTableRows(
+        statsOverviewTable,
+        [
+            { label: 'Column', value: columnLabel },
+            { label: 'Type', value: formatStatValue(summaryStats?.type_display) },
+            { label: 'Null Count', value: formatStatValue(combined.null_count) },
+        ],
+        'No overview data.'
+    );
+    setStatsTableRows(statsSummaryTable, buildSummaryRows(summaryStats), 'No summary statistics.');
+    const quantileRows = (histogram?.quantiles ?? []).map((quantile) => ({
+        label: formatQuantileLabel(quantile.q),
+        value: formatQuantileValue(quantile),
+    }));
+    setStatsTableRows(statsQuantilesTable, quantileRows, 'No quantile data.');
+
     renderHistogram(histogram, columnLabel);
+    renderFrequencyChart(frequency);
+    if (!frequency) {
+        frequencyFootnote.textContent = 'No frequency data.';
+        frequencyFootnote.style.display = 'block';
+    } else if (frequency.other_count !== undefined) {
+        frequencyFootnote.textContent = `Other values: ${frequency.other_count}`;
+        frequencyFootnote.style.display = 'block';
+        log('Frequency table contains other values', { otherCount: frequency.other_count });
+    } else {
+        frequencyFootnote.textContent = '';
+        frequencyFootnote.style.display = 'none';
+    }
+
+    showStatsSections();
+    statsResults.scrollTop = 0;
 }
 
 function handleExportResult(data: string, format: string): void {
@@ -1307,8 +1806,12 @@ function handleInit(message: InitMessage) {
     setColumnFilterSupport = state.supported_features?.set_column_filters;
     columnVisibilityStatus.textContent = '';
     columnVisibilitySearch.value = '';
-    statsText.textContent = '';
-    clearHistogram();
+    if (activeStatsColumnIndex === null) {
+        setStatsMessage('Select a column to view statistics.', 'empty');
+    } else {
+        setStatsMessage('Loading statistics...', 'loading');
+    }
+    clearStatsContent();
     codePreview.textContent = '';
     renderRowFilterChips();
     updateRowFilterBarVisibility();

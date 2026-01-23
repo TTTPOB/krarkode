@@ -183,6 +183,8 @@ body {
     top: 0;
     right: -320px;
     width: 300px;
+    min-width: 260px;
+    max-width: 600px;
     height: 100%;
     background: var(--vscode-sideBar-background);
     border-left: 1px solid var(--vscode-editorWidget-border);
@@ -190,6 +192,18 @@ body {
     transition: right 0.2s ease;
     display: flex;
     flex-direction: column;
+}
+
+#stats-panel {
+    --stats-panel-width: 300px;
+    width: var(--stats-panel-width);
+    right: calc(-1 * var(--stats-panel-width) - 20px);
+    min-width: 280px;
+    max-width: 600px;
+}
+
+#stats-panel.open {
+    right: 0;
 }
 
 .side-panel.open {
@@ -203,6 +217,40 @@ body {
     padding: 12px;
     border-bottom: 1px solid var(--vscode-editorWidget-border);
     font-weight: 600;
+}
+
+.panel-resizer {
+    position: absolute;
+    left: -4px;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 10;
+}
+
+.panel-resizer::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 2px;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 40px;
+    border-radius: 2px;
+    background: var(--vscode-scrollbarSlider-background);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.panel-resizer:hover::after,
+body.panel-resizing .panel-resizer::after {
+    opacity: 0.9;
+}
+
+body.panel-resizing {
+    cursor: ew-resize;
+    user-select: none;
 }
 
 .close-btn {
@@ -374,23 +422,224 @@ body {
 
 .stats-results {
     margin-top: 16px;
-    padding: 12px;
-    background: var(--vscode-editor-background);
-    border-radius: 3px;
-    font-size: 0.9em;
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
 
-#stats-text {
-    margin: 0;
-    white-space: pre-wrap;
+.stats-message {
+    padding: 12px;
+    border-radius: 4px;
+    border: 1px dashed var(--vscode-editorWidget-border);
+    color: var(--vscode-descriptionForeground);
+    font-size: 0.85em;
+    text-align: center;
+    background: var(--vscode-editor-background);
+}
+
+.stats-message.is-hidden {
+    display: none;
+}
+
+.stats-message.is-loading::before {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--vscode-button-background);
+    border-top-color: transparent;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: -2px;
+    animation: stats-spin 0.8s linear infinite;
+}
+
+.stats-message.is-error {
+    border-color: var(--vscode-inputValidation-errorBorder);
+    color: var(--vscode-inputValidation-errorForeground);
+    background: var(--vscode-inputValidation-errorBackground);
+}
+
+.stats-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stats-sections.is-hidden {
+    display: none;
+}
+
+.stats-section.collapsible {
+    border: 1px solid var(--vscode-editorWidget-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--vscode-editor-background);
+}
+
+.stats-results .stats-section.collapsible {
+    margin-bottom: 0;
+}
+
+.stats-section.collapsible .section-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--vscode-sideBarSectionHeader-background);
+    border: none;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 0.78em;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--vscode-foreground);
+}
+
+.stats-section.collapsible .section-header:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.stats-section.collapsible .section-header .codicon {
+    font-size: 12px;
+    transition: transform 0.15s ease;
+}
+
+.stats-section.collapsible.is-collapsed .section-header .codicon {
+    transform: rotate(-90deg);
+}
+
+.stats-section.collapsible .section-content {
+    padding: 10px;
+}
+
+.stats-section.collapsible.is-collapsed .section-content {
+    display: none;
+}
+
+.stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88em;
+}
+
+.stats-table tr {
+    border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.stats-table tr:last-child {
+    border-bottom: none;
+}
+
+.stats-table td {
+    padding: 5px 6px;
+    vertical-align: top;
+}
+
+.stats-table td:first-child {
+    color: var(--vscode-descriptionForeground);
+    width: 45%;
+}
+
+.stats-table td:last-child {
+    font-family: var(--vscode-editor-font-family);
+    text-align: right;
+    word-break: break-word;
+}
+
+.stats-table .stats-empty {
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+.stats-subheader {
+    margin: 10px 0 6px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 10px 0 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--vscode-editorWidget-border);
+    flex-wrap: wrap;
+}
+
+.slider-row label {
+    font-size: 0.78em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.slider-row input[type="range"] {
+    flex: 1;
+    min-width: 80px;
+    height: 4px;
+    -webkit-appearance: none;
+    background: var(--vscode-scrollbarSlider-background);
+    border-radius: 2px;
+}
+
+.slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--vscode-button-background);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.slider-row input[type="number"] {
+    width: 56px;
+    padding: 3px 5px;
+    background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    color: var(--vscode-dropdown-foreground);
+    border-radius: 3px;
+    text-align: center;
+    font-size: 0.85em;
+}
+
+.slider-row select {
+    padding: 3px 5px;
+    background: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    color: var(--vscode-dropdown-foreground);
+    border-radius: 3px;
+    font-size: 0.85em;
 }
 
 .chart-container {
     width: 100%;
-    height: 220px;
+    height: 180px;
+}
+
+#frequency-chart {
+    height: 160px;
+}
+
+.stats-footnote {
+    margin-top: 6px;
+    font-size: 0.78em;
+    color: var(--vscode-descriptionForeground);
+}
+
+@keyframes stats-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .modal {
