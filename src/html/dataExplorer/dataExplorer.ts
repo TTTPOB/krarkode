@@ -346,16 +346,7 @@ addRowFilterButton.addEventListener('click', () => {
 });
 
 statsButton.addEventListener('click', () => {
-    statsPanel.classList.toggle('open');
-    columnVisibilityPanel.classList.remove('open');
-    codeModal.classList.remove('open');
-    rowFilterPanel.classList.remove('open');
-    populateStatsColumnSelect();
-    if (statsPanel.classList.contains('open')) {
-        requestAnimationFrame(() => {
-            histogramChart?.resize();
-        });
-    }
+    openStatsPanel({ toggle: true });
 });
 
 codeButton.addEventListener('click', () => {
@@ -481,6 +472,28 @@ document.addEventListener('keydown', (event) => {
 window.addEventListener('resize', () => {
     closeColumnMenu();
 });
+
+function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
+    const { columnIndex, toggle = false } = options;
+    const shouldOpen = toggle ? !statsPanel.classList.contains('open') : true;
+    columnVisibilityPanel.classList.remove('open');
+    codeModal.classList.remove('open');
+    rowFilterPanel.classList.remove('open');
+    if (!shouldOpen) {
+        statsPanel.classList.remove('open');
+        return;
+    }
+
+    statsPanel.classList.add('open');
+    populateStatsColumnSelect();
+    if (columnIndex !== undefined) {
+        const select = document.getElementById('stats-column') as HTMLSelectElement;
+        select.value = String(columnIndex);
+    }
+    requestAnimationFrame(() => {
+        histogramChart?.resize();
+    });
+}
 
 function populateStatsColumnSelect() {
     const select = document.getElementById('stats-column') as HTMLSelectElement;
@@ -1490,6 +1503,15 @@ function renderHeader() {
             log('Header filter action', { columnIndex: column.column_index });
             openRowFilterEditor(undefined, undefined, column.column_index);
         });
+        const statsAction = document.createElement('button');
+        statsAction.className = 'header-action';
+        statsAction.textContent = 'Stats';
+        statsAction.title = 'Show column stats';
+        statsAction.addEventListener('click', (event) => {
+            event.stopPropagation();
+            log('Header stats action', { columnIndex: column.column_index });
+            openStatsPanel({ columnIndex: column.column_index });
+        });
         const hideAction = document.createElement('button');
         hideAction.className = 'header-action';
         hideAction.textContent = 'x';
@@ -1503,6 +1525,7 @@ function renderHeader() {
             hideColumn(column.column_index);
         });
         actions.appendChild(filterAction);
+        actions.appendChild(statsAction);
         actions.appendChild(hideAction);
         content.appendChild(actions);
         cell.appendChild(content);
