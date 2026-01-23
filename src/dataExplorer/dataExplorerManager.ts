@@ -24,6 +24,7 @@ type RowRangeRequest = {
 
 const SMALL_HISTOGRAM_NUM_BINS = 80;
 const SMALL_FREQUENCY_TABLE_LIMIT = 8;
+const INITIAL_ROW_BLOCK_SIZE = 200;
 
 class DataExplorerPanel implements vscode.Disposable {
     private readonly panel: vscode.WebviewPanel;
@@ -118,6 +119,15 @@ class DataExplorerPanel implements vscode.Disposable {
                 schema: schema.columns,
                 formatOptions: DEFAULT_FORMAT_OPTIONS,
             });
+
+            if (state.table_shape.num_rows > 0) {
+                const endIndex = Math.min(state.table_shape.num_rows - 1, INITIAL_ROW_BLOCK_SIZE - 1);
+                this.log(`Queueing initial rows ${0}-${endIndex} after init.`);
+                void this.enqueueRowRequest({
+                    startIndex: 0,
+                    endIndex,
+                });
+            }
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             this.log(`Failed to initialize data explorer: ${message}`);
