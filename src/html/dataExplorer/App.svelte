@@ -26,6 +26,9 @@
     import {
         // UI stores - using $ syntax for reactive access
         collapsedSections as collapsedSectionsStore,
+        pinnedPanels as pinnedPanelsStore,
+        setPanelPinned as storeSetPanelPinned,
+        isPanelPinned as storeIsPanelPinned,
     } from './stores';
     import {
         type BackendState,
@@ -124,7 +127,7 @@
     let columnMenuX = 0;
     let columnMenuY = 0;
     let columnMenuColumnIndex: number | null = null;
-    let pinnedPanels = new Set<string>();
+    // pinnedPanels now comes from store via $pinnedPanelsStore
 
     let columnVisibilitySearchTerm = '';
     let columnVisibilityStatus = '';
@@ -281,18 +284,12 @@
 
 
     function setPanelPinned(panelId: string, pinned: boolean): void {
-        const next = new Set(pinnedPanels);
-        if (pinned) {
-            next.add(panelId);
-        } else {
-            next.delete(panelId);
-        }
-        pinnedPanels = next;
+        storeSetPanelPinned(panelId, pinned);
         log('Panel pin updated', { panelId, pinned });
     }
 
     function isPanelPinned(panelId: string): boolean {
-        return pinnedPanels.has(panelId);
+        return $pinnedPanelsStore.has(panelId);
     }
 
     // Wrapper functions for feature support checks (use local state)
