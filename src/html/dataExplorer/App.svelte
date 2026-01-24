@@ -188,8 +188,6 @@
                                 <option value="fixed">Fixed</option>
                             </select>
                         </div>
-                        <div class="stats-subheader">Quantiles</div>
-                        <table class="stats-table" id="stats-quantiles-table"></table>
                     </div>
                 </div>
                 <div class="stats-section collapsible" data-section="frequency">

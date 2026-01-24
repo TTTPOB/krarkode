@@ -261,7 +261,6 @@ let statsMessage: HTMLDivElement;
 let statsSections: HTMLDivElement;
 let statsOverviewTable: HTMLTableElement;
 let statsSummaryTable: HTMLTableElement;
-let statsQuantilesTable: HTMLTableElement;
 let histogramContainer: HTMLDivElement;
 let histogramBinsSlider: HTMLInputElement;
 let histogramBinsInput: HTMLInputElement;
@@ -400,7 +399,6 @@ export function initializeDataExplorer(): void {
     statsSections = getRequiredElement('stats-sections');
     statsOverviewTable = getRequiredElement('stats-overview-table');
     statsSummaryTable = getRequiredElement('stats-summary-table');
-    statsQuantilesTable = getRequiredElement('stats-quantiles-table');
     histogramContainer = getRequiredElement('histogram-chart');
     histogramBinsSlider = getRequiredElement('histogram-bins');
     histogramBinsInput = getRequiredElement('histogram-bins-input');
@@ -1361,7 +1359,6 @@ function clearStatsContent(options: { preserveScrollTop?: boolean } = {}): void 
     const previousScrollTop = statsResults.scrollTop;
     statsOverviewTable.innerHTML = '';
     statsSummaryTable.innerHTML = '';
-    statsQuantilesTable.innerHTML = '';
     frequencyFootnote.textContent = '';
     clearHistogram();
     clearFrequency();
@@ -1578,18 +1575,29 @@ function formatQuantileLabel(q: number): string {
     return `${percentage}%`;
 }
 
-function buildSummaryRows(summaryStats: ColumnSummaryStats | undefined): StatsRow[] {
+function buildSummaryRows(summaryStats: ColumnSummaryStats | undefined, quantiles: ColumnQuantileValue[]): StatsRow[] {
     if (!summaryStats) {
         return [];
     }
     if (summaryStats.number_stats) {
-        return [
-            { label: 'Minimum', value: formatStatValue(summaryStats.number_stats.min_value) },
-            { label: 'Maximum', value: formatStatValue(summaryStats.number_stats.max_value) },
-            { label: 'Mean', value: formatStatValue(summaryStats.number_stats.mean) },
-            { label: 'Median', value: formatStatValue(summaryStats.number_stats.median) },
-            { label: 'Std Dev', value: formatStatValue(summaryStats.number_stats.stdev) },
-        ];
+        const rows: StatsRow[] = [];
+        rows.push({ label: 'Minimum', value: formatStatValue(summaryStats.number_stats.min_value) });
+        const quantileRows = quantiles
+            .filter((quantile) => typeof quantile.q === 'number')
+            .sort((a, b) => a.q - b.q)
+            .map((quantile) => ({
+                label: formatQuantileLabel(quantile.q),
+                value: formatQuantileValue(quantile),
+            }));
+        if (quantileRows.length > 0) {
+            rows.push(...quantileRows);
+        } else if (summaryStats.number_stats.median !== undefined) {
+            rows.push({ label: 'Median', value: formatStatValue(summaryStats.number_stats.median) });
+        }
+        rows.push({ label: 'Maximum', value: formatStatValue(summaryStats.number_stats.max_value) });
+        rows.push({ label: 'Mean', value: formatStatValue(summaryStats.number_stats.mean) });
+        rows.push({ label: 'Std Dev', value: formatStatValue(summaryStats.number_stats.stdev) });
+        return rows;
     }
     if (summaryStats.string_stats) {
         return [
@@ -1910,6 +1918,7 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
     const summaryStats = combined.summary_stats;
     const histogram = combined.large_histogram ?? combined.small_histogram;
     const frequency = combined.large_frequency_table ?? combined.small_frequency_table;
+    const quantiles = histogram?.quantiles ?? [];
 
     setStatsTableRows(
         statsOverviewTable,
@@ -1920,12 +1929,7 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
         ],
         'No overview data.'
     );
-    setStatsTableRows(statsSummaryTable, buildSummaryRows(summaryStats), 'No summary statistics.');
-    const quantileRows = (histogram?.quantiles ?? []).map((quantile) => ({
-        label: formatQuantileLabel(quantile.q),
-        value: formatQuantileValue(quantile),
-    }));
-    setStatsTableRows(statsQuantilesTable, quantileRows, 'No quantile data.');
+    setStatsTableRows(statsSummaryTable, buildSummaryRows(summaryStats, quantiles), 'No summary statistics.');
 
     syncHistogramBinsFromProfile(histogram);
     renderHistogram(histogram, columnLabel);
