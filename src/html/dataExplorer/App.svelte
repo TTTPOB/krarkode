@@ -2535,7 +2535,7 @@
             {#each virtualRows as virtualRow (virtualRow.key)}
                 <div
                     class="table-row"
-                    style={`grid-template-columns: ${columnTemplate}; transform: translateY(${virtualRow.start}px);`}
+                    style={`grid-template-columns: ${columnTemplate}; width: ${totalWidth}px; transform: translateY(${virtualRow.start}px);`}
                 >
                     <div class="table-cell row-label">{getRowLabel(virtualRow.index, rowCacheVersion)}</div>
                     {#each schema as column, columnIndex}
