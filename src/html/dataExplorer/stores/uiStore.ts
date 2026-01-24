@@ -27,12 +27,14 @@ export const pinnedPanels = writable<Set<string>>(new Set());
 
 /**
  * Check if a panel is pinned.
+ * Note: Use $pinnedPanels.has(panelId) directly in Svelte components for reactivity.
  */
 export function isPanelPinned(panelId: string): boolean {
     let pinned = false;
-    pinnedPanels.subscribe((panels) => {
+    const unsubscribe = pinnedPanels.subscribe((panels) => {
         pinned = panels.has(panelId);
-    })();
+    });
+    unsubscribe();
     return pinned;
 }
 
