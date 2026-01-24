@@ -368,6 +368,7 @@
     let virtualizerTotalHeight = 0;
     let headerScrollLeft = 0;
     let lastScrollLeft = 0;
+    let tableLayoutLogSequence = 0;
 
     // TanStack Table state
     interface RowData {
@@ -385,7 +386,7 @@
     let tableTitleText = 'Data Explorer';
     let tableMetaText = '';
 
-    $: resolvedColumnWidths = schema.map((column) => columnWidths.get(column.column_index) ?? COLUMN_WIDTH);
+    $: resolvedColumnWidths = schema.map((column) => resolveColumnWidth(columnWidths.get(column.column_index)));
     $: columnTemplate = resolvedColumnWidths.length > 0
         ? `${ROW_LABEL_WIDTH}px ${resolvedColumnWidths.map((width) => `${width}px`).join(' ')}`
         : `${ROW_LABEL_WIDTH}px`;
@@ -409,6 +410,57 @@
             return fallback;
         }
         return Math.min(Math.max(Math.round(value), min), max);
+    }
+
+    function resolveColumnWidth(width: number | undefined): number {
+        if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
+            return COLUMN_WIDTH;
+        }
+        return Math.max(MIN_COLUMN_WIDTH, Math.round(width));
+    }
+
+    function logTableLayoutState(stage: string): void {
+        const rawWidths = schema.map((column) => columnWidths.get(column.column_index));
+        const invalidWidths = rawWidths.filter((value) => typeof value !== 'number' || !Number.isFinite(value) || value <= 0);
+        log('Table layout state', {
+            stage,
+            sequence: (tableLayoutLogSequence += 1),
+            schemaCount: schema.length,
+            resolvedWidthCount: resolvedColumnWidths.length,
+            widthSample: resolvedColumnWidths.slice(0, 6),
+            totalWidth,
+            columnTemplate,
+            invalidWidthCount: invalidWidths.length,
+        });
+    }
+
+    function logTableLayoutDom(stage: string): void {
+        if (!tableHeaderEl && !tableBodyEl) {
+            log('Table layout DOM skipped', { stage, reason: 'missing table elements' });
+            return;
+        }
+        const headerRow = tableHeaderEl?.querySelector<HTMLDivElement>('.header-row');
+        const bodyRow = tableBodyEl?.querySelector<HTMLDivElement>('.table-row');
+        const headerStyle = headerRow ? getComputedStyle(headerRow) : null;
+        const bodyStyle = bodyRow ? getComputedStyle(bodyRow) : null;
+        log('Table layout DOM', {
+            stage,
+            headerDisplay: headerStyle?.display,
+            headerGridTemplate: headerStyle?.gridTemplateColumns,
+            headerWidth: headerRow?.getBoundingClientRect().width,
+            bodyDisplay: bodyStyle?.display,
+            bodyGridTemplate: bodyStyle?.gridTemplateColumns,
+            bodyWidth: bodyRow?.getBoundingClientRect().width,
+            scrollWidth: tableBodyEl?.scrollWidth,
+            clientWidth: tableBodyEl?.clientWidth,
+        });
+    }
+
+    function scheduleTableLayoutDiagnostics(stage: string): void {
+        void tick().then(() => {
+            logTableLayoutState(stage);
+            logTableLayoutDom(stage);
+        });
     }
 
 
@@ -1305,6 +1357,7 @@
                 }
             }
         }
+        scheduleTableLayoutDiagnostics('schema-update');
     }
 
     function applyColumnSearch(): void {
@@ -1568,6 +1621,7 @@
         activeColumnResize = null;
         document.body.classList.remove('column-resizing');
         ignoreHeaderSortClick = true;
+        scheduleTableLayoutDiagnostics('column-resize-end');
         window.setTimeout(() => {
             ignoreHeaderSortClick = false;
         }, 0);
@@ -1809,6 +1863,7 @@
             rows: state.table_shape.num_rows,
             columns: schema.length,
         });
+        scheduleTableLayoutDiagnostics('init');
     }
 
     function openColumnMenu(event: MouseEvent, columnIndex: number): void {
@@ -2522,7 +2577,9 @@
         <div class="table-header-bar">Columns</div>
         <div
             class="table-row header-row"
-            style={`grid-template-columns: ${columnTemplate}; width: ${totalWidth}px; transform: translateX(${-headerScrollLeft}px);`}
+            style:grid-template-columns={columnTemplate}
+            style:width={`${totalWidth}px`}
+            style:transform={`translateX(${-headerScrollLeft}px)`}
         >
             <div class="table-cell row-label">{state?.has_row_labels ? '#' : 'Row'}</div>
             {#each schema as column, columnIndex}
@@ -2596,14 +2653,20 @@
         </div>
     </div>
     <div class="table-body" id="table-body" bind:this={tableBodyEl} on:scroll={handleTableScroll}>
-        <div class="table-body-inner" bind:this={bodyInnerEl} style={`height: ${virtualizerTotalHeight}px; width: ${totalWidth}px;`}
-            >
+        <div
+            class="table-body-inner"
+            bind:this={bodyInnerEl}
+            style:height={`${virtualizerTotalHeight}px`}
+            style:width={`${totalWidth}px`}
+        >
             {#each virtualRows as virtualRow (virtualRow.key)}
                 {@const row = rowModel?.rows[virtualRow.index]}
                 {#if row}
                     <div
                         class="table-row"
-                        style={`grid-template-columns: ${columnTemplate}; width: ${totalWidth}px; transform: translateY(${virtualRow.start}px);`}
+                        style:grid-template-columns={columnTemplate}
+                        style:width={`${totalWidth}px`}
+                        style:transform={`translateY(${virtualRow.start}px)`}
                     >
                         <div class="table-cell row-label">{getRowLabel(row.original.index, rowCacheVersion)}</div>
                         {#each schema as column, columnIndex}
@@ -2614,7 +2677,9 @@
                 {:else}
                     <div
                         class="table-row"
-                        style={`grid-template-columns: ${columnTemplate}; width: ${totalWidth}px; transform: translateY(${virtualRow.start}px);`}
+                        style:grid-template-columns={columnTemplate}
+                        style:width={`${totalWidth}px`}
+                        style:transform={`translateY(${virtualRow.start}px)`}
                     >
                         <div class="table-cell row-label">{getRowLabel(virtualRow.index, rowCacheVersion)}</div>
                         {#each schema as column, columnIndex}
