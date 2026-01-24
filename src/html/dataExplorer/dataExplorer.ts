@@ -254,6 +254,7 @@ const rowFilterSearchSection = document.getElementById('row-filter-search-sectio
 const rowFilterSetSection = document.getElementById('row-filter-set-section') as HTMLDivElement;
 const rowFilterConditionSection = document.getElementById('row-filter-condition-section') as HTMLDivElement;
 const sidePanelResizers = document.querySelectorAll<HTMLDivElement>('.panel-resizer');
+const panelPins = document.querySelectorAll<HTMLButtonElement>('.panel-pin');
 const statsColumnSelect = document.getElementById('stats-column') as HTMLSelectElement;
 const statsResults = document.getElementById('stats-results') as HTMLDivElement;
 const statsMessage = document.getElementById('stats-message') as HTMLDivElement;
@@ -297,6 +298,7 @@ const loadedBlocks = new Set<number>();
 const loadingBlocks = new Set<number>();
 const hiddenColumnIndices = new Set<number>();
 const columnWidths = new Map<number, number>();
+const pinnedPanels = new Set<string>();
 
 let state: BackendState | undefined;
 let schema: ColumnSchema[] = [];
@@ -333,6 +335,25 @@ function log(message: string, payload?: unknown): void {
     } else {
         console.log(`[dataExplorer] ${message}`);
     }
+}
+
+function setPanelPinned(panelId: string, pinned: boolean): void {
+    if (pinned) {
+        pinnedPanels.add(panelId);
+    } else {
+        pinnedPanels.delete(panelId);
+    }
+    const panel = document.getElementById(panelId);
+    panel?.classList.toggle('is-pinned', pinned);
+    const pinButton = document.querySelector<HTMLButtonElement>(`.panel-pin[data-panel-id="${panelId}"]`);
+    if (pinButton) {
+        pinButton.setAttribute('aria-pressed', String(pinned));
+    }
+    log('Panel pin updated', { panelId, pinned });
+}
+
+function isPanelPinned(panel: HTMLDivElement): boolean {
+    return pinnedPanels.has(panel.id);
 }
 
 function getColumnLabel(column: ColumnSchema): string {
@@ -435,19 +456,34 @@ codeButton.addEventListener('click', () => {
 });
 
 document.getElementById('close-column-visibility')?.addEventListener('click', () => {
+    setPanelPinned('column-visibility-panel', false);
     columnVisibilityPanel.classList.remove('open');
 });
 
 document.getElementById('close-row-filter')?.addEventListener('click', () => {
+    setPanelPinned('row-filter-panel', false);
     rowFilterPanel.classList.remove('open');
 });
 
 document.getElementById('close-stats')?.addEventListener('click', () => {
+    setPanelPinned('stats-panel', false);
     statsPanel.classList.remove('open');
 });
 
 document.getElementById('close-code')?.addEventListener('click', () => {
     codeModal.classList.remove('open');
+});
+
+panelPins.forEach((button) => {
+    button.addEventListener('click', (event) => {
+        const panelId = button.dataset.panelId;
+        if (!panelId) {
+            return;
+        }
+        event.stopPropagation();
+        const nextPinned = !pinnedPanels.has(panelId);
+        setPanelPinned(panelId, nextPinned);
+    });
 });
 
 document.getElementById('cancel-row-filter')?.addEventListener('click', () => {
@@ -576,12 +612,14 @@ document.addEventListener('click', (event) => {
     const target = event.target as Node;
     if (statsPanel.classList.contains('open')
         && !statsPanel.contains(target)
-        && !statsButton.contains(target)) {
+        && !statsButton.contains(target)
+        && !isPanelPinned(statsPanel)) {
         statsPanel.classList.remove('open');
     }
     if (columnVisibilityPanel.classList.contains('open')
         && !columnVisibilityPanel.contains(target)
-        && !columnsButton.contains(target)) {
+        && !columnsButton.contains(target)
+        && !isPanelPinned(columnVisibilityPanel)) {
         columnVisibilityPanel.classList.remove('open');
     }
     if (codeModal.classList.contains('open')
@@ -591,7 +629,8 @@ document.addEventListener('click', (event) => {
     }
     if (rowFilterPanel.classList.contains('open')
         && !rowFilterPanel.contains(target)
-        && !addRowFilterButton.contains(target)) {
+        && !addRowFilterButton.contains(target)
+        && !isPanelPinned(rowFilterPanel)) {
         rowFilterPanel.classList.remove('open');
     }
 });

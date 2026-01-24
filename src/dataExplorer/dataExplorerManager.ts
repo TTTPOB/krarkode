@@ -733,7 +733,12 @@ class DataExplorerPanel implements vscode.Disposable {
                     <div class="panel-resizer"></div>
                     <div class="panel-header">
                         <span>Column Visibility</span>
-                        <button class="close-btn" id="close-column-visibility">&times;</button>
+                        <div class="panel-actions">
+                            <button class="panel-pin" data-panel-id="column-visibility-panel" aria-pressed="false" title="Pin panel">
+                                <span class="codicon codicon-pin"></span>
+                            </button>
+                            <button class="close-btn" id="close-column-visibility">&times;</button>
+                        </div>
                     </div>
                     <div class="panel-content">
                         <div class="filter-section">
@@ -753,7 +758,12 @@ class DataExplorerPanel implements vscode.Disposable {
                     <div class="panel-resizer"></div>
                     <div class="panel-header">
                         <span>Row Filter</span>
-                        <button class="close-btn" id="close-row-filter">&times;</button>
+                        <div class="panel-actions">
+                            <button class="panel-pin" data-panel-id="row-filter-panel" aria-pressed="false" title="Pin panel">
+                                <span class="codicon codicon-pin"></span>
+                            </button>
+                            <button class="close-btn" id="close-row-filter">&times;</button>
+                        </div>
                     </div>
                     <div class="panel-content">
                         <div class="filter-section">
@@ -824,7 +834,12 @@ class DataExplorerPanel implements vscode.Disposable {
                     <div class="panel-resizer" id="stats-panel-resizer"></div>
                     <div class="panel-header">
                         <span>Column Statistics</span>
-                        <button class="close-btn" id="close-stats">&times;</button>
+                        <div class="panel-actions">
+                            <button class="panel-pin" data-panel-id="stats-panel" aria-pressed="false" title="Pin panel">
+                                <span class="codicon codicon-pin"></span>
+                            </button>
+                            <button class="close-btn" id="close-stats">&times;</button>
+                        </div>
                     </div>
                     <div class="panel-content">
                         <div class="stats-section">

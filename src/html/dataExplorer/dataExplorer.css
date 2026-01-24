@@ -208,6 +208,33 @@ body {
     font-weight: 600;
 }
 
+.panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.panel-pin {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--vscode-descriptionForeground);
+    padding: 0;
+    line-height: 1;
+}
+
+.panel-pin:hover {
+    color: var(--vscode-editor-foreground);
+}
+
+.panel-pin[aria-pressed="true"] {
+    color: var(--vscode-button-background);
+}
+
+.panel-pin .codicon {
+    font-size: 14px;
+}
+
 .panel-resizer {
     position: absolute;
     left: -4px;
