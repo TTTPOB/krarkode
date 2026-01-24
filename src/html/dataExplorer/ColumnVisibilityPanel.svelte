@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
+    import { createEventDispatcher, onDestroy } from 'svelte';
     import type { ColumnSchema } from './types';
 
     export let open = false;
@@ -53,6 +53,12 @@
     $: if (open && searchInput) {
         searchInput.focus();
     }
+
+    onDestroy(() => {
+        if (debounceId !== undefined) {
+            window.clearTimeout(debounceId);
+        }
+    });
 </script>
 
 <div

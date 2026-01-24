@@ -1540,6 +1540,12 @@
 
     onDestroy(() => {
         document.removeEventListener('click', handleDocumentClick);
+        if (statsRefreshDebounceId !== undefined) {
+            window.clearTimeout(statsRefreshDebounceId);
+        }
+        if (columnVisibilityDebounceId !== undefined) {
+            window.clearTimeout(columnVisibilityDebounceId);
+        }
         rowVirtualizerCleanup?.();
         histogramChart?.dispose();
         frequencyChart?.dispose();
