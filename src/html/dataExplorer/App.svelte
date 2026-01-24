@@ -33,6 +33,11 @@
         columnMenuColumnIndex as columnMenuColumnIndexStore,
         closeColumnMenu as storeCloseColumnMenu,
         openColumnMenu as storeOpenColumnMenu,
+        // Panel visibility stores
+        columnVisibilityOpen as columnVisibilityOpenStore,
+        rowFilterPanelOpen as rowFilterPanelOpenStore,
+        statsPanelOpen as statsPanelOpenStore,
+        codeModalOpen as codeModalOpenStore,
     } from './stores';
     import {
         type BackendState,
@@ -123,10 +128,7 @@
     let columnFilterSupport: SearchSchemaFeatures | undefined;
     let setColumnFilterSupport: SetColumnFiltersFeatures | undefined;
 
-    let columnVisibilityOpen = false;
-    let rowFilterPanelOpen = false;
-    let statsPanelOpen = false;
-    let codeModalOpen = false;
+    // Panel visibility now comes from stores via $columnVisibilityOpenStore, $rowFilterPanelOpenStore, etc.
     // columnMenuOpen, columnMenuPosition, columnMenuColumnIndex now come from stores
     // pinnedPanels now comes from store via $pinnedPanelsStore
 
@@ -327,10 +329,10 @@
         editingRowFilterIndex = index ?? null;
         rowFilterDraft = createRowFilterDraft(schema, filter, columnIndex, getSupportedRowFilterTypes(rowFilterSupport));
         rowFilterError = '';
-        rowFilterPanelOpen = true;
-        columnVisibilityOpen = false;
-        statsPanelOpen = false;
-        codeModalOpen = false;
+        $rowFilterPanelOpenStore = true;
+        $columnVisibilityOpenStore = false;
+        $statsPanelOpenStore = false;
+        $codeModalOpenStore = false;
         closeColumnMenu();
         log('Row filter editor opened', { filter, index });
     }
@@ -387,7 +389,7 @@
             nextFilters.push(filter);
         }
         rowFilters = nextFilters;
-        rowFilterPanelOpen = false;
+        $rowFilterPanelOpenStore = false;
         rowFilterError = '';
         vscode.postMessage({ type: 'setRowFilters', filters: rowFilters });
         log('Row filters saved', { count: rowFilters.length, filter });
@@ -781,7 +783,7 @@
         refreshVirtualRows();
         requestInitialBlock();
         requestVisibleBlocks();
-        if (statsPanelOpen) {
+        if ($statsPanelOpenStore) {
             if (activeStatsColumnIndex !== null) {
                 const stillExists = schema.some((column) => column.column_index === activeStatsColumnIndex);
                 if (!stillExists) {
@@ -910,16 +912,16 @@
 
     function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
         const { columnIndex, toggle = false } = options;
-        const shouldOpen = toggle ? !statsPanelOpen : true;
-        columnVisibilityOpen = false;
-        codeModalOpen = false;
-        rowFilterPanelOpen = false;
+        const shouldOpen = toggle ? !$statsPanelOpenStore : true;
+        $columnVisibilityOpenStore = false;
+        $codeModalOpenStore = false;
+        $rowFilterPanelOpenStore = false;
         if (!shouldOpen) {
-            statsPanelOpen = false;
+            $statsPanelOpenStore = false;
             return;
         }
 
-        statsPanelOpen = true;
+        $statsPanelOpenStore = true;
         if (columnIndex !== undefined) {
             statsColumnValue = String(columnIndex);
         }
@@ -939,11 +941,11 @@
     }
 
     function openColumnVisibilityPanel(): void {
-        columnVisibilityOpen = !columnVisibilityOpen;
-        statsPanelOpen = false;
-        codeModalOpen = false;
-        rowFilterPanelOpen = false;
-        if (columnVisibilityOpen) {
+        $columnVisibilityOpenStore = !$columnVisibilityOpenStore;
+        $statsPanelOpenStore = false;
+        $codeModalOpenStore = false;
+        $rowFilterPanelOpenStore = false;
+        if ($columnVisibilityOpenStore) {
             void tick().then(() => {
                 columnVisibilitySearchInput?.focus();
             });
@@ -951,14 +953,14 @@
     }
 
     function openCodeModal(): void {
-        const shouldOpen = !codeModalOpen;
+        const shouldOpen = !$codeModalOpenStore;
         if (shouldOpen) {
             vscode.postMessage({ type: 'suggestCodeSyntax' });
         }
-        codeModalOpen = shouldOpen;
-        columnVisibilityOpen = false;
-        statsPanelOpen = false;
-        rowFilterPanelOpen = false;
+        $codeModalOpenStore = shouldOpen;
+        $columnVisibilityOpenStore = false;
+        $statsPanelOpenStore = false;
+        $rowFilterPanelOpenStore = false;
     }
 
     function resolveSortState(sortKeys?: ColumnSortKey[]): SortState | null {
@@ -1443,36 +1445,36 @@
         if ($columnMenuOpenStore && columnMenuEl && !columnMenuEl.contains(target)) {
             closeColumnMenu();
         }
-        if (statsPanelOpen
+        if ($statsPanelOpenStore
             && statsPanelEl
             && !statsPanelEl.contains(target)
             && statsButtonEl
             && !statsButtonEl.contains(target)
             && !isPanelPinned('stats-panel')) {
-            statsPanelOpen = false;
+            $statsPanelOpenStore = false;
         }
-        if (columnVisibilityOpen
+        if ($columnVisibilityOpenStore
             && columnVisibilityPanelEl
             && !columnVisibilityPanelEl.contains(target)
             && columnsButtonEl
             && !columnsButtonEl.contains(target)
             && !isPanelPinned('column-visibility-panel')) {
-            columnVisibilityOpen = false;
+            $columnVisibilityOpenStore = false;
         }
-        if (codeModalOpen
+        if ($codeModalOpenStore
             && codeModalEl
             && !codeModalEl.contains(target)
             && codeButtonEl
             && !codeButtonEl.contains(target)) {
-            codeModalOpen = false;
+            $codeModalOpenStore = false;
         }
-        if (rowFilterPanelOpen
+        if ($rowFilterPanelOpenStore
             && rowFilterPanelEl
             && !rowFilterPanelEl.contains(target)
             && addRowFilterButtonEl
             && !addRowFilterButtonEl.contains(target)
             && !isPanelPinned('row-filter-panel')) {
-            rowFilterPanelOpen = false;
+            $rowFilterPanelOpenStore = false;
         }
     }
 
@@ -1576,7 +1578,7 @@
 />
 
 <ColumnVisibilityPanel
-    open={columnVisibilityOpen}
+    open={$columnVisibilityOpenStore}
     pinned={isPanelPinned('column-visibility-panel')}
     displayedColumns={columnVisibilityDisplayedColumns}
     hiddenColumnIndices={hiddenColumnIndices}
@@ -1585,7 +1587,7 @@
     bind:panelEl={columnVisibilityPanelEl}
     on:close={() => {
         setPanelPinned('column-visibility-panel', false);
-        columnVisibilityOpen = false;
+        $columnVisibilityOpenStore = false;
     }}
     on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
     on:search={(e) => {
@@ -1602,7 +1604,7 @@
 />
 
 <RowFilterPanel
-    open={rowFilterPanelOpen}
+    open={$rowFilterPanelOpenStore}
     pinned={isPanelPinned('row-filter-panel')}
     schema={schema}
     bind:draft={rowFilterDraft}
@@ -1611,16 +1613,16 @@
     bind:panelEl={rowFilterPanelEl}
     on:close={() => {
         setPanelPinned('row-filter-panel', false);
-        rowFilterPanelOpen = false;
+        $rowFilterPanelOpenStore = false;
     }}
     on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
     on:save={(e) => saveRowFilter()}
-    on:cancel={() => { rowFilterPanelOpen = false; }}
+    on:cancel={() => { $rowFilterPanelOpenStore = false; }}
     on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
 />
 
 <StatsPanel
-    isOpen={statsPanelOpen}
+    isOpen={$statsPanelOpenStore}
     isPinned={isPanelPinned('stats-panel')}
     schema={schema}
     getColumnLabel={getColumnLabel}
@@ -1646,7 +1648,7 @@
     bind:frequencyContainer
     on:close={() => {
         setPanelPinned('stats-panel', false);
-        statsPanelOpen = false;
+        $statsPanelOpenStore = false;
     }}
     on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
     on:columnChange={handleStatsColumnChange}
@@ -1664,11 +1666,11 @@
 />
 
 <CodeModal
-    open={codeModalOpen}
+    open={$codeModalOpenStore}
     bind:codePreview
     bind:codeSyntax
     bind:codeModalEl
-    on:close={() => { codeModalOpen = false; }}
+    on:close={() => { $codeModalOpenStore = false; }}
     on:convert={(e) => handleCodeConvert()}
     on:copy={() => {}}
 />
