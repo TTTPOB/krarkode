@@ -4,8 +4,7 @@
 
     export let open = false;
     export let pinned = false;
-    export let fullSchema: ColumnSchema[] = [];
-    export let columnFilterMatches: Array<number | string | Record<string, unknown>> | null = null;
+    export let displayedColumns: ColumnSchema[] = [];
     export let hiddenColumnIndices: Set<number> = new Set();
     export let searchTerm = '';
     export let status = '';
@@ -32,91 +31,8 @@
         return trimmed || `Unnamed ${column.column_index + 1}`;
     }
 
-    function resolveSchemaMatches(matches: Array<number | string | Record<string, unknown>>): ColumnSchema[] {
-        if (!fullSchema.length || matches.length === 0) {
-            return [];
-        }
-        const lookup = new Map(fullSchema.map((column) => [column.column_index, column]));
-        const resolved: ColumnSchema[] = [];
-        const seen = new Set<number>();
-        const numericMatches: number[] = [];
-        const nameMatches: string[] = [];
-
-        const resolveIndex = (match: number | string | Record<string, unknown>): number | null => {
-            if (typeof match === 'number' && Number.isFinite(match)) {
-                return match;
-            }
-            if (typeof match === 'string') {
-                const numeric = Number(match);
-                if (Number.isFinite(numeric)) {
-                    return numeric;
-                }
-                nameMatches.push(match);
-                return null;
-            }
-            if (match && typeof match === 'object') {
-                const record = match as Record<string, unknown>;
-                const candidate = record.column_index ?? record.columnIndex ?? record.index;
-                if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-                    return candidate;
-                }
-                if (typeof candidate === 'string') {
-                    const numeric = Number(candidate);
-                    if (Number.isFinite(numeric)) {
-                        return numeric;
-                    }
-                }
-                const name = record.column_name ?? record.column_label;
-                if (typeof name === 'string') {
-                    nameMatches.push(name);
-                }
-            }
-            return null;
-        };
-
-        for (const match of matches) {
-            const matchIndex = resolveIndex(match);
-            if (matchIndex === null) {
-                continue;
-            }
-            numericMatches.push(matchIndex);
-        }
-
-        for (const matchIndex of numericMatches) {
-            const column = lookup.get(matchIndex) ?? fullSchema[matchIndex];
-            if (!column || seen.has(column.column_index)) {
-                continue;
-            }
-            resolved.push(column);
-            seen.add(column.column_index);
-        }
-
-        if (resolved.length > 0) {
-            return resolved;
-        }
-
-        if (nameMatches.length === 0) {
-            return [];
-        }
-
-        const normalizedNames = new Set(nameMatches.map((name) => name.trim().toLowerCase()).filter(Boolean));
-        return fullSchema.filter((column) => {
-            const columnName = column.column_name?.toLowerCase();
-            const columnLabel = column.column_label?.toLowerCase();
-            return (columnName && normalizedNames.has(columnName))
-                || (columnLabel && normalizedNames.has(columnLabel));
-        });
-    }
-
     function resolveVisibleSchema(): ColumnSchema[] {
-        const baseSchema = columnFilterMatches
-            ? resolveSchemaMatches(columnFilterMatches)
-            : fullSchema;
-        return baseSchema.filter((column) => !hiddenColumnIndices.has(column.column_index));
-    }
-
-    function getDisplayedColumns(): ColumnSchema[] {
-        return columnFilterMatches ? resolveSchemaMatches(columnFilterMatches) : fullSchema;
+        return displayedColumns.filter((column) => !hiddenColumnIndices.has(column.column_index));
     }
 
     function scheduleSearch(): void {
@@ -192,10 +108,10 @@
         </div>
         <div class="filter-status" id="column-visibility-status">{status}</div>
         <div class="column-visibility-list" id="column-visibility-list">
-            {#if getDisplayedColumns().length === 0}
+            {#if displayedColumns.length === 0}
                 <div class="column-visibility-empty">No columns available.</div>
             {:else}
-                {#each getDisplayedColumns() as column}
+                {#each displayedColumns as column}
                     <div class="column-visibility-item">
                         <div class="column-visibility-details">
                             <div class="column-visibility-name" title={getColumnLabel(column)}>{getColumnLabel(column)}</div>

@@ -320,6 +320,7 @@
 
     let columnVisibilitySearchTerm = '';
     let columnVisibilityStatus = '';
+    let columnVisibilityDisplayedColumns: ColumnSchema[] = [];
 
     let rowFilterError = '';
     let rowFilterDraft: RowFilterDraft = createRowFilterDraft();
@@ -400,6 +401,7 @@
     $: rowFilterSupported = isRowFilterSupported();
     $: sortSupported = isSortSupported();
     $: tableTitleText = state?.display_name || 'Data Explorer';
+    $: columnVisibilityDisplayedColumns = resolveColumnVisibilityColumns();
     $: tableMetaText = buildTableMetaText();
 
     function log(message: string, payload?: unknown): void {
@@ -1386,6 +1388,29 @@
         });
     }
 
+    function resolveColumnVisibilityColumns(): ColumnSchema[] {
+        if (!fullSchema.length) {
+            return [];
+        }
+        if (!columnFilterMatches || columnFilterMatches.length === 0) {
+            return fullSchema;
+        }
+        const resolvedMatches = resolveSchemaMatches(columnFilterMatches);
+        if (resolvedMatches.length > 0) {
+            return resolvedMatches;
+        }
+        const searchTerm = columnVisibilitySearchTerm.trim().toLowerCase();
+        if (!searchTerm) {
+            return fullSchema;
+        }
+        return fullSchema.filter((column) => {
+            const columnName = column.column_name?.toLowerCase();
+            const columnLabel = column.column_label?.toLowerCase();
+            return (columnName && columnName.includes(searchTerm))
+                || (columnLabel && columnLabel.includes(searchTerm));
+        });
+    }
+
     function resolveVisibleSchema(): ColumnSchema[] {
         const baseSchema = columnFilterMatches && !isSetColumnFiltersSupported()
             ? resolveSchemaMatches(columnFilterMatches)
@@ -2240,8 +2265,7 @@
 <ColumnVisibilityPanel
     open={columnVisibilityOpen}
     pinned={isPanelPinned('column-visibility-panel')}
-    fullSchema={fullSchema}
-    columnFilterMatches={columnFilterMatches}
+    displayedColumns={columnVisibilityDisplayedColumns}
     hiddenColumnIndices={hiddenColumnIndices}
     bind:searchTerm={columnVisibilitySearchTerm}
     status={columnVisibilityStatus}
