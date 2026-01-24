@@ -213,66 +213,67 @@ declare const acquireVsCodeApi: () => {
 
 const vscode = acquireVsCodeApi();
 
-const tableTitle = document.getElementById('table-title') as HTMLDivElement;
-const tableMeta = document.getElementById('table-meta') as HTMLDivElement;
-const refreshButton = document.getElementById('refresh-btn') as HTMLButtonElement;
-const columnsButton = document.getElementById('columns-btn') as HTMLButtonElement;
-const statsButton = document.getElementById('stats-btn') as HTMLButtonElement;
-const codeButton = document.getElementById('code-btn') as HTMLButtonElement;
-const rowFilterBar = document.getElementById('row-filter-bar') as HTMLDivElement;
-const rowFilterChips = document.getElementById('row-filter-chips') as HTMLDivElement;
-const addRowFilterButton = document.getElementById('add-row-filter') as HTMLButtonElement;
-const columnVisibilityPanel = document.getElementById('column-visibility-panel') as HTMLDivElement;
-const statsPanel = document.getElementById('stats-panel') as HTMLDivElement;
-const codeModal = document.getElementById('code-modal') as HTMLDivElement;
-const columnMenu = document.getElementById('column-menu') as HTMLDivElement;
-const columnMenuAddFilter = document.getElementById('column-menu-add-filter') as HTMLButtonElement;
-const columnMenuHideColumn = document.getElementById('column-menu-hide-column') as HTMLButtonElement;
-const columnVisibilityList = document.getElementById('column-visibility-list') as HTMLDivElement;
-const columnVisibilitySearch = document.getElementById('column-visibility-search') as HTMLInputElement;
-const columnVisibilityApply = document.getElementById('apply-column-visibility-filter') as HTMLButtonElement;
-const columnVisibilityClear = document.getElementById('clear-column-visibility-filter') as HTMLButtonElement;
-const columnVisibilityInvert = document.getElementById('invert-column-visibility') as HTMLButtonElement;
-const columnVisibilityStatus = document.getElementById('column-visibility-status') as HTMLDivElement;
-const rowFilterPanel = document.getElementById('row-filter-panel') as HTMLDivElement;
-const rowFilterColumn = document.getElementById('row-filter-column') as HTMLSelectElement;
-const rowFilterType = document.getElementById('row-filter-type') as HTMLSelectElement;
-const rowFilterCompareOp = document.getElementById('row-filter-compare-op') as HTMLSelectElement;
-const rowFilterCompareValue = document.getElementById('row-filter-compare-value') as HTMLInputElement;
-const rowFilterBetweenLeft = document.getElementById('row-filter-between-left') as HTMLInputElement;
-const rowFilterBetweenRight = document.getElementById('row-filter-between-right') as HTMLInputElement;
-const rowFilterSearchType = document.getElementById('row-filter-search-type') as HTMLSelectElement;
-const rowFilterSearchTerm = document.getElementById('row-filter-search-term') as HTMLInputElement;
-const rowFilterSearchCase = document.getElementById('row-filter-search-case') as HTMLInputElement;
-const rowFilterSetValues = document.getElementById('row-filter-set-values') as HTMLInputElement;
-const rowFilterSetInclusive = document.getElementById('row-filter-set-inclusive') as HTMLInputElement;
-const rowFilterCondition = document.getElementById('row-filter-condition') as HTMLSelectElement;
-const rowFilterError = document.getElementById('row-filter-error') as HTMLDivElement;
-const rowFilterCompareSection = document.getElementById('row-filter-compare-section') as HTMLDivElement;
-const rowFilterBetweenSection = document.getElementById('row-filter-between-section') as HTMLDivElement;
-const rowFilterSearchSection = document.getElementById('row-filter-search-section') as HTMLDivElement;
-const rowFilterSetSection = document.getElementById('row-filter-set-section') as HTMLDivElement;
-const rowFilterConditionSection = document.getElementById('row-filter-condition-section') as HTMLDivElement;
-const sidePanelResizers = document.querySelectorAll<HTMLDivElement>('.panel-resizer');
-const panelPins = document.querySelectorAll<HTMLButtonElement>('.panel-pin');
-const statsColumnSelect = document.getElementById('stats-column') as HTMLSelectElement;
-const statsResults = document.getElementById('stats-results') as HTMLDivElement;
-const statsMessage = document.getElementById('stats-message') as HTMLDivElement;
-const statsSections = document.getElementById('stats-sections') as HTMLDivElement;
-const statsOverviewTable = document.getElementById('stats-overview-table') as HTMLTableElement;
-const statsSummaryTable = document.getElementById('stats-summary-table') as HTMLTableElement;
-const statsQuantilesTable = document.getElementById('stats-quantiles-table') as HTMLTableElement;
-const histogramContainer = document.getElementById('histogram-chart') as HTMLDivElement;
-const histogramBinsSlider = document.getElementById('histogram-bins') as HTMLInputElement;
-const histogramBinsInput = document.getElementById('histogram-bins-input') as HTMLInputElement;
-const histogramMethodSelect = document.getElementById('histogram-method') as HTMLSelectElement;
-const frequencyContainer = document.getElementById('frequency-chart') as HTMLDivElement;
-const frequencyLimitSlider = document.getElementById('frequency-limit') as HTMLInputElement;
-const frequencyLimitInput = document.getElementById('frequency-limit-input') as HTMLInputElement;
-const frequencyFootnote = document.getElementById('frequency-footnote') as HTMLDivElement;
-const codePreview = document.getElementById('code-preview') as HTMLPreElement;
-const tableHeader = document.getElementById('table-header') as HTMLDivElement;
-const tableBody = document.getElementById('table-body') as HTMLDivElement;
+let tableTitle: HTMLDivElement;
+let tableMeta: HTMLDivElement;
+let refreshButton: HTMLButtonElement;
+let columnsButton: HTMLButtonElement;
+let statsButton: HTMLButtonElement;
+let codeButton: HTMLButtonElement;
+let rowFilterBar: HTMLDivElement;
+let rowFilterChips: HTMLDivElement;
+let addRowFilterButton: HTMLButtonElement;
+let columnVisibilityPanel: HTMLDivElement;
+let statsPanel: HTMLDivElement;
+let codeModal: HTMLDivElement;
+let columnMenu: HTMLDivElement;
+let columnMenuAddFilter: HTMLButtonElement;
+let columnMenuHideColumn: HTMLButtonElement;
+let columnVisibilityList: HTMLDivElement;
+let columnVisibilitySearch: HTMLInputElement;
+let columnVisibilityApply: HTMLButtonElement;
+let columnVisibilityClear: HTMLButtonElement;
+let columnVisibilityInvert: HTMLButtonElement;
+let columnVisibilityStatus: HTMLDivElement;
+let rowFilterPanel: HTMLDivElement;
+let rowFilterColumn: HTMLSelectElement;
+let rowFilterType: HTMLSelectElement;
+let rowFilterCompareOp: HTMLSelectElement;
+let rowFilterCompareValue: HTMLInputElement;
+let rowFilterBetweenLeft: HTMLInputElement;
+let rowFilterBetweenRight: HTMLInputElement;
+let rowFilterSearchType: HTMLSelectElement;
+let rowFilterSearchTerm: HTMLInputElement;
+let rowFilterSearchCase: HTMLInputElement;
+let rowFilterSetValues: HTMLInputElement;
+let rowFilterSetInclusive: HTMLInputElement;
+let rowFilterCondition: HTMLSelectElement;
+let rowFilterError: HTMLDivElement;
+let rowFilterCompareSection: HTMLDivElement;
+let rowFilterBetweenSection: HTMLDivElement;
+let rowFilterSearchSection: HTMLDivElement;
+let rowFilterSetSection: HTMLDivElement;
+let rowFilterConditionSection: HTMLDivElement;
+let sidePanelResizers: NodeListOf<HTMLDivElement>;
+let panelPins: NodeListOf<HTMLButtonElement>;
+let statsColumnSelect: HTMLSelectElement;
+let statsResults: HTMLDivElement;
+let statsMessage: HTMLDivElement;
+let statsSections: HTMLDivElement;
+let statsOverviewTable: HTMLTableElement;
+let statsSummaryTable: HTMLTableElement;
+let statsQuantilesTable: HTMLTableElement;
+let histogramContainer: HTMLDivElement;
+let histogramBinsSlider: HTMLInputElement;
+let histogramBinsInput: HTMLInputElement;
+let histogramMethodSelect: HTMLSelectElement;
+let frequencyContainer: HTMLDivElement;
+let frequencyLimitSlider: HTMLInputElement;
+let frequencyLimitInput: HTMLInputElement;
+let frequencyFootnote: HTMLDivElement;
+let codePreview: HTMLPreElement;
+let tableHeader: HTMLDivElement;
+let tableBody: HTMLDivElement;
+let hasInitialized = false;
 
 const ROW_HEIGHT = 26;
 const ROW_BLOCK_SIZE = 200;
@@ -337,6 +338,389 @@ function log(message: string, payload?: unknown): void {
     }
 }
 
+function getRequiredElement<T extends HTMLElement>(id: string): T {
+    const element = document.getElementById(id);
+    if (!element) {
+        throw new Error(`[dataExplorer] Missing required element: ${id}`);
+    }
+    return element as T;
+}
+
+export function initializeDataExplorer(): void {
+    if (hasInitialized) {
+        log('Data explorer already initialized.');
+        return;
+    }
+    hasInitialized = true;
+
+    tableTitle = getRequiredElement('table-title');
+    tableMeta = getRequiredElement('table-meta');
+    refreshButton = getRequiredElement('refresh-btn');
+    columnsButton = getRequiredElement('columns-btn');
+    statsButton = getRequiredElement('stats-btn');
+    codeButton = getRequiredElement('code-btn');
+    rowFilterBar = getRequiredElement('row-filter-bar');
+    rowFilterChips = getRequiredElement('row-filter-chips');
+    addRowFilterButton = getRequiredElement('add-row-filter');
+    columnVisibilityPanel = getRequiredElement('column-visibility-panel');
+    statsPanel = getRequiredElement('stats-panel');
+    codeModal = getRequiredElement('code-modal');
+    columnMenu = getRequiredElement('column-menu');
+    columnMenuAddFilter = getRequiredElement('column-menu-add-filter');
+    columnMenuHideColumn = getRequiredElement('column-menu-hide-column');
+    columnVisibilityList = getRequiredElement('column-visibility-list');
+    columnVisibilitySearch = getRequiredElement('column-visibility-search');
+    columnVisibilityApply = getRequiredElement('apply-column-visibility-filter');
+    columnVisibilityClear = getRequiredElement('clear-column-visibility-filter');
+    columnVisibilityInvert = getRequiredElement('invert-column-visibility');
+    columnVisibilityStatus = getRequiredElement('column-visibility-status');
+    rowFilterPanel = getRequiredElement('row-filter-panel');
+    rowFilterColumn = getRequiredElement('row-filter-column');
+    rowFilterType = getRequiredElement('row-filter-type');
+    rowFilterCompareOp = getRequiredElement('row-filter-compare-op');
+    rowFilterCompareValue = getRequiredElement('row-filter-compare-value');
+    rowFilterBetweenLeft = getRequiredElement('row-filter-between-left');
+    rowFilterBetweenRight = getRequiredElement('row-filter-between-right');
+    rowFilterSearchType = getRequiredElement('row-filter-search-type');
+    rowFilterSearchTerm = getRequiredElement('row-filter-search-term');
+    rowFilterSearchCase = getRequiredElement('row-filter-search-case');
+    rowFilterSetValues = getRequiredElement('row-filter-set-values');
+    rowFilterSetInclusive = getRequiredElement('row-filter-set-inclusive');
+    rowFilterCondition = getRequiredElement('row-filter-condition');
+    rowFilterError = getRequiredElement('row-filter-error');
+    rowFilterCompareSection = getRequiredElement('row-filter-compare-section');
+    rowFilterBetweenSection = getRequiredElement('row-filter-between-section');
+    rowFilterSearchSection = getRequiredElement('row-filter-search-section');
+    rowFilterSetSection = getRequiredElement('row-filter-set-section');
+    rowFilterConditionSection = getRequiredElement('row-filter-condition-section');
+    statsColumnSelect = getRequiredElement('stats-column');
+    statsResults = getRequiredElement('stats-results');
+    statsMessage = getRequiredElement('stats-message');
+    statsSections = getRequiredElement('stats-sections');
+    statsOverviewTable = getRequiredElement('stats-overview-table');
+    statsSummaryTable = getRequiredElement('stats-summary-table');
+    statsQuantilesTable = getRequiredElement('stats-quantiles-table');
+    histogramContainer = getRequiredElement('histogram-chart');
+    histogramBinsSlider = getRequiredElement('histogram-bins');
+    histogramBinsInput = getRequiredElement('histogram-bins-input');
+    histogramMethodSelect = getRequiredElement('histogram-method');
+    frequencyContainer = getRequiredElement('frequency-chart');
+    frequencyLimitSlider = getRequiredElement('frequency-limit');
+    frequencyLimitInput = getRequiredElement('frequency-limit-input');
+    frequencyFootnote = getRequiredElement('frequency-footnote');
+    codePreview = getRequiredElement('code-preview');
+    tableHeader = getRequiredElement('table-header');
+    tableBody = getRequiredElement('table-body');
+    sidePanelResizers = document.querySelectorAll<HTMLDivElement>('.panel-resizer');
+    panelPins = document.querySelectorAll<HTMLButtonElement>('.panel-pin');
+
+    bindEventHandlers();
+    initializeStatsDefaults();
+    setStatsMessage('Select a column to view statistics.', 'empty');
+    clearStatsContent();
+    vscode.postMessage({ type: 'ready' });
+    log('Data explorer initialized.');
+}
+
+function bindEventHandlers(): void {
+    refreshButton.addEventListener('click', () => {
+        vscode.postMessage({ type: 'refresh' });
+    });
+
+    columnsButton.addEventListener('click', () => {
+        columnVisibilityPanel.classList.toggle('open');
+        statsPanel.classList.remove('open');
+        codeModal.classList.remove('open');
+        rowFilterPanel.classList.remove('open');
+        if (columnVisibilityPanel.classList.contains('open')) {
+            renderColumnVisibilityList();
+            columnVisibilitySearch.focus();
+        }
+    });
+
+    columnVisibilityApply.addEventListener('click', () => {
+        applyColumnSearch();
+    });
+
+    columnVisibilityClear.addEventListener('click', () => {
+        columnVisibilitySearch.value = '';
+        applyColumnSearch();
+    });
+
+    columnVisibilityInvert.addEventListener('click', () => {
+        invertColumnVisibility();
+    });
+
+    columnVisibilitySearch.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            applyColumnSearch();
+        }
+    });
+
+    columnVisibilitySearch.addEventListener('input', () => {
+        scheduleColumnVisibilitySearch();
+    });
+
+    addRowFilterButton.addEventListener('click', () => {
+        openRowFilterEditor();
+    });
+
+    statsButton.addEventListener('click', () => {
+        openStatsPanel({ toggle: true });
+    });
+
+    codeButton.addEventListener('click', () => {
+        const shouldOpen = !codeModal.classList.contains('open');
+        if (shouldOpen) {
+            vscode.postMessage({ type: 'suggestCodeSyntax' });
+        }
+        codeModal.classList.toggle('open');
+        columnVisibilityPanel.classList.remove('open');
+        statsPanel.classList.remove('open');
+        rowFilterPanel.classList.remove('open');
+    });
+
+    document.getElementById('close-column-visibility')?.addEventListener('click', () => {
+        setPanelPinned('column-visibility-panel', false);
+        columnVisibilityPanel.classList.remove('open');
+    });
+
+    document.getElementById('close-row-filter')?.addEventListener('click', () => {
+        setPanelPinned('row-filter-panel', false);
+        rowFilterPanel.classList.remove('open');
+    });
+
+    document.getElementById('close-stats')?.addEventListener('click', () => {
+        setPanelPinned('stats-panel', false);
+        statsPanel.classList.remove('open');
+    });
+
+    document.getElementById('close-code')?.addEventListener('click', () => {
+        codeModal.classList.remove('open');
+    });
+
+    panelPins.forEach((button) => {
+        button.addEventListener('click', (event) => {
+            const panelId = button.dataset.panelId;
+            if (!panelId) {
+                return;
+            }
+            event.stopPropagation();
+            const nextPinned = !pinnedPanels.has(panelId);
+            setPanelPinned(panelId, nextPinned);
+        });
+    });
+
+    document.getElementById('cancel-row-filter')?.addEventListener('click', () => {
+        rowFilterPanel.classList.remove('open');
+    });
+
+    document.getElementById('save-row-filter')?.addEventListener('click', () => {
+        saveRowFilter();
+    });
+
+    rowFilterType.addEventListener('change', () => {
+        updateRowFilterSections(rowFilterType.value as RowFilterType);
+    });
+
+    statsColumnSelect.addEventListener('change', () => {
+        const columnIndex = parseInt(statsColumnSelect.value, 10);
+        if (Number.isNaN(columnIndex)) {
+            activeStatsColumnIndex = null;
+            setStatsMessage('Select a column to view statistics.', 'empty');
+            clearStatsContent();
+            return;
+        }
+        activeStatsColumnIndex = columnIndex;
+        requestColumnProfiles('column-change');
+    });
+
+    histogramBinsSlider.addEventListener('input', () => {
+        syncHistogramBins('slider');
+    });
+
+    histogramBinsInput.addEventListener('input', () => {
+        syncHistogramBins('input');
+    });
+
+    histogramMethodSelect.addEventListener('change', () => {
+        scheduleStatsRefresh('histogram-method');
+    });
+
+    frequencyLimitSlider.addEventListener('input', () => {
+        syncFrequencyLimit('slider');
+    });
+
+    frequencyLimitInput.addEventListener('input', () => {
+        syncFrequencyLimit('input');
+    });
+
+    sidePanelResizers.forEach((resizer) => {
+        resizer.addEventListener('mousedown', (event) => {
+            const panel = resizer.closest('.side-panel') as HTMLDivElement | null;
+            const panelId = panel?.id;
+            const startWidth = panel?.getBoundingClientRect().width ?? statsPanel.getBoundingClientRect().width;
+            sidePanelResizeState = {
+                startX: event.clientX,
+                startWidth,
+                panelId,
+            };
+            log('Side panel resize started', { panelId, startWidth });
+            document.body.classList.add('panel-resizing');
+            event.preventDefault();
+        });
+    });
+
+    document.querySelectorAll('.stats-section.collapsible .section-header').forEach((element) => {
+        element.addEventListener('click', () => {
+            const header = element as HTMLElement;
+            const parent = header.closest('.stats-section.collapsible');
+            if (!parent) {
+                return;
+            }
+            parent.classList.toggle('is-collapsed');
+            requestAnimationFrame(() => {
+                histogramChart?.resize();
+                frequencyChart?.resize();
+            });
+        });
+    });
+
+    document.getElementById('convert-code')?.addEventListener('click', () => {
+        const syntax = (document.getElementById('code-syntax') as HTMLSelectElement).value;
+        vscode.postMessage({ type: 'convertToCode', syntax });
+    });
+
+    document.getElementById('copy-code')?.addEventListener('click', () => {
+        const code = (document.getElementById('code-preview') as HTMLPreElement).textContent;
+        if (code) {
+            navigator.clipboard.writeText(code);
+        }
+    });
+
+    document.querySelectorAll('#export-dropdown button').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+            const format = (e.target as HTMLElement).dataset.format as 'csv' | 'tsv' | 'html';
+            vscode.postMessage({ type: 'exportData', format });
+        });
+    });
+
+    columnMenuAddFilter.addEventListener('click', () => {
+        if (columnMenuColumnIndex === null) {
+            return;
+        }
+        const selectedColumnIndex = columnMenuColumnIndex;
+        closeColumnMenu();
+        openRowFilterEditor(undefined, undefined, selectedColumnIndex);
+    });
+
+    columnMenuHideColumn.addEventListener('click', () => {
+        if (columnMenuColumnIndex === null) {
+            return;
+        }
+        const selectedColumnIndex = columnMenuColumnIndex;
+        closeColumnMenu();
+        hideColumn(selectedColumnIndex);
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!columnMenu.classList.contains('open')) {
+            return;
+        }
+        if (columnMenu.contains(event.target as Node)) {
+            return;
+        }
+        closeColumnMenu();
+    });
+
+    document.addEventListener('click', (event) => {
+        const target = event.target as Node;
+        if (statsPanel.classList.contains('open')
+            && !statsPanel.contains(target)
+            && !statsButton.contains(target)
+            && !isPanelPinned(statsPanel)) {
+            statsPanel.classList.remove('open');
+        }
+        if (columnVisibilityPanel.classList.contains('open')
+            && !columnVisibilityPanel.contains(target)
+            && !columnsButton.contains(target)
+            && !isPanelPinned(columnVisibilityPanel)) {
+            columnVisibilityPanel.classList.remove('open');
+        }
+        if (codeModal.classList.contains('open')
+            && !codeModal.contains(target)
+            && !codeButton.contains(target)) {
+            codeModal.classList.remove('open');
+        }
+        if (rowFilterPanel.classList.contains('open')
+            && !rowFilterPanel.contains(target)
+            && !addRowFilterButton.contains(target)
+            && !isPanelPinned(rowFilterPanel)) {
+            rowFilterPanel.classList.remove('open');
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeColumnMenu();
+        }
+    });
+
+    window.addEventListener('resize', () => {
+        closeColumnMenu();
+        histogramChart?.resize();
+        frequencyChart?.resize();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+        handleSidePanelResize(event);
+    });
+
+    document.addEventListener('mouseup', () => {
+        finishSidePanelResize();
+    });
+
+    tableBody.addEventListener('scroll', () => {
+        if (columnMenu.classList.contains('open')) {
+            closeColumnMenu();
+        }
+        if (tableBody.scrollLeft !== lastScrollLeft) {
+            updateHeaderScroll(tableBody.scrollLeft);
+            lastScrollLeft = tableBody.scrollLeft;
+        }
+    });
+
+    window.addEventListener('message', (event) => {
+        const message = event.data;
+        switch (message.type) {
+            case 'init':
+                handleInit(message as InitMessage);
+                break;
+            case 'rows':
+                handleRows(message as RowsMessage);
+                break;
+            case 'error':
+                showError(message.message as string);
+                break;
+            case 'searchSchemaResult':
+                handleSearchSchemaResult(message.matches);
+                break;
+            case 'exportResult':
+                handleExportResult(message.data, message.format);
+                break;
+            case 'columnProfilesResult':
+                handleColumnProfilesResult(message.columnIndex, message.profiles, message.errorMessage);
+                break;
+            case 'convertToCodeResult':
+                handleConvertToCodeResult(message.code, message.syntax);
+                break;
+            case 'suggestCodeSyntaxResult':
+                handleSuggestCodeSyntaxResult(message.syntax);
+                break;
+        }
+    });
+}
+
 function setPanelPinned(panelId: string, pinned: boolean): void {
     if (pinned) {
         pinnedPanels.add(panelId);
@@ -397,263 +781,6 @@ const ROW_FILTER_SECTION_MAP: Record<RowFilterType, 'compare' | 'between' | 'sea
     search: 'search',
     set_membership: 'set',
 };
-
-refreshButton.addEventListener('click', () => {
-    vscode.postMessage({ type: 'refresh' });
-});
-
-columnsButton.addEventListener('click', () => {
-    columnVisibilityPanel.classList.toggle('open');
-    statsPanel.classList.remove('open');
-    codeModal.classList.remove('open');
-    rowFilterPanel.classList.remove('open');
-    if (columnVisibilityPanel.classList.contains('open')) {
-        renderColumnVisibilityList();
-        columnVisibilitySearch.focus();
-    }
-});
-
-columnVisibilityApply.addEventListener('click', () => {
-    applyColumnSearch();
-});
-
-columnVisibilityClear.addEventListener('click', () => {
-    columnVisibilitySearch.value = '';
-    applyColumnSearch();
-});
-
-columnVisibilityInvert.addEventListener('click', () => {
-    invertColumnVisibility();
-});
-
-columnVisibilitySearch.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-        applyColumnSearch();
-    }
-});
-
-columnVisibilitySearch.addEventListener('input', () => {
-    scheduleColumnVisibilitySearch();
-});
-
-addRowFilterButton.addEventListener('click', () => {
-    openRowFilterEditor();
-});
-
-statsButton.addEventListener('click', () => {
-    openStatsPanel({ toggle: true });
-});
-
-codeButton.addEventListener('click', () => {
-    const shouldOpen = !codeModal.classList.contains('open');
-    if (shouldOpen) {
-        vscode.postMessage({ type: 'suggestCodeSyntax' });
-    }
-    codeModal.classList.toggle('open');
-    columnVisibilityPanel.classList.remove('open');
-    statsPanel.classList.remove('open');
-    rowFilterPanel.classList.remove('open');
-});
-
-document.getElementById('close-column-visibility')?.addEventListener('click', () => {
-    setPanelPinned('column-visibility-panel', false);
-    columnVisibilityPanel.classList.remove('open');
-});
-
-document.getElementById('close-row-filter')?.addEventListener('click', () => {
-    setPanelPinned('row-filter-panel', false);
-    rowFilterPanel.classList.remove('open');
-});
-
-document.getElementById('close-stats')?.addEventListener('click', () => {
-    setPanelPinned('stats-panel', false);
-    statsPanel.classList.remove('open');
-});
-
-document.getElementById('close-code')?.addEventListener('click', () => {
-    codeModal.classList.remove('open');
-});
-
-panelPins.forEach((button) => {
-    button.addEventListener('click', (event) => {
-        const panelId = button.dataset.panelId;
-        if (!panelId) {
-            return;
-        }
-        event.stopPropagation();
-        const nextPinned = !pinnedPanels.has(panelId);
-        setPanelPinned(panelId, nextPinned);
-    });
-});
-
-document.getElementById('cancel-row-filter')?.addEventListener('click', () => {
-    rowFilterPanel.classList.remove('open');
-});
-
-document.getElementById('save-row-filter')?.addEventListener('click', () => {
-    saveRowFilter();
-});
-
-rowFilterType.addEventListener('change', () => {
-    updateRowFilterSections(rowFilterType.value as RowFilterType);
-});
-
-statsColumnSelect.addEventListener('change', () => {
-    const columnIndex = parseInt(statsColumnSelect.value, 10);
-    if (Number.isNaN(columnIndex)) {
-        activeStatsColumnIndex = null;
-        setStatsMessage('Select a column to view statistics.', 'empty');
-        clearStatsContent();
-        return;
-    }
-    activeStatsColumnIndex = columnIndex;
-    requestColumnProfiles('column-change');
-});
-
-histogramBinsSlider.addEventListener('input', () => {
-    syncHistogramBins('slider');
-});
-
-histogramBinsInput.addEventListener('input', () => {
-    syncHistogramBins('input');
-});
-
-histogramMethodSelect.addEventListener('change', () => {
-    scheduleStatsRefresh('histogram-method');
-});
-
-frequencyLimitSlider.addEventListener('input', () => {
-    syncFrequencyLimit('slider');
-});
-
-frequencyLimitInput.addEventListener('input', () => {
-    syncFrequencyLimit('input');
-});
-
-sidePanelResizers.forEach((resizer) => {
-    resizer.addEventListener('mousedown', (event) => {
-        const panel = resizer.closest('.side-panel') as HTMLDivElement | null;
-        const panelId = panel?.id;
-        const startWidth = panel?.getBoundingClientRect().width ?? statsPanel.getBoundingClientRect().width;
-        sidePanelResizeState = {
-            startX: event.clientX,
-            startWidth,
-            panelId,
-        };
-        log('Side panel resize started', { panelId, startWidth });
-        document.body.classList.add('panel-resizing');
-        event.preventDefault();
-    });
-});
-
-document.querySelectorAll('.stats-section.collapsible .section-header').forEach((element) => {
-    element.addEventListener('click', () => {
-        const header = element as HTMLElement;
-        const parent = header.closest('.stats-section.collapsible');
-        if (!parent) {
-            return;
-        }
-        parent.classList.toggle('is-collapsed');
-        requestAnimationFrame(() => {
-            histogramChart?.resize();
-            frequencyChart?.resize();
-        });
-    });
-});
-
-document.getElementById('convert-code')?.addEventListener('click', () => {
-    const syntax = (document.getElementById('code-syntax') as HTMLSelectElement).value;
-    vscode.postMessage({ type: 'convertToCode', syntax });
-});
-
-document.getElementById('copy-code')?.addEventListener('click', () => {
-    const code = (document.getElementById('code-preview') as HTMLPreElement).textContent;
-    if (code) {
-        navigator.clipboard.writeText(code);
-    }
-});
-
-document.querySelectorAll('#export-dropdown button').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-        const format = (e.target as HTMLElement).dataset.format as 'csv' | 'tsv' | 'html';
-        vscode.postMessage({ type: 'exportData', format });
-    });
-});
-
-columnMenuAddFilter.addEventListener('click', () => {
-    if (columnMenuColumnIndex === null) {
-        return;
-    }
-    const selectedColumnIndex = columnMenuColumnIndex;
-    closeColumnMenu();
-    openRowFilterEditor(undefined, undefined, selectedColumnIndex);
-});
-
-columnMenuHideColumn.addEventListener('click', () => {
-    if (columnMenuColumnIndex === null) {
-        return;
-    }
-    const selectedColumnIndex = columnMenuColumnIndex;
-    closeColumnMenu();
-    hideColumn(selectedColumnIndex);
-});
-
-document.addEventListener('click', (event) => {
-    if (!columnMenu.classList.contains('open')) {
-        return;
-    }
-    if (columnMenu.contains(event.target as Node)) {
-        return;
-    }
-    closeColumnMenu();
-});
-
-document.addEventListener('click', (event) => {
-    const target = event.target as Node;
-    if (statsPanel.classList.contains('open')
-        && !statsPanel.contains(target)
-        && !statsButton.contains(target)
-        && !isPanelPinned(statsPanel)) {
-        statsPanel.classList.remove('open');
-    }
-    if (columnVisibilityPanel.classList.contains('open')
-        && !columnVisibilityPanel.contains(target)
-        && !columnsButton.contains(target)
-        && !isPanelPinned(columnVisibilityPanel)) {
-        columnVisibilityPanel.classList.remove('open');
-    }
-    if (codeModal.classList.contains('open')
-        && !codeModal.contains(target)
-        && !codeButton.contains(target)) {
-        codeModal.classList.remove('open');
-    }
-    if (rowFilterPanel.classList.contains('open')
-        && !rowFilterPanel.contains(target)
-        && !addRowFilterButton.contains(target)
-        && !isPanelPinned(rowFilterPanel)) {
-        rowFilterPanel.classList.remove('open');
-    }
-});
-
-document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-        closeColumnMenu();
-    }
-});
-
-window.addEventListener('resize', () => {
-    closeColumnMenu();
-    histogramChart?.resize();
-    frequencyChart?.resize();
-});
-
-document.addEventListener('mousemove', (event) => {
-    handleSidePanelResize(event);
-});
-
-document.addEventListener('mouseup', () => {
-    finishSidePanelResize();
-});
 
 function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
     const { columnIndex, toggle = false } = options;
@@ -1467,52 +1594,6 @@ function initializeStatsDefaults(): void {
     frequencyLimitInput.value = String(DEFAULT_FREQUENCY_LIMIT);
     setStatsControlsEnabled(false);
 }
-
-tableBody.addEventListener('scroll', () => {
-    if (columnMenu.classList.contains('open')) {
-        closeColumnMenu();
-    }
-    if (tableBody.scrollLeft !== lastScrollLeft) {
-        updateHeaderScroll(tableBody.scrollLeft);
-        lastScrollLeft = tableBody.scrollLeft;
-    }
-});
-
-window.addEventListener('message', (event) => {
-    const message = event.data;
-    switch (message.type) {
-        case 'init':
-            handleInit(message as InitMessage);
-            break;
-        case 'rows':
-            handleRows(message as RowsMessage);
-            break;
-        case 'error':
-            showError(message.message as string);
-            break;
-        case 'searchSchemaResult':
-            handleSearchSchemaResult(message.matches);
-            break;
-        case 'exportResult':
-            handleExportResult(message.data, message.format);
-            break;
-        case 'columnProfilesResult':
-            handleColumnProfilesResult(message.columnIndex, message.profiles, message.errorMessage);
-            break;
-        case 'convertToCodeResult':
-            handleConvertToCodeResult(message.code, message.syntax);
-            break;
-        case 'suggestCodeSyntaxResult':
-            handleSuggestCodeSyntaxResult(message.syntax);
-            break;
-    }
-});
-
-initializeStatsDefaults();
-setStatsMessage('Select a column to view statistics.', 'empty');
-clearStatsContent();
-
-vscode.postMessage({ type: 'ready' });
 
 function handleSearchSchemaResult(matches: number[]): void {
     columnFilterMatches = matches;

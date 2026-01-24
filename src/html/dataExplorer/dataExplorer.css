@@ -11,6 +11,13 @@ body {
     flex-direction: column;
 }
 
+#svelte-root {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
 .toolbar {
     display: flex;
     align-items: center;
