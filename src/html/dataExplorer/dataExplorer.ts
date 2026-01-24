@@ -325,6 +325,7 @@ let columnMenuColumnIndex: number | null = null;
 let columnVisibilityDebounceId: number | undefined;
 let statsRefreshDebounceId: number | undefined;
 let activeStatsColumnIndex: number | null = null;
+let pendingStatsScrollTop: number | null = null;
 let sidePanelResizeState: { startX: number; startWidth: number; panelId?: string } | null = null;
 let pendingRows: RowsMessage[] = [];
 let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
@@ -1355,14 +1356,20 @@ function showStatsSections(): void {
     setStatsControlsEnabled(true);
 }
 
-function clearStatsContent(): void {
+function clearStatsContent(options: { preserveScrollTop?: boolean } = {}): void {
+    const preserveScrollTop = options.preserveScrollTop === true;
+    const previousScrollTop = statsResults.scrollTop;
     statsOverviewTable.innerHTML = '';
     statsSummaryTable.innerHTML = '';
     statsQuantilesTable.innerHTML = '';
     frequencyFootnote.textContent = '';
     clearHistogram();
     clearFrequency();
-    statsResults.scrollTop = 0;
+    if (preserveScrollTop) {
+        statsResults.scrollTop = previousScrollTop;
+    } else {
+        statsResults.scrollTop = 0;
+    }
 }
 
 function setStatsControlsEnabled(enabled: boolean): void {
@@ -1410,15 +1417,17 @@ function scheduleStatsRefresh(reason: string): void {
     if (statsRefreshDebounceId !== undefined) {
         window.clearTimeout(statsRefreshDebounceId);
     }
+    const preserveScrollTop = ['histogram-bins', 'histogram-method', 'frequency-limit'].includes(reason);
     statsRefreshDebounceId = window.setTimeout(() => {
-        requestColumnProfiles(reason);
+        requestColumnProfiles(reason, { preserveScrollTop });
     }, STATS_REFRESH_DEBOUNCE_MS);
 }
 
-function requestColumnProfiles(reason: string): void {
+function requestColumnProfiles(reason: string, options: { preserveScrollTop?: boolean } = {}): void {
     if (activeStatsColumnIndex === null) {
         return;
     }
+    const preserveScrollTop = options.preserveScrollTop === true;
     const histogramBins = clampNumber(parseInt(histogramBinsInput.value, 10), HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
     const frequencyLimit = clampNumber(
         parseInt(frequencyLimitSlider.value, 10),
@@ -1447,8 +1456,14 @@ function requestColumnProfiles(reason: string): void {
         reason,
     });
 
+    if (preserveScrollTop) {
+        pendingStatsScrollTop = statsResults.scrollTop;
+        log('Preserving stats scroll position', { scrollTop: pendingStatsScrollTop, reason });
+    } else {
+        pendingStatsScrollTop = null;
+    }
     setStatsMessage('Loading statistics...', 'loading');
-    clearStatsContent();
+    clearStatsContent({ preserveScrollTop });
     vscode.postMessage({
         type: 'getColumnProfiles',
         columnIndex: activeStatsColumnIndex,
@@ -1456,6 +1471,17 @@ function requestColumnProfiles(reason: string): void {
         histogramParams,
         frequencyParams,
     });
+}
+
+function finalizeStatsScroll(): void {
+    if (pendingStatsScrollTop === null) {
+        statsResults.scrollTop = 0;
+        return;
+    }
+    const maxScrollTop = Math.max(statsResults.scrollHeight - statsResults.clientHeight, 0);
+    const nextScrollTop = Math.min(pendingStatsScrollTop, maxScrollTop);
+    statsResults.scrollTop = nextScrollTop;
+    pendingStatsScrollTop = null;
 }
 
 function syncHistogramBinsFromProfile(histogram: ColumnHistogram | undefined): void {
@@ -1845,6 +1871,7 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
     if (errorMessage) {
         setStatsMessage(`Error: ${errorMessage}`, 'error');
         clearStatsContent();
+        finalizeStatsScroll();
         return;
     }
 
@@ -1852,6 +1879,7 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
     if (!profiles || profiles.length === 0) {
         setStatsMessage('No statistics available for this column.', 'empty');
         clearStatsContent();
+        finalizeStatsScroll();
         return;
     }
 
@@ -1915,7 +1943,7 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
     }
 
     showStatsSections();
-    statsResults.scrollTop = 0;
+    finalizeStatsScroll();
 }
 
 function handleExportResult(data: string, format: string): void {
