@@ -1,16 +1,13 @@
 <script lang="ts">
     import { onDestroy, onMount, tick } from 'svelte';
     import { useVirtualizer, type VirtualRow } from './hooks/useVirtualizer';
+    import { useStatsCharts } from './hooks/useStatsCharts';
     import {
         ColumnDef,
         Table,
         createTable,
         getCoreRowModel,
     } from '@tanstack/table-core';
-    import * as echarts from 'echarts/core';
-    import { BarChart } from 'echarts/charts';
-    import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components';
-    import { CanvasRenderer } from 'echarts/renderers';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -96,11 +93,7 @@
         isSetColumnFiltersSupported as checkSetColumnFiltersSupported,
         supportsRowFilterConditions as checkSupportsRowFilterConditions,
         isSortSupported as checkSortSupported,
-        renderHistogramChart,
-        renderFrequencyTableChart,
     } from './utils';
-
-    echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
     const vscode = getVsCodeApi();
     const debugEnabled = typeof window !== 'undefined'
@@ -178,8 +171,6 @@
     let histogramContainer: HTMLDivElement;
     let frequencyContainer: HTMLDivElement;
 
-    let histogramChart: echarts.ECharts | null = null;
-    let frequencyChart: echarts.ECharts | null = null;
 
     let virtualRows: VirtualRow[] = [];
     let virtualizerTotalHeight = 0;
@@ -234,6 +225,12 @@
             virtualizerTotalHeight = totalHeight;
             requestVisibleBlocks();
         },
+        log,
+    });
+
+    const statsCharts = useStatsCharts({
+        getHistogramContainer: () => histogramContainer,
+        getFrequencyContainer: () => frequencyContainer,
         log,
     });
 
@@ -562,8 +559,7 @@
     function setSidePanelWidth(width: number): void {
         document.body.style.setProperty('--side-panel-width', `${width}px`);
         requestAnimationFrame(() => {
-            histogramChart?.resize();
-            frequencyChart?.resize();
+            statsCharts.resize();
         });
     }
 
@@ -612,34 +608,19 @@
         statsControlsEnabled = false;
     }
 
-    function ensureHistogramChart(): echarts.ECharts {
-        if (!histogramChart && histogramContainer) {
-            histogramChart = echarts.init(histogramContainer);
-        }
-        return histogramChart as echarts.ECharts;
-    }
-
     function clearHistogram(): void {
         histogramVisible = false;
-        histogramChart?.clear();
-    }
-
-    function ensureFrequencyChart(): echarts.ECharts {
-        if (!frequencyChart && frequencyContainer) {
-            frequencyChart = echarts.init(frequencyContainer);
-        }
-        return frequencyChart as echarts.ECharts;
+        statsCharts.clearHistogram();
     }
 
     function clearFrequency(): void {
         frequencyVisible = false;
         frequencyFootnote = '';
-        frequencyChart?.clear();
+        statsCharts.clearFrequency();
     }
 
     function renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): void {
-        const chart = ensureHistogramChart();
-        const rendered = renderHistogramChart(chart, histogram, columnLabel);
+        const rendered = statsCharts.renderHistogram(histogram, columnLabel);
         histogramVisible = rendered;
         if (rendered) {
             log('Rendering histogram', { columnLabel, bins: histogram?.bin_counts?.length ?? 0 });
@@ -649,8 +630,7 @@
     }
 
     function renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
-        const chart = ensureFrequencyChart();
-        const rendered = renderFrequencyTableChart(chart, frequency, frequencyContainer);
+        const rendered = statsCharts.renderFrequency(frequency);
         frequencyVisible = rendered;
         if (rendered) {
             log('Rendering frequency chart', { values: frequency?.values?.length ?? 0 });
@@ -944,8 +924,7 @@
             clearStatsContent();
         }
         requestAnimationFrame(() => {
-            histogramChart?.resize();
-            frequencyChart?.resize();
+            statsCharts.resize();
         });
     }
 
@@ -1368,8 +1347,7 @@
             return next;
         });
         requestAnimationFrame(() => {
-            histogramChart?.resize();
-            frequencyChart?.resize();
+            statsCharts.resize();
         });
     }
 
@@ -1439,8 +1417,7 @@
 
     function handleWindowResize(): void {
         closeColumnMenu();
-        histogramChart?.resize();
-        frequencyChart?.resize();
+        statsCharts.resize();
     }
 
     function handleWindowKeydown(event: KeyboardEvent): void {
@@ -1507,8 +1484,7 @@
             window.clearTimeout(columnVisibilityDebounceId);
         }
         virtualizer.dispose();
-        histogramChart?.dispose();
-        frequencyChart?.dispose();
+        statsCharts.dispose();
     });
 </script>
 
