@@ -31,10 +31,6 @@
         type RowFilter,
         type RowFilterType,
         type RowFilterCondition,
-        type FilterComparisonOp,
-        type TextSearchType,
-        type ColumnSummaryStats,
-        type ColumnQuantileValue,
         type ColumnHistogram,
         type ColumnFrequencyTable,
         type ColumnProfileResult,
@@ -54,7 +50,6 @@
         COLUMN_WIDTH,
         MIN_COLUMN_WIDTH,
         ROW_LABEL_WIDTH,
-        UNNAMED_COLUMN_PREFIX,
         DEFAULT_HISTOGRAM_BINS,
         DEFAULT_FREQUENCY_LIMIT,
         HISTOGRAM_BINS_MIN,
@@ -66,10 +61,33 @@
         STATS_REFRESH_DEBOUNCE_MS,
         SIDE_PANEL_MIN_WIDTH,
         SIDE_PANEL_MAX_WIDTH,
-        ROW_FILTER_TYPE_LABELS,
         ROW_FILTER_SECTION_MAP,
         getVsCodeApi,
     } from './types';
+    import {
+        formatStatValue,
+        formatQuantileLabel,
+        formatQuantileValue,
+        buildSummaryRows,
+        formatSpecialValue,
+        getColumnLabel,
+        isColumnNamed,
+        formatRowFilterChip,
+        createRowFilterDraft,
+        buildRowFilterParams,
+        createRowFilterId,
+        getSupportedRowFilterTypes,
+        resolveSchemaMatches,
+        computeDisplayedColumns,
+        resolveVisibleSchema,
+        isRowFilterSupported as checkRowFilterSupported,
+        isColumnFilterSupported as checkColumnFilterSupported,
+        isSetColumnFiltersSupported as checkSetColumnFiltersSupported,
+        supportsRowFilterConditions as checkSupportsRowFilterConditions,
+        isSortSupported as checkSortSupported,
+        renderHistogramChart,
+        renderFrequencyTableChart,
+    } from './utils';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -273,119 +291,25 @@
         return pinnedPanels.has(panelId);
     }
 
-    function getColumnLabel(column: ColumnSchema): string {
-        const rawLabel = column.column_label ?? column.column_name;
-        const trimmed = rawLabel?.trim();
-        if (trimmed) {
-            return trimmed;
-        }
-        return `${UNNAMED_COLUMN_PREFIX} ${column.column_index + 1}`;
-    }
-
-    function isColumnNamed(column: ColumnSchema): boolean {
-        const rawLabel = column.column_label ?? column.column_name;
-        return Boolean(rawLabel?.trim());
-    }
-
-    function createRowFilterDraft(filter?: RowFilter, columnIndex?: number): RowFilterDraft {
-        const fallbackColumnIndex = schema[0]?.column_index ?? 0;
-        const selectedColumnIndex = filter?.column_schema.column_index ?? columnIndex ?? fallbackColumnIndex;
-        const selectedType = filter?.filter_type ?? getSupportedRowFilterTypes()[0] ?? 'compare';
-        return {
-            columnIndex: selectedColumnIndex,
-            filterType: selectedType,
-            compareOp: (filter?.params as { op?: string })?.op as FilterComparisonOp ?? '=',
-            compareValue: (filter?.params as { value?: string })?.value ?? '',
-            betweenLeft: (filter?.params as { left_value?: string })?.left_value ?? '',
-            betweenRight: (filter?.params as { right_value?: string })?.right_value ?? '',
-            searchType: (filter?.params as { search_type?: string })?.search_type as TextSearchType ?? 'contains',
-            searchTerm: (filter?.params as { term?: string })?.term ?? '',
-            searchCase: (filter?.params as { case_sensitive?: boolean })?.case_sensitive ?? false,
-            setValues: ((filter?.params as { values?: string[] })?.values ?? []).join(', '),
-            setInclusive: (filter?.params as { inclusive?: boolean })?.inclusive !== false,
-            condition: filter?.condition ?? 'and',
-        };
-    }
-
+    // Wrapper functions for feature support checks (use local state)
     function isRowFilterSupported(): boolean {
-        const supportStatus = rowFilterSupport?.support_status;
-        if (!supportStatus) {
-            return true;
-        }
-        return supportStatus === 'supported';
+        return checkRowFilterSupported(rowFilterSupport);
     }
 
     function isColumnFilterSupported(): boolean {
-        const supportStatus = columnFilterSupport?.support_status;
-        if (!supportStatus) {
-            return true;
-        }
-        return supportStatus === 'supported';
+        return checkColumnFilterSupported(columnFilterSupport);
     }
 
     function isSetColumnFiltersSupported(): boolean {
-        const supportStatus = setColumnFilterSupport?.support_status;
-        if (!supportStatus) {
-            return true;
-        }
-        return supportStatus === 'supported';
+        return checkSetColumnFiltersSupported(setColumnFilterSupport);
     }
 
     function supportsRowFilterConditions(): boolean {
-        const supportStatus = rowFilterSupport?.supports_conditions;
-        if (!supportStatus) {
-            return true;
-        }
-        return supportStatus === 'supported';
+        return checkSupportsRowFilterConditions(rowFilterSupport);
     }
 
-    function getSupportedRowFilterTypes(): RowFilterType[] {
-        const supported = rowFilterSupport?.supported_types
-            ?.filter((entry) => entry.support_status === 'supported')
-            .map((entry) => entry.row_filter_type);
-
-        if (supported && supported.length > 0) {
-            return supported;
-        }
-
-        return Object.keys(ROW_FILTER_TYPE_LABELS) as RowFilterType[];
-    }
-
-    function formatRowFilterChip(filter: RowFilter, index: number): string {
-        const columnLabel = getColumnLabel(filter.column_schema);
-        const prefix = index > 0 ? `${filter.condition.toUpperCase()} ` : '';
-        const params = filter.params || {};
-
-        switch (filter.filter_type) {
-            case 'compare':
-                return `${prefix}${columnLabel} ${(params as { op?: string }).op ?? '='} ${(params as { value?: string }).value ?? ''}`.trim();
-            case 'between':
-                return `${prefix}${columnLabel} between ${(params as { left_value?: string }).left_value ?? ''} and ${(params as { right_value?: string }).right_value ?? ''}`.trim();
-            case 'not_between':
-                return `${prefix}${columnLabel} not between ${(params as { left_value?: string }).left_value ?? ''} and ${(params as { right_value?: string }).right_value ?? ''}`.trim();
-            case 'search':
-                return `${prefix}${columnLabel} ${(params as { search_type?: string }).search_type ?? 'contains'} "${(params as { term?: string }).term ?? ''}"`.trim();
-            case 'set_membership': {
-                const inclusive = (params as { inclusive?: boolean }).inclusive !== false;
-                const values = (params as { values?: string[] }).values ?? [];
-                const label = inclusive ? 'in' : 'not in';
-                return `${prefix}${columnLabel} ${label} [${values.join(', ')}]`;
-            }
-            case 'is_null':
-                return `${prefix}${columnLabel} is null`;
-            case 'not_null':
-                return `${prefix}${columnLabel} is not null`;
-            case 'is_empty':
-                return `${prefix}${columnLabel} is empty`;
-            case 'not_empty':
-                return `${prefix}${columnLabel} is not empty`;
-            case 'is_true':
-                return `${prefix}${columnLabel} is true`;
-            case 'is_false':
-                return `${prefix}${columnLabel} is false`;
-            default:
-                return `${prefix}${columnLabel}`;
-        }
+    function isSortSupported(): boolean {
+        return checkSortSupported(state);
     }
 
     function openRowFilterEditor(filter?: RowFilter, index?: number, columnIndex?: number): void {
@@ -399,7 +323,7 @@
         }
 
         editingRowFilterIndex = index ?? null;
-        rowFilterDraft = createRowFilterDraft(filter, columnIndex);
+        rowFilterDraft = createRowFilterDraft(schema, filter, columnIndex, getSupportedRowFilterTypes(rowFilterSupport));
         rowFilterError = '';
         rowFilterPanelOpen = true;
         columnVisibilityOpen = false;
@@ -427,7 +351,7 @@
             return;
         }
 
-        const params = buildRowFilterParams(rowFilterDraft.filterType);
+        const params = buildRowFilterParams(rowFilterDraft.filterType, rowFilterDraft);
         if (!params.valid) {
             rowFilterError = params.errorMessage ?? '';
             return;
@@ -465,71 +389,6 @@
         rowFilterError = '';
         vscode.postMessage({ type: 'setRowFilters', filters: rowFilters });
         log('Row filters saved', { count: rowFilters.length, filter });
-    }
-
-    function buildRowFilterParams(filterType: RowFilterType): { valid: boolean; value?: Record<string, unknown>; errorMessage?: string } {
-        switch (filterType) {
-            case 'compare':
-                if (!rowFilterDraft.compareValue.trim()) {
-                    return { valid: false, errorMessage: 'Enter a comparison value.' };
-                }
-                return {
-                    valid: true,
-                    value: {
-                        op: rowFilterDraft.compareOp,
-                        value: rowFilterDraft.compareValue.trim(),
-                    },
-                };
-            case 'between':
-            case 'not_between':
-                if (!rowFilterDraft.betweenLeft.trim() || !rowFilterDraft.betweenRight.trim()) {
-                    return { valid: false, errorMessage: 'Enter both range values.' };
-                }
-                return {
-                    valid: true,
-                    value: {
-                        left_value: rowFilterDraft.betweenLeft.trim(),
-                        right_value: rowFilterDraft.betweenRight.trim(),
-                    },
-                };
-            case 'search':
-                if (!rowFilterDraft.searchTerm.trim()) {
-                    return { valid: false, errorMessage: 'Enter a search term.' };
-                }
-                return {
-                    valid: true,
-                    value: {
-                        search_type: rowFilterDraft.searchType,
-                        term: rowFilterDraft.searchTerm.trim(),
-                        case_sensitive: rowFilterDraft.searchCase,
-                    },
-                };
-            case 'set_membership': {
-                const values = rowFilterDraft.setValues
-                    .split(',')
-                    .map((entry) => entry.trim())
-                    .filter(Boolean);
-                if (!values.length) {
-                    return { valid: false, errorMessage: 'Enter one or more values.' };
-                }
-                return {
-                    valid: true,
-                    value: {
-                        values,
-                        inclusive: rowFilterDraft.setInclusive,
-                    },
-                };
-            }
-            default:
-                return { valid: true };
-        }
-    }
-
-    function createRowFilterId(): string {
-        if ('randomUUID' in crypto) {
-            return crypto.randomUUID();
-        }
-        return `row-filter-${Date.now()}`;
     }
 
     function removeRowFilter(index: number): void {
@@ -732,93 +591,6 @@
         document.body.classList.remove('panel-resizing');
     }
 
-    function formatStatValue(value: string | number | undefined | null): string {
-        if (value === undefined || value === null || value === '') {
-            return '-';
-        }
-        return String(value);
-    }
-
-    function formatQuantileValue(quantile: ColumnQuantileValue): string {
-        const prefix = quantile.exact ? '' : '~';
-        return `${prefix}${quantile.value}`;
-    }
-
-    function formatQuantileLabel(q: number): string {
-        if (q === 0.25) {
-            return 'Q1 (25%)';
-        }
-        if (q === 0.5) {
-            return 'Median (50%)';
-        }
-        if (q === 0.75) {
-            return 'Q3 (75%)';
-        }
-        const percentage = Math.round(q * 100);
-        return `${percentage}%`;
-    }
-
-    function buildSummaryRows(summaryStats: ColumnSummaryStats | undefined, quantiles: ColumnQuantileValue[]): StatsRow[] {
-        if (!summaryStats) {
-            return [];
-        }
-        if (summaryStats.number_stats) {
-            const rows: StatsRow[] = [];
-            rows.push({ label: 'Minimum', value: formatStatValue(summaryStats.number_stats.min_value) });
-            const quantileRows = quantiles
-                .filter((quantile) => typeof quantile.q === 'number')
-                .sort((a, b) => a.q - b.q)
-                .map((quantile) => ({
-                    label: formatQuantileLabel(quantile.q),
-                    value: formatQuantileValue(quantile),
-                }));
-            if (quantileRows.length > 0) {
-                rows.push(...quantileRows);
-            } else if (summaryStats.number_stats.median !== undefined) {
-                rows.push({ label: 'Median', value: formatStatValue(summaryStats.number_stats.median) });
-            }
-            rows.push({ label: 'Maximum', value: formatStatValue(summaryStats.number_stats.max_value) });
-            rows.push({ label: 'Mean', value: formatStatValue(summaryStats.number_stats.mean) });
-            rows.push({ label: 'Std Dev', value: formatStatValue(summaryStats.number_stats.stdev) });
-            return rows;
-        }
-        if (summaryStats.string_stats) {
-            return [
-                { label: 'Empty Count', value: formatStatValue(summaryStats.string_stats.num_empty) },
-                { label: 'Unique Count', value: formatStatValue(summaryStats.string_stats.num_unique) },
-            ];
-        }
-        if (summaryStats.boolean_stats) {
-            return [
-                { label: 'True Count', value: formatStatValue(summaryStats.boolean_stats.true_count) },
-                { label: 'False Count', value: formatStatValue(summaryStats.boolean_stats.false_count) },
-            ];
-        }
-        if (summaryStats.date_stats) {
-            return [
-                { label: 'Minimum', value: formatStatValue(summaryStats.date_stats.min_date) },
-                { label: 'Mean', value: formatStatValue(summaryStats.date_stats.mean_date) },
-                { label: 'Median', value: formatStatValue(summaryStats.date_stats.median_date) },
-                { label: 'Maximum', value: formatStatValue(summaryStats.date_stats.max_date) },
-                { label: 'Unique Count', value: formatStatValue(summaryStats.date_stats.num_unique) },
-            ];
-        }
-        if (summaryStats.datetime_stats) {
-            return [
-                { label: 'Minimum', value: formatStatValue(summaryStats.datetime_stats.min_date) },
-                { label: 'Mean', value: formatStatValue(summaryStats.datetime_stats.mean_date) },
-                { label: 'Median', value: formatStatValue(summaryStats.datetime_stats.median_date) },
-                { label: 'Maximum', value: formatStatValue(summaryStats.datetime_stats.max_date) },
-                { label: 'Unique Count', value: formatStatValue(summaryStats.datetime_stats.num_unique) },
-                { label: 'Timezone', value: formatStatValue(summaryStats.datetime_stats.timezone) },
-            ];
-        }
-        if (summaryStats.other_stats) {
-            return [{ label: 'Unique Count', value: formatStatValue(summaryStats.other_stats.num_unique) }];
-        }
-        return [];
-    }
-
     function initializeStatsDefaults(): void {
         histogramBins = DEFAULT_HISTOGRAM_BINS;
         histogramMethod = 'freedman_diaconis';
@@ -852,143 +624,25 @@
     }
 
     function renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): void {
-        if (!histogram) {
-            clearHistogram();
-            return;
-        }
-
-        const edges = histogram.bin_edges ?? [];
-        const counts = histogram.bin_counts ?? [];
-        if (edges.length < 2 || counts.length === 0) {
-            clearHistogram();
-            return;
-        }
-
-        log('Rendering histogram', { columnLabel, bins: counts.length });
-
-        const labels = counts.map((_, index) => {
-            const start = edges[index] ?? '';
-            const end = edges[index + 1] ?? '';
-            return `${start} - ${end}`;
-        });
-
-        histogramVisible = true;
         const chart = ensureHistogramChart();
-        const chartColor = getComputedStyle(document.body).getPropertyValue('--vscode-charts-blue').trim() || '#4e79a7';
-
-        chart.setOption({
-            tooltip: {
-                trigger: 'axis',
-                axisPointer: { type: 'shadow' },
-            },
-            grid: { left: 44, right: 18, top: 10, bottom: 46 },
-            xAxis: {
-                type: 'category',
-                data: labels,
-                axisLabel: {
-                    rotate: 30,
-                    color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
-                },
-                axisLine: {
-                    lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
-                },
-            },
-            yAxis: {
-                type: 'value',
-                axisLabel: {
-                    color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
-                },
-                splitLine: {
-                    lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
-                },
-            },
-            series: [
-                {
-                    type: 'bar',
-                    data: counts,
-                    itemStyle: {
-                        color: chartColor,
-                    },
-                },
-            ],
-        });
-        requestAnimationFrame(() => {
-            chart.resize();
-        });
+        const rendered = renderHistogramChart(chart, histogram, columnLabel);
+        histogramVisible = rendered;
+        if (rendered) {
+            log('Rendering histogram', { columnLabel, bins: histogram?.bin_counts?.length ?? 0 });
+        } else {
+            clearHistogram();
+        }
     }
 
     function renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
-        if (!frequency) {
-            clearFrequency();
-            return;
-        }
-        const values = frequency.values ?? [];
-        const counts = frequency.counts ?? [];
-        if (values.length === 0 || counts.length === 0) {
-            clearFrequency();
-            return;
-        }
-
-        log('Rendering frequency chart', { values: values.length });
-
-        const displayValues = values.map((value) => String(value));
-        const reversedValues = [...displayValues].reverse();
-        const reversedCounts = [...counts].reverse();
-        const chartHeight = Math.max(160, reversedValues.length * 18 + 40);
-        frequencyVisible = true;
-        if (frequencyContainer) {
-            frequencyContainer.style.height = `${chartHeight}px`;
-        }
         const chart = ensureFrequencyChart();
-        const chartColor = getComputedStyle(document.body).getPropertyValue('--vscode-charts-blue').trim() || '#4e79a7';
-
-        chart.setOption({
-            tooltip: {
-                trigger: 'axis',
-                axisPointer: { type: 'shadow' },
-            },
-            grid: { left: 100, right: 30, top: 10, bottom: 20 },
-            xAxis: {
-                type: 'value',
-                axisLabel: {
-                    color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
-                },
-                splitLine: {
-                    lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
-                },
-            },
-            yAxis: {
-                type: 'category',
-                data: reversedValues,
-                axisLabel: {
-                    color: getComputedStyle(document.body).getPropertyValue('--vscode-descriptionForeground').trim() || '#888888',
-                    width: 84,
-                    overflow: 'truncate',
-                    formatter: (value: string) => (value.length > 18 ? `${value.slice(0, 15)}...` : value),
-                },
-                axisLine: {
-                    lineStyle: { color: getComputedStyle(document.body).getPropertyValue('--vscode-editorWidget-border').trim() || '#3c3c3c' },
-                },
-            },
-            series: [
-                {
-                    type: 'bar',
-                    data: reversedCounts,
-                    itemStyle: {
-                        color: chartColor,
-                    },
-                    label: {
-                        show: true,
-                        position: 'right',
-                        fontSize: 10,
-                        color: getComputedStyle(document.body).getPropertyValue('--vscode-foreground').trim() || '#cccccc',
-                    },
-                },
-            ],
-        });
-        requestAnimationFrame(() => {
-            chart.resize();
-        });
+        const rendered = renderFrequencyTableChart(chart, frequency, frequencyContainer);
+        frequencyVisible = rendered;
+        if (rendered) {
+            log('Rendering frequency chart', { values: frequency?.values?.length ?? 0 });
+        } else {
+            clearFrequency();
+        }
     }
 
     function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfileResult[], errorMessage?: string): void {
@@ -1092,124 +746,13 @@
         }
         columnFilterMatches = matches;
         if (!isSetColumnFiltersSupported()) {
-            applySchemaUpdate(resolveVisibleSchema());
+            applySchemaUpdate(getResolvedVisibleSchema());
         }
         columnVisibilityStatus = `Found ${matches.length} matching columns.`;
     }
 
-    function resolveSchemaMatches(matches: Array<number | string | Record<string, unknown>>): ColumnSchema[] {
-        if (!fullSchema.length || matches.length === 0) {
-            return [];
-        }
-        const lookup = new Map(fullSchema.map((column) => [column.column_index, column]));
-        const resolved: ColumnSchema[] = [];
-        const seen = new Set<number>();
-        const numericMatches: number[] = [];
-        const nameMatches: string[] = [];
-
-        const resolveIndex = (match: number | string | Record<string, unknown>): number | null => {
-            if (typeof match === 'number' && Number.isFinite(match)) {
-                return match;
-            }
-            if (typeof match === 'string') {
-                const numeric = Number(match);
-                if (Number.isFinite(numeric)) {
-                    return numeric;
-                }
-                nameMatches.push(match);
-                return null;
-            }
-            if (match && typeof match === 'object') {
-                const record = match as Record<string, unknown>;
-                const candidate = record.column_index ?? record.columnIndex ?? record.index;
-                if (typeof candidate === 'number' && Number.isFinite(candidate)) {
-                    return candidate;
-                }
-                if (typeof candidate === 'string') {
-                    const numeric = Number(candidate);
-                    if (Number.isFinite(numeric)) {
-                        return numeric;
-                    }
-                }
-                const name = record.column_name ?? record.column_label;
-                if (typeof name === 'string') {
-                    nameMatches.push(name);
-                }
-            }
-            return null;
-        };
-
-        for (const match of matches) {
-            const matchIndex = resolveIndex(match);
-            if (matchIndex === null) {
-                continue;
-            }
-            numericMatches.push(matchIndex);
-        }
-
-        for (const matchIndex of numericMatches) {
-            const column = lookup.get(matchIndex) ?? fullSchema[matchIndex];
-            if (!column || seen.has(column.column_index)) {
-                continue;
-            }
-            resolved.push(column);
-            seen.add(column.column_index);
-        }
-
-        if (resolved.length > 0) {
-            return resolved;
-        }
-
-        if (nameMatches.length === 0) {
-            return [];
-        }
-
-        const normalizedNames = new Set(nameMatches.map((name) => name.trim().toLowerCase()).filter(Boolean));
-        return fullSchema.filter((column) => {
-            const columnName = column.column_name?.toLowerCase();
-            const columnLabel = column.column_label?.toLowerCase();
-            return (columnName && normalizedNames.has(columnName))
-                || (columnLabel && normalizedNames.has(columnLabel));
-        });
-    }
-
-    /**
-     * Compute displayed columns for the visibility panel.
-     * Pure function with explicit parameters for Svelte reactivity tracking.
-     */
-    function computeDisplayedColumns(
-        schemaList: ColumnSchema[],
-        matches: Array<number | string | Record<string, unknown>> | null,
-        searchTerm: string
-    ): ColumnSchema[] {
-        if (!schemaList.length) {
-            return [];
-        }
-        if (!matches || matches.length === 0) {
-            return schemaList;
-        }
-        const resolvedMatches = resolveSchemaMatches(matches);
-        if (resolvedMatches.length > 0) {
-            return resolvedMatches;
-        }
-        // Fallback: filter locally by search term if matches couldn't be resolved
-        const term = searchTerm.trim().toLowerCase();
-        if (!term) {
-            return schemaList;
-        }
-        return schemaList.filter((column) => {
-            const columnName = column.column_name?.toLowerCase();
-            const columnLabel = column.column_label?.toLowerCase();
-            return (columnName && columnName.includes(term))
-                || (columnLabel && columnLabel.includes(term));
-        });
-    }
-
-    function resolveVisibleSchema(): ColumnSchema[] {
-        const baseSchema = columnFilterMatches && !isSetColumnFiltersSupported()
-            ? resolveSchemaMatches(columnFilterMatches)
-            : fullSchema;
-        return baseSchema.filter((column) => !hiddenColumnIndices.has(column.column_index));
+    function getResolvedVisibleSchema(): ColumnSchema[] {
+        return resolveVisibleSchema(fullSchema, columnFilterMatches, hiddenColumnIndices, isSetColumnFiltersSupported());
     }
 
     function applySchemaUpdate(nextSchema: ColumnSchema[]): void {
@@ -1266,7 +809,7 @@
             columnFilterMatches = null;
             columnVisibilityStatus = 'Showing all columns.';
             if (!isSetColumnFiltersSupported()) {
-                applySchemaUpdate(resolveVisibleSchema());
+                applySchemaUpdate(getResolvedVisibleSchema());
             } else {
                 vscode.postMessage({ type: 'setColumnFilters', filters });
             }
@@ -1309,7 +852,7 @@
         nextHidden.add(columnIndex);
         hiddenColumnIndices = nextHidden;
         log('Column hidden', { columnIndex });
-        applySchemaUpdate(resolveVisibleSchema());
+        applySchemaUpdate(getResolvedVisibleSchema());
     }
 
     function showColumn(columnIndex: number): void {
@@ -1320,7 +863,7 @@
         nextHidden.delete(columnIndex);
         hiddenColumnIndices = nextHidden;
         log('Column shown', { columnIndex });
-        applySchemaUpdate(resolveVisibleSchema());
+        applySchemaUpdate(getResolvedVisibleSchema());
     }
 
     function toggleColumnVisibility(columnIndex: number): void {
@@ -1328,7 +871,7 @@
             showColumn(columnIndex);
             return;
         }
-        if (resolveVisibleSchema().length <= 1) {
+        if (getResolvedVisibleSchema().length <= 1) {
             return;
         }
         hideColumn(columnIndex);
@@ -1339,7 +882,7 @@
             return;
         }
 
-        const baseSchema = columnFilterMatches ? resolveSchemaMatches(columnFilterMatches) : fullSchema;
+        const baseSchema = columnFilterMatches ? resolveSchemaMatches(fullSchema, columnFilterMatches) : fullSchema;
         if (!baseSchema.length) {
             return;
         }
@@ -1360,7 +903,7 @@
         }
 
         hiddenColumnIndices = nextHidden;
-        applySchemaUpdate(resolveVisibleSchema());
+        applySchemaUpdate(getResolvedVisibleSchema());
     }
 
     function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
@@ -1435,14 +978,6 @@
             return { columnIndex, direction: 'desc' };
         }
         return null;
-    }
-
-    function isSortSupported(): boolean {
-        const status = state?.supported_features?.set_sort_columns?.support_status;
-        if (!status) {
-            return true;
-        }
-        return status === 'supported';
     }
 
     function updateHeaderScroll(scrollLeft: number): void {
@@ -1702,7 +1237,7 @@
         fullSchema = message.schema ?? [];
         columnFilterMatches = null;
         hiddenColumnIndices = new Set();
-        schema = resolveVisibleSchema();
+        schema = getResolvedVisibleSchema();
         rowCache.clear();
         rowLabelCache.clear();
         loadedBlocks.clear();
@@ -1730,7 +1265,7 @@
         clearStatsContent();
         codePreview = '';
         if (columnFilterMatches && !isSetColumnFiltersSupported()) {
-            schema = resolveVisibleSchema();
+            schema = getResolvedVisibleSchema();
         }
         applySchemaUpdate(schema);
         setupTable();
@@ -1844,27 +1379,6 @@
             return formatSpecialValue(value);
         }
         return value ?? '';
-    }
-
-    function formatSpecialValue(code: number): string {
-        switch (code) {
-            case 0:
-                return 'NULL';
-            case 1:
-                return 'NA';
-            case 2:
-                return 'NaN';
-            case 3:
-                return 'NaT';
-            case 4:
-                return 'None';
-            case 10:
-                return 'Inf';
-            case 11:
-                return '-Inf';
-            default:
-                return 'UNKNOWN';
-        }
     }
 
     function handleStatsColumnChange(): void {
