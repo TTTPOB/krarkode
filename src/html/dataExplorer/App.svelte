@@ -8,7 +8,6 @@
     } from '@tanstack/virtual-core';
     import {
         ColumnDef,
-        RowModel,
         Table,
         createTable,
         getCoreRowModel,
@@ -383,7 +382,6 @@
         index: number;
     }
     let tableInstance: Table<RowData> | null = null;
-    let rowModel: RowModel<RowData> | null = null;
 
     let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
     let sidePanelResizeState: { startX: number; startWidth: number; panelId?: string } | null = null;
@@ -1680,7 +1678,6 @@
             }));
         }
 
-        rowModel = tableInstance.getRowModel();
         log('Table setup complete', { rowCount, columnCount: columns.length });
     }
 
@@ -1901,16 +1898,6 @@
         const selectedColumnIndex = columnMenuColumnIndex;
         closeColumnMenu();
         hideColumn(selectedColumnIndex);
-    }
-
-    function handleTableScroll(): void {
-        if (columnMenuOpen) {
-            closeColumnMenu();
-        }
-        if (tableBodyEl.scrollLeft !== lastScrollLeft) {
-            updateHeaderScroll(tableBodyEl.scrollLeft);
-            lastScrollLeft = tableBodyEl.scrollLeft;
-        }
     }
 
     function handleDataTableSort(columnIndex: number): void {
