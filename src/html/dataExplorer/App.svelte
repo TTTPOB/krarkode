@@ -352,6 +352,7 @@
     let tableBodyEl: HTMLDivElement;
     let tableHeaderEl: HTMLDivElement;
     let bodyInnerEl: HTMLDivElement;
+    let dataTableComponent: DataTable;
     let columnVisibilityPanelEl: HTMLDivElement;
     let rowFilterPanelEl: HTMLDivElement;
     let statsPanelEl: HTMLDivElement;
@@ -385,7 +386,6 @@
     let rowModel: RowModel<RowData> | null = null;
 
     let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
-    let ignoreHeaderSortClick = false;
     let sidePanelResizeState: { startX: number; startWidth: number; panelId?: string } | null = null;
 
     let collapsedSections = new Set<string>();
@@ -1542,24 +1542,6 @@
         };
     }
 
-    function handleHeaderSort(event: Event, columnIndex: number): void {
-        if (ignoreHeaderSortClick) {
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-        }
-        if (!isSortSupported()) {
-            return;
-        }
-        activeSort = getNextSort(columnIndex);
-        vscode.postMessage({
-            type: 'setSort',
-            sortKey: activeSort
-                ? { columnIndex: activeSort.columnIndex, direction: activeSort.direction }
-                : null,
-        });
-    }
-
     function getNextSort(columnIndex: number): SortState | null {
         if (!activeSort || activeSort.columnIndex !== columnIndex) {
             return { columnIndex, direction: 'asc' };
@@ -1627,10 +1609,10 @@
         log('Column resize ended', { columnIndex, width });
         activeColumnResize = null;
         document.body.classList.remove('column-resizing');
-        ignoreHeaderSortClick = true;
+        dataTableComponent?.setIgnoreHeaderSortClick(true);
         scheduleTableLayoutDiagnostics('column-resize-end');
         window.setTimeout(() => {
-            ignoreHeaderSortClick = false;
+            dataTableComponent?.setIgnoreHeaderSortClick(false);
         }, 0);
     }
 
@@ -1968,13 +1950,6 @@
         return `${num_rows}x${num_columns}${filteredText}${unnamedText}`;
     }
 
-    function getSortIndicator(columnIndex: number): string {
-        if (!activeSort || activeSort.columnIndex !== columnIndex) {
-            return '';
-        }
-        return activeSort.direction === 'asc' ? '^' : 'v';
-    }
-
     function getCellValue(rowIndex: number, columnIndex: number, _version?: number): string {
         const values = rowCache.get(rowIndex);
         if (!values) {
@@ -2016,10 +1991,6 @@
             default:
                 return 'UNKNOWN';
         }
-    }
-
-    function isSpecialValue(value: string): boolean {
-        return ['NULL', 'NA', 'NaN', 'NaT', 'None', 'Inf', '-Inf', 'UNKNOWN'].includes(value);
     }
 
     function handleStatsColumnChange(): void {
@@ -2322,6 +2293,7 @@
 </div>
 
 <DataTable
+    bind:this={dataTableComponent}
     {state}
     {schema}
     {columnWidths}
