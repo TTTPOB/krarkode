@@ -23,6 +23,7 @@
     import StatsFrequencySection from './stats/StatsFrequencySection.svelte';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
+    import CodeModal from './CodeModal.svelte';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -2510,30 +2511,15 @@
     </div>
 </div>
 
-<div class="modal" id="code-modal" bind:this={codeModalEl} class:open={codeModalOpen}>
-    <div class="modal-content">
-        <div class="modal-header">
-            <span>Convert to Code</span>
-            <button class="close-btn" id="close-code" on:click={() => { codeModalOpen = false; }}>&times;</button>
-        </div>
-        <div class="modal-body">
-            <div class="code-section">
-                <label for="code-syntax">Syntax</label>
-                <select id="code-syntax" bind:value={codeSyntax}>
-                    <option value="pandas">Python (pandas)</option>
-                    <option value="polars">Python (polars)</option>
-                    <option value="dplyr">R (dplyr)</option>
-                    <option value="data.table">R (data.table)</option>
-                </select>
-            </div>
-            <div class="code-actions">
-                <button class="action" id="convert-code" on:click={handleCodeConvert}>Convert</button>
-                <button class="action secondary" id="copy-code" on:click={handleCodeCopy}>Copy to Clipboard</button>
-            </div>
-            <pre id="code-preview">{codePreview}</pre>
-        </div>
-    </div>
-</div>
+<CodeModal
+    open={codeModalOpen}
+    bind:codePreview
+    bind:codeSyntax
+    bind:codeModalEl
+    on:close={() => { codeModalOpen = false; }}
+    on:convert={(e) => handleCodeConvert()}
+    on:copy={() => {}}
+/>
 
 <div
     class="context-menu"

@@ -5,6 +5,9 @@
     export let codePreview = '';
     export let codeSyntax = 'pandas';
 
+    // Expose modal element for click-outside detection
+    export let codeModalEl: HTMLDivElement | undefined = undefined;
+
     const dispatch = createEventDispatcher<{
         close: void;
         convert: { syntax: string };
@@ -19,7 +22,7 @@
     }
 </script>
 
-<div class="modal" id="code-modal" class:open={open}>
+<div class="modal" id="code-modal" bind:this={codeModalEl} class:open={open}>
     <div class="modal-content">
         <div class="modal-header">
             <span>Convert to Code</span>
