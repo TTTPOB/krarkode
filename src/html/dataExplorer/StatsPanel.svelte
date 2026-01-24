@@ -1,10 +1,26 @@
 <script lang="ts">
-    import { createEventDispatcher, tick } from 'svelte';
+    import { createEventDispatcher } from 'svelte';
     import StatsColumnSelector from './stats/StatsColumnSelector.svelte';
     import StatsSummarySection from './stats/StatsSummarySection.svelte';
     import StatsDistributionSection from './stats/StatsDistributionSection.svelte';
     import StatsFrequencySection from './stats/StatsFrequencySection.svelte';
-    import type { ColumnSchema, StatsRow, StatsMessageState } from './types';
+    import type { ColumnSchema } from './types';
+    import {
+        statsMessageText,
+        statsMessageState,
+        statsSectionsVisible,
+        statsControlsEnabled,
+        statsOverviewRows,
+        statsSummaryRows,
+        statsOverviewEmptyMessage,
+        statsSummaryEmptyMessage,
+        frequencyFootnote,
+        histogramBins,
+        histogramMethod,
+        frequencyLimit,
+        histogramVisible,
+        frequencyVisible,
+    } from './stores';
 
     // Props
     export let isOpen = false;
@@ -14,20 +30,6 @@
 
     // Stats state
     export let statsColumnValue = '';
-    export let statsMessageText = 'Select a column to view statistics.';
-    export let statsMessageState: StatsMessageState = 'empty';
-    export let statsSectionsVisible = false;
-    export let statsControlsEnabled = false;
-    export let statsOverviewRows: StatsRow[] = [];
-    export let statsSummaryRows: StatsRow[] = [];
-    export let statsOverviewEmptyMessage = 'No overview data.';
-    export let statsSummaryEmptyMessage = 'No summary statistics.';
-    export let frequencyFootnote = '';
-    export let histogramBins = 20;
-    export let histogramMethod = 'freedman_diaconis';
-    export let frequencyLimit = 10;
-    export let histogramVisible = false;
-    export let frequencyVisible = false;
     export let collapsedSections: Set<string> = new Set();
 
     // Bound elements for parent access
@@ -119,13 +121,13 @@
             <div
                 class="stats-message"
                 id="stats-message"
-                class:is-hidden={statsSectionsVisible}
-                class:is-loading={statsMessageState === 'loading'}
-                class:is-error={statsMessageState === 'error'}
+                class:is-hidden={$statsSectionsVisible}
+                class:is-loading={$statsMessageState === 'loading'}
+                class:is-error={$statsMessageState === 'error'}
             >
-                {statsMessageText}
+                {$statsMessageText}
             </div>
-            <div class="stats-sections" id="stats-sections" class:is-hidden={!statsSectionsVisible}>
+            <div class="stats-sections" id="stats-sections" class:is-hidden={!$statsSectionsVisible}>
                 <div class="stats-section collapsible" data-section="overview" class:is-collapsed={collapsedSections.has('overview')}>
                     <button class="section-header" type="button" data-target="stats-overview-section" on:click={() => handleToggleSection('overview')}>
                         <span class="codicon codicon-chevron-down"></span>
@@ -133,12 +135,12 @@
                     </button>
                     <div class="section-content" id="stats-overview-section">
                         <table class="stats-table" id="stats-overview-table">
-                            {#if statsOverviewRows.length === 0}
+                            {#if $statsOverviewRows.length === 0}
                                 <tr>
-                                    <td class="stats-empty" colspan="2">{statsOverviewEmptyMessage}</td>
+                                    <td class="stats-empty" colspan="2">{$statsOverviewEmptyMessage}</td>
                                 </tr>
                             {:else}
-                                {#each statsOverviewRows as row}
+                                {#each $statsOverviewRows as row}
                                     <tr>
                                         <td>{row.label}</td>
                                         <td>{row.value}</td>
@@ -151,17 +153,17 @@
                 <StatsSummarySection
                     title="Summary Statistics"
                     sectionId="summary"
-                    rows={statsSummaryRows}
-                    emptyMessage={statsSummaryEmptyMessage}
+                    rows={$statsSummaryRows}
+                    emptyMessage={$statsSummaryEmptyMessage}
                     collapsed={collapsedSections.has('summary')}
                     on:toggle={() => handleToggleSection('summary')}
                 />
                 <StatsDistributionSection
                     bind:histogramContainer={histogramContainer}
-                    histogramVisible={histogramVisible}
-                    histogramBins={histogramBins}
-                    bind:histogramMethod={histogramMethod}
-                    statsControlsEnabled={statsControlsEnabled}
+                    histogramVisible={$histogramVisible}
+                    histogramBins={$histogramBins}
+                    bind:histogramMethod={$histogramMethod}
+                    statsControlsEnabled={$statsControlsEnabled}
                     collapsed={collapsedSections.has('distribution')}
                     on:toggle={() => handleToggleSection('distribution')}
                     on:binsInput={handleBinsInput}
@@ -169,10 +171,10 @@
                 />
                 <StatsFrequencySection
                     bind:frequencyContainer={frequencyContainer}
-                    frequencyVisible={frequencyVisible}
-                    frequencyLimit={frequencyLimit}
-                    statsControlsEnabled={statsControlsEnabled}
-                    frequencyFootnote={frequencyFootnote}
+                    frequencyVisible={$frequencyVisible}
+                    frequencyLimit={$frequencyLimit}
+                    statsControlsEnabled={$statsControlsEnabled}
+                    frequencyFootnote={$frequencyFootnote}
                     collapsed={collapsedSections.has('frequency')}
                     on:toggle={() => handleToggleSection('frequency')}
                     on:limitInput={handleLimitInput}

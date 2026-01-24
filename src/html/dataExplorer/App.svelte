@@ -48,6 +48,21 @@
         rowFilterPanelOpen as rowFilterPanelOpenStore,
         statsPanelOpen as statsPanelOpenStore,
         codeModalOpen as codeModalOpenStore,
+        // Stats stores
+        statsMessageText as statsMessageTextStore,
+        statsMessageState as statsMessageStateStore,
+        statsSectionsVisible as statsSectionsVisibleStore,
+        statsControlsEnabled as statsControlsEnabledStore,
+        statsOverviewRows as statsOverviewRowsStore,
+        statsSummaryRows as statsSummaryRowsStore,
+        statsOverviewEmptyMessage as statsOverviewEmptyMessageStore,
+        statsSummaryEmptyMessage as statsSummaryEmptyMessageStore,
+        frequencyFootnote as frequencyFootnoteStore,
+        histogramBins as histogramBinsStore,
+        histogramMethod as histogramMethodStore,
+        frequencyLimit as frequencyLimitStore,
+        histogramVisible as histogramVisibleStore,
+        frequencyVisible as frequencyVisibleStore,
     } from './stores';
     import {
         type ColumnSchema,
@@ -64,7 +79,6 @@
         type SortDirection,
         type SortState,
         type StatsMessageState,
-        type StatsRow,
         type RowFilterDraft,
         ROW_HEIGHT,
         ROW_BLOCK_SIZE,
@@ -125,21 +139,6 @@
 
     let rowFilterError = '';
     let rowFilterDraft: RowFilterDraft = createRowFilterDraft();
-
-    let statsMessageText = 'Select a column to view statistics.';
-    let statsMessageState: StatsMessageState = 'empty';
-    let statsSectionsVisible = false;
-    let statsControlsEnabled = false;
-    let statsOverviewRows: StatsRow[] = [];
-    let statsSummaryRows: StatsRow[] = [];
-    let statsOverviewEmptyMessage = '';
-    let statsSummaryEmptyMessage = '';
-    let frequencyFootnote = '';
-    let histogramBins = DEFAULT_HISTOGRAM_BINS;
-    let histogramMethod = 'freedman_diaconis';
-    let frequencyLimit = DEFAULT_FREQUENCY_LIMIT;
-    let histogramVisible = false;
-    let frequencyVisible = false;
     let activeStatsColumnIndex: number | null = null;
     let statsColumnValue = '';
 
@@ -425,15 +424,15 @@
     }
 
     function setStatsMessage(message: string, stateValue: StatsMessageState): void {
-        statsMessageText = message;
-        statsMessageState = stateValue;
-        statsSectionsVisible = false;
-        statsControlsEnabled = stateValue !== 'empty';
+        statsMessageTextStore.set(message);
+        statsMessageStateStore.set(stateValue);
+        statsSectionsVisibleStore.set(false);
+        statsControlsEnabledStore.set(stateValue !== 'empty');
     }
 
     function showStatsSections(): void {
-        statsSectionsVisible = true;
-        statsControlsEnabled = true;
+        statsSectionsVisibleStore.set(true);
+        statsControlsEnabledStore.set(true);
     }
 
     function clearStatsContent(options: { preserveScrollTop?: boolean } = {}): void {
@@ -441,11 +440,11 @@
         // When preserving scroll, keep existing data to prevent DOM rebuild
         // New data will replace it when profiles arrive
         if (!preserveScrollTop) {
-            statsOverviewRows = [];
-            statsSummaryRows = [];
-            statsOverviewEmptyMessage = 'No overview data.';
-            statsSummaryEmptyMessage = 'No summary statistics.';
-            frequencyFootnote = '';
+            statsOverviewRowsStore.set([]);
+            statsSummaryRowsStore.set([]);
+            statsOverviewEmptyMessageStore.set('No overview data.');
+            statsSummaryEmptyMessageStore.set('No summary statistics.');
+            frequencyFootnoteStore.set('');
             clearHistogram();
             clearFrequency();
             if (statsResultsEl) {
@@ -457,12 +456,12 @@
     }
 
     function syncHistogramBins(source: 'slider' | 'input'): void {
-        const rawValue = histogramBins;
+        const rawValue = $histogramBinsStore;
         const nextValue = clampNumber(rawValue, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        histogramBins = nextValue;
-        if (histogramMethod !== 'fixed') {
-            const previousMethod = histogramMethod;
-            histogramMethod = 'fixed';
+        histogramBinsStore.set(nextValue);
+        if ($histogramMethodStore !== 'fixed') {
+            const previousMethod = $histogramMethodStore;
+            histogramMethodStore.set('fixed');
             log('Histogram method forced to fixed for bins update', { previousMethod });
         }
         log('Histogram bins updated', { value: nextValue, source });
@@ -470,9 +469,9 @@
     }
 
     function syncFrequencyLimit(source: 'slider' | 'input'): void {
-        const rawValue = frequencyLimit;
+        const rawValue = $frequencyLimitStore;
         const nextValue = clampNumber(rawValue, FREQUENCY_LIMIT_MIN, FREQUENCY_LIMIT_MAX, DEFAULT_FREQUENCY_LIMIT);
-        frequencyLimit = nextValue;
+        frequencyLimitStore.set(nextValue);
         log('Frequency limit updated', { value: nextValue, source });
         scheduleStatsRefresh('frequency-limit');
     }
@@ -495,13 +494,13 @@
             return;
         }
         const preserveScrollTop = options.preserveScrollTop === true;
-        const histogramBinsValue = clampNumber(histogramBins, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        const frequencyLimitValue = clampNumber(frequencyLimit, FREQUENCY_LIMIT_MIN, FREQUENCY_LIMIT_MAX, DEFAULT_FREQUENCY_LIMIT);
+        const histogramBinsValue = clampNumber($histogramBinsStore, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
+        const frequencyLimitValue = clampNumber($frequencyLimitStore, FREQUENCY_LIMIT_MIN, FREQUENCY_LIMIT_MAX, DEFAULT_FREQUENCY_LIMIT);
         const histogramProfile = histogramBinsValue > SMALL_HISTOGRAM_MAX_BINS ? 'large_histogram' : 'small_histogram';
         const frequencyProfile = frequencyLimitValue > SMALL_FREQUENCY_MAX_LIMIT ? 'large_frequency_table' : 'small_frequency_table';
         const profileTypes = ['null_count', 'summary_stats', histogramProfile, frequencyProfile];
         const histogramParams = {
-            method: histogramMethod,
+            method: $histogramMethodStore,
             num_bins: histogramBinsValue,
             quantiles: [0.25, 0.5, 0.75],
         };
@@ -556,7 +555,7 @@
     }
 
     function syncHistogramBinsFromProfile(histogram: ColumnHistogram | undefined): void {
-        if (!histogram || histogramMethod === 'fixed') {
+        if (!histogram || $histogramMethodStore === 'fixed') {
             return;
         }
         const binCount = histogram.bin_counts?.length ?? 0;
@@ -564,9 +563,9 @@
             return;
         }
         const nextValue = clampNumber(binCount, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        if (histogramBins !== nextValue) {
-            histogramBins = nextValue;
-            log('Histogram bins synced from profile', { value: nextValue, method: histogramMethod });
+        if ($histogramBinsStore !== nextValue) {
+            histogramBinsStore.set(nextValue);
+            log('Histogram bins synced from profile', { value: nextValue, method: $histogramMethodStore });
         }
     }
 
@@ -616,26 +615,26 @@
     }
 
     function initializeStatsDefaults(): void {
-        histogramBins = DEFAULT_HISTOGRAM_BINS;
-        histogramMethod = 'freedman_diaconis';
-        frequencyLimit = DEFAULT_FREQUENCY_LIMIT;
-        statsControlsEnabled = false;
+        histogramBinsStore.set(DEFAULT_HISTOGRAM_BINS);
+        histogramMethodStore.set('freedman_diaconis');
+        frequencyLimitStore.set(DEFAULT_FREQUENCY_LIMIT);
+        statsControlsEnabledStore.set(false);
     }
 
     function clearHistogram(): void {
-        histogramVisible = false;
+        histogramVisibleStore.set(false);
         statsCharts.clearHistogram();
     }
 
     function clearFrequency(): void {
-        frequencyVisible = false;
-        frequencyFootnote = '';
+        frequencyVisibleStore.set(false);
+        frequencyFootnoteStore.set('');
         statsCharts.clearFrequency();
     }
 
     function renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): void {
         const rendered = statsCharts.renderHistogram(histogram, columnLabel);
-        histogramVisible = rendered;
+        histogramVisibleStore.set(rendered);
         if (rendered) {
             log('Rendering histogram', { columnLabel, bins: histogram?.bin_counts?.length ?? 0 });
         } else {
@@ -645,7 +644,7 @@
 
     function renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
         const rendered = statsCharts.renderFrequency(frequency);
-        frequencyVisible = rendered;
+        frequencyVisibleStore.set(rendered);
         if (rendered) {
             log('Rendering frequency chart', { values: frequency?.values?.length ?? 0 });
         } else {
@@ -702,25 +701,25 @@
         const frequency = combined.large_frequency_table ?? combined.small_frequency_table;
         const quantiles = histogram?.quantiles ?? [];
 
-        statsOverviewRows = [
+        statsOverviewRowsStore.set([
             { label: 'Column', value: columnLabel },
             { label: 'Type', value: formatStatValue(summaryStats?.type_display) },
             { label: 'Null Count', value: formatStatValue(combined.null_count) },
-        ];
-        statsSummaryRows = buildSummaryRows(summaryStats, quantiles);
-        statsOverviewEmptyMessage = 'No overview data.';
-        statsSummaryEmptyMessage = 'No summary statistics.';
+        ]);
+        statsSummaryRowsStore.set(buildSummaryRows(summaryStats, quantiles));
+        statsOverviewEmptyMessageStore.set('No overview data.');
+        statsSummaryEmptyMessageStore.set('No summary statistics.');
 
         syncHistogramBinsFromProfile(histogram);
         renderHistogram(histogram, columnLabel);
         renderFrequencyChart(frequency);
         if (!frequency) {
-            frequencyFootnote = 'No frequency data.';
+            frequencyFootnoteStore.set('No frequency data.');
         } else if (frequency.other_count !== undefined) {
-            frequencyFootnote = `Other values: ${frequency.other_count}`;
+            frequencyFootnoteStore.set(`Other values: ${frequency.other_count}`);
             log('Frequency table contains other values', { otherCount: frequency.other_count });
         } else {
-            frequencyFootnote = '';
+            frequencyFootnoteStore.set('');
         }
 
         showStatsSections();
@@ -1530,20 +1529,6 @@
     schema={$visibleSchema}
     getColumnLabel={getColumnLabel}
     bind:statsColumnValue
-    bind:statsMessageText
-    bind:statsMessageState
-    bind:statsSectionsVisible
-    bind:statsControlsEnabled
-    bind:statsOverviewRows
-    bind:statsSummaryRows
-    bind:statsOverviewEmptyMessage
-    bind:statsSummaryEmptyMessage
-    bind:frequencyFootnote
-    bind:histogramBins
-    bind:histogramMethod
-    bind:frequencyLimit
-    bind:histogramVisible
-    bind:frequencyVisible
     collapsedSections={$collapsedSectionsStore}
     bind:statsPanelEl
     bind:statsResultsEl
@@ -1557,12 +1542,12 @@
     on:columnChange={handleStatsColumnChange}
     on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
     on:binsInput={(e) => {
-        histogramBins = e.detail.value;
+        histogramBinsStore.set(e.detail.value);
         handleHistogramBinsInput(e.detail.source);
     }}
     on:methodChange={handleStatsMethodChange}
     on:limitInput={(e) => {
-        frequencyLimit = e.detail.value;
+        frequencyLimitStore.set(e.detail.value);
         handleFrequencyLimitInput(e.detail.source);
     }}
     on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}

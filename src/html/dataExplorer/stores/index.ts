@@ -5,3 +5,4 @@
 
 export * from './dataStore';
 export * from './uiStore';
+export * from './statsStore';

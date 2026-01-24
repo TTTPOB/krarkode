@@ -1,11 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
-
-    type ColumnSchema = {
-        column_index: number;
-        column_name: string;
-        column_label?: string;
-    };
+    import type { ColumnSchema } from '../types';
 
     export let schema: ColumnSchema[] = [];
     export let value = '';
