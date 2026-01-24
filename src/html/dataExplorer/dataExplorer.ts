@@ -1212,6 +1212,11 @@ function syncHistogramBins(source: 'slider' | 'input'): void {
     const nextValue = clampNumber(rawValue, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
     histogramBinsSlider.value = String(nextValue);
     histogramBinsInput.value = String(nextValue);
+    if (histogramMethodSelect.value !== 'fixed') {
+        const previousMethod = histogramMethodSelect.value;
+        histogramMethodSelect.value = 'fixed';
+        log('Histogram method forced to fixed for bins update', { previousMethod });
+    }
     log('Histogram bins updated', { value: nextValue, source });
     scheduleStatsRefresh('histogram-bins');
 }
