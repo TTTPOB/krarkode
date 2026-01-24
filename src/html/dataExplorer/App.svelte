@@ -1714,12 +1714,21 @@
                 },
             });
             rowVirtualizerCleanup = rowVirtualizer._didMount();
+            log('Row virtualizer created', {
+                count: state.table_shape.num_rows,
+                hasScrollElement: Boolean(tableBodyEl),
+            });
         }
 
-        rowVirtualizer.setOptions((prev) => ({
-            ...prev,
+        const nextOptions = {
+            ...rowVirtualizer.options,
             count: state.table_shape.num_rows,
-        }));
+        };
+        rowVirtualizer.setOptions(nextOptions);
+        log('Row virtualizer options updated', {
+            count: nextOptions.count,
+            hasScrollElement: typeof nextOptions.getScrollElement === 'function',
+        });
         rowVirtualizer._willUpdate();
         rowVirtualizer.measure();
         refreshVirtualRows();
