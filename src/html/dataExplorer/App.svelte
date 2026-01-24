@@ -28,7 +28,11 @@
         collapsedSections as collapsedSectionsStore,
         pinnedPanels as pinnedPanelsStore,
         setPanelPinned as storeSetPanelPinned,
-        isPanelPinned as storeIsPanelPinned,
+        columnMenuOpen as columnMenuOpenStore,
+        columnMenuPosition as columnMenuPositionStore,
+        columnMenuColumnIndex as columnMenuColumnIndexStore,
+        closeColumnMenu as storeCloseColumnMenu,
+        openColumnMenu as storeOpenColumnMenu,
     } from './stores';
     import {
         type BackendState,
@@ -123,10 +127,7 @@
     let rowFilterPanelOpen = false;
     let statsPanelOpen = false;
     let codeModalOpen = false;
-    let columnMenuOpen = false;
-    let columnMenuX = 0;
-    let columnMenuY = 0;
-    let columnMenuColumnIndex: number | null = null;
+    // columnMenuOpen, columnMenuPosition, columnMenuColumnIndex now come from stores
     // pinnedPanels now comes from store via $pinnedPanelsStore
 
     let columnVisibilitySearchTerm = '';
@@ -1285,8 +1286,8 @@
     }
 
     function openColumnMenu(event: MouseEvent, columnIndex: number): void {
-        columnMenuColumnIndex = columnIndex;
-        columnMenuOpen = true;
+        $columnMenuColumnIndexStore = columnIndex;
+        $columnMenuOpenStore = true;
         void tick().then(() => {
             const padding = 8;
             const { innerWidth, innerHeight } = window;
@@ -1295,30 +1296,31 @@
             const menuHeight = menuRect?.height ?? 80;
             const nextLeft = Math.min(event.clientX, innerWidth - menuWidth - padding);
             const nextTop = Math.min(event.clientY, innerHeight - menuHeight - padding);
-            columnMenuX = Math.max(nextLeft, padding);
-            columnMenuY = Math.max(nextTop, padding);
+            $columnMenuPositionStore = { 
+                x: Math.max(nextLeft, padding), 
+                y: Math.max(nextTop, padding) 
+            };
         });
     }
 
     function closeColumnMenu(): void {
-        columnMenuOpen = false;
-        columnMenuColumnIndex = null;
+        storeCloseColumnMenu();
     }
 
     function handleColumnMenuAddFilter(): void {
-        if (columnMenuColumnIndex === null) {
+        if ($columnMenuColumnIndexStore === null) {
             return;
         }
-        const selectedColumnIndex = columnMenuColumnIndex;
+        const selectedColumnIndex = $columnMenuColumnIndexStore;
         closeColumnMenu();
         openRowFilterEditor(undefined, undefined, selectedColumnIndex);
     }
 
     function handleColumnMenuHideColumn(): void {
-        if (columnMenuColumnIndex === null) {
+        if ($columnMenuColumnIndexStore === null) {
             return;
         }
-        const selectedColumnIndex = columnMenuColumnIndex;
+        const selectedColumnIndex = $columnMenuColumnIndexStore;
         closeColumnMenu();
         hideColumn(selectedColumnIndex);
     }
@@ -1334,7 +1336,7 @@
     }
 
     function handleDataTableScroll(): void {
-        if (columnMenuOpen) {
+        if ($columnMenuOpenStore) {
             closeColumnMenu();
         }
         if (tableBodyEl && tableBodyEl.scrollLeft !== lastScrollLeft) {
@@ -1438,7 +1440,7 @@
 
     function handleDocumentClick(event: MouseEvent): void {
         const target = event.target as Node;
-        if (columnMenuOpen && columnMenuEl && !columnMenuEl.contains(target)) {
+        if ($columnMenuOpenStore && columnMenuEl && !columnMenuEl.contains(target)) {
             closeColumnMenu();
         }
         if (statsPanelOpen
@@ -1675,8 +1677,8 @@
     class="context-menu"
     id="column-menu"
     bind:this={columnMenuEl}
-    class:open={columnMenuOpen}
-    style={`left: ${columnMenuX}px; top: ${columnMenuY}px;`}
+    class:open={$columnMenuOpenStore}
+    style={`left: ${$columnMenuPositionStore.x}px; top: ${$columnMenuPositionStore.y}px;`}
 >
     <button class="context-menu-item" id="column-menu-add-filter" disabled={!rowFilterSupported} on:click={handleColumnMenuAddFilter}>Add Filter</button>
     <button class="context-menu-item" id="column-menu-hide-column" disabled={schema.length <= 1} on:click={handleColumnMenuHideColumn}>Hide Column</button>
