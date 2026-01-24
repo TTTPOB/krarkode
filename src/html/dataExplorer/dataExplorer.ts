@@ -1248,7 +1248,7 @@ function requestColumnProfiles(reason: string): void {
     }
     const histogramBins = clampNumber(parseInt(histogramBinsInput.value, 10), HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
     const frequencyLimit = clampNumber(
-        parseInt(frequencyLimitInput.value, 10),
+        parseInt(frequencyLimitSlider.value, 10),
         FREQUENCY_LIMIT_MIN,
         FREQUENCY_LIMIT_MAX,
         DEFAULT_FREQUENCY_LIMIT
