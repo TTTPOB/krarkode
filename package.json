@@ -254,7 +254,12 @@
   },
   "scripts": {
     "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && node scripts/build-data-explorer.mjs && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "compile:dev": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife --sourcemap=inline && node scripts/build-data-explorer.mjs --dev && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
+    "watch:data-explorer": "node scripts/build-data-explorer.mjs --watch",
+    "watch:variables": "esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife --sourcemap=inline --watch",
+    "watch:all": "pnpm run watch & pnpm run watch:data-explorer & pnpm run watch:variables",
+    "analyze:data-explorer": "node scripts/build-data-explorer.mjs --analyze",
     "vscode:prepublish": "pnpm run compile"
   },
   "devDependencies": {
