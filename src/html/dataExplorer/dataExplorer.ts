@@ -974,7 +974,7 @@ function openRowFilterEditor(filter?: RowFilter, index?: number, columnIndex?: n
 
     editingRowFilterIndex = index ?? null;
     rowFilterPanel.classList.add('open');
-    filterPanel.classList.remove('open');
+    columnVisibilityPanel.classList.remove('open');
     statsPanel.classList.remove('open');
     codeModal.classList.remove('open');
     closeColumnMenu();
