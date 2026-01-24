@@ -1295,6 +1295,13 @@
     }
 
     function handleSearchSchemaResult(matches: number[]): void {
+        const searchTerm = columnVisibilitySearchTerm.trim();
+        if (!searchTerm) {
+            columnFilterMatches = null;
+            columnVisibilityStatus = 'Showing all columns.';
+            log('Ignoring column search results for empty term', { matches: matches.length });
+            return;
+        }
         columnFilterMatches = matches;
         if (!isSetColumnFiltersSupported()) {
             applySchemaUpdate(resolveVisibleSchema());
