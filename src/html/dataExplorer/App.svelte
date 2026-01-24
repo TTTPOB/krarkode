@@ -6,6 +6,13 @@
         observeElementOffset,
         observeElementRect,
     } from '@tanstack/virtual-core';
+    import {
+        ColumnDef,
+        RowModel,
+        Table,
+        createTable,
+        getCoreRowModel,
+    } from '@tanstack/table-core';
     import * as echarts from 'echarts/core';
     import { BarChart } from 'echarts/charts';
     import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components';
@@ -361,6 +368,13 @@
     let virtualizerTotalHeight = 0;
     let headerScrollLeft = 0;
     let lastScrollLeft = 0;
+
+    // TanStack Table state
+    interface RowData {
+        index: number;
+    }
+    let tableInstance: Table<RowData> | null = null;
+    let rowModel: RowModel<RowData> | null = null;
 
     let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
     let ignoreHeaderSortClick = false;
@@ -1274,6 +1288,7 @@
             }
         });
         columnWidths = nextWidths;
+        setupTable();
         refreshVirtualRows();
         requestInitialBlock();
         requestVisibleBlocks();
@@ -1576,6 +1591,60 @@
         requestVisibleBlocks();
     }
 
+    function buildColumnDefs(): ColumnDef<RowData>[] {
+        const columns: ColumnDef<RowData>[] = [];
+
+        // Row label column
+        columns.push({
+            id: 'row-label',
+            header: state?.has_row_labels ? '#' : 'Row',
+            accessorFn: (row) => getRowLabel(row.index),
+        });
+
+        // Data columns
+        for (let i = 0; i < schema.length; i++) {
+            const column = schema[i];
+            const schemaIndex = i;
+            columns.push({
+                id: `col-${column.column_index}`,
+                header: getColumnLabel(column),
+                accessorFn: (row) => getCellValue(row.index, schemaIndex),
+            });
+        }
+
+        return columns;
+    }
+
+    function setupTable(): void {
+        if (!state) {
+            return;
+        }
+
+        const rowCount = state.table_shape.num_rows;
+        const rowData: RowData[] = Array.from({ length: rowCount }, (_, index) => ({ index }));
+        const columns = buildColumnDefs();
+
+        if (!tableInstance) {
+            tableInstance = createTable<RowData>({
+                data: rowData,
+                columns,
+                getCoreRowModel: getCoreRowModel(),
+                state: {},
+                onStateChange: () => undefined,
+                renderFallbackValue: '',
+            });
+        } else {
+            tableInstance.setOptions((prev) => ({
+                ...prev,
+                data: rowData,
+                columns,
+            }));
+        }
+
+        rowModel = tableInstance.getRowModel();
+        log('Table setup complete', { rowCount, columnCount: columns.length });
+    }
+
     function setupVirtualizer(): void {
         if (!state || !tableBodyEl) {
             return;
@@ -1732,6 +1801,7 @@
             schema = resolveVisibleSchema();
         }
         applySchemaUpdate(schema);
+        setupTable();
         setupVirtualizer();
         if (pendingRows.length > 0) {
             const queued = [...pendingRows];
@@ -2533,16 +2603,30 @@
         <div class="table-body-inner" bind:this={bodyInnerEl} style={`height: ${virtualizerTotalHeight}px; width: ${totalWidth}px;`}
             >
             {#each virtualRows as virtualRow (virtualRow.key)}
-                <div
-                    class="table-row"
-                    style={`grid-template-columns: ${columnTemplate}; width: ${totalWidth}px; transform: translateY(${virtualRow.start}px);`}
-                >
-                    <div class="table-cell row-label">{getRowLabel(virtualRow.index, rowCacheVersion)}</div>
-                    {#each schema as column, columnIndex}
-                        {@const value = getCellValue(virtualRow.index, columnIndex, rowCacheVersion)}
-                        <div class="table-cell" class:cell-special={isSpecialValue(value)}>{value}</div>
-                    {/each}
-                </div>
+                {@const row = rowModel?.rows[virtualRow.index]}
+                {#if row}
+                    <div
+                        class="table-row"
+                        style={`grid-template-columns: ${columnTemplate}; width: ${totalWidth}px; transform: translateY(${virtualRow.start}px);`}
+                    >
+                        <div class="table-cell row-label">{getRowLabel(row.original.index, rowCacheVersion)}</div>
+                        {#each schema as column, columnIndex}
+                            {@const value = getCellValue(row.original.index, columnIndex, rowCacheVersion)}
+                            <div class="table-cell" class:cell-special={isSpecialValue(value)}>{value}</div>
+                        {/each}
+                    </div>
+                {:else}
+                    <div
+                        class="table-row"
+                        style={`grid-template-columns: ${columnTemplate}; width: ${totalWidth}px; transform: translateY(${virtualRow.start}px);`}
+                    >
+                        <div class="table-cell row-label">{getRowLabel(virtualRow.index, rowCacheVersion)}</div>
+                        {#each schema as column, columnIndex}
+                            {@const value = getCellValue(virtualRow.index, columnIndex, rowCacheVersion)}
+                            <div class="table-cell" class:cell-special={isSpecialValue(value)}>{value}</div>
+                        {/each}
+                    </div>
+                {/if}
             {/each}
         </div>
     </div>
