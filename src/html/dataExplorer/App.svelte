@@ -10,6 +10,10 @@
     import { BarChart } from 'echarts/charts';
     import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components';
     import { CanvasRenderer } from 'echarts/renderers';
+    import StatsColumnSelector from './stats/StatsColumnSelector.svelte';
+    import StatsSummarySection from './stats/StatsSummarySection.svelte';
+    import StatsDistributionSection from './stats/StatsDistributionSection.svelte';
+    import StatsFrequencySection from './stats/StatsFrequencySection.svelte';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -393,13 +397,6 @@
         return Math.min(Math.max(Math.round(value), min), max);
     }
 
-    function readInputValue(event: Event): number {
-        const target = event.target as HTMLInputElement | null;
-        if (!target) {
-            return 0;
-        }
-        return parseInt(target.value, 10);
-    }
 
     function setPanelPinned(panelId: string, pinned: boolean): void {
         const next = new Set(pinnedPanels);
@@ -2330,15 +2327,12 @@
         </div>
     </div>
     <div class="panel-content">
-        <div class="stats-section">
-            <label for="stats-column">Select Column</label>
-            <select id="stats-column" bind:value={statsColumnValue} on:change={handleStatsColumnChange}>
-                <option value="">Choose column...</option>
-                {#each schema as column}
-                    <option value={column.column_index}>{getColumnLabel(column)}</option>
-                {/each}
-            </select>
-        </div>
+        <StatsColumnSelector
+            schema={schema}
+            bind:value={statsColumnValue}
+            getColumnLabel={getColumnLabel}
+            on:change={handleStatsColumnChange}
+        />
         <div class="stats-results" id="stats-results" bind:this={statsResultsEl}>
             <div
                 class="stats-message"
@@ -2372,107 +2366,41 @@
                         </table>
                     </div>
                 </div>
-                <div class="stats-section collapsible" data-section="summary" class:is-collapsed={collapsedSections.has('summary')}>
-                    <button class="section-header" type="button" data-target="stats-summary-section" on:click={() => toggleStatsSection('summary')}>
-                        <span class="codicon codicon-chevron-down"></span>
-                        <span>Summary Statistics</span>
-                    </button>
-                    <div class="section-content" id="stats-summary-section">
-                        <table class="stats-table" id="stats-summary-table">
-                            {#if statsSummaryRows.length === 0}
-                                <tr>
-                                    <td class="stats-empty" colspan="2">{statsSummaryEmptyMessage}</td>
-                                </tr>
-                            {:else}
-                                {#each statsSummaryRows as row}
-                                    <tr>
-                                        <td>{row.label}</td>
-                                        <td>{row.value}</td>
-                                    </tr>
-                                {/each}
-                            {/if}
-                        </table>
-                    </div>
-                </div>
-                <div class="stats-section collapsible" data-section="distribution" class:is-collapsed={collapsedSections.has('distribution')}>
-                    <button class="section-header" type="button" data-target="stats-distribution-section" on:click={() => toggleStatsSection('distribution')}>
-                        <span class="codicon codicon-chevron-down"></span>
-                        <span>Distribution</span>
-                    </button>
-                    <div class="section-content" id="stats-distribution-section">
-                        <div class="chart-container" id="histogram-chart" bind:this={histogramContainer} style:display={histogramVisible ? 'block' : 'none'}></div>
-                        <div class="slider-row">
-                            <label for="histogram-bins">Bins</label>
-                            <input
-                                type="range"
-                                id="histogram-bins"
-                                min="5"
-                                max="200"
-                                value={histogramBins}
-                                disabled={!statsControlsEnabled}
-                                on:input={(event) => {
-                                    histogramBins = readInputValue(event);
-                                    handleHistogramBinsInput('slider');
-                                }}
-                            >
-                            <input
-                                type="number"
-                                id="histogram-bins-input"
-                                min="5"
-                                max="200"
-                                value={histogramBins}
-                                disabled={!statsControlsEnabled}
-                                on:input={(event) => {
-                                    histogramBins = readInputValue(event);
-                                    handleHistogramBinsInput('input');
-                                }}
-                            >
-                            <select id="histogram-method" bind:value={histogramMethod} disabled={!statsControlsEnabled} on:change={handleStatsMethodChange}>
-                                <option value="freedman_diaconis">Auto (F-D)</option>
-                                <option value="sturges">Sturges</option>
-                                <option value="scott">Scott</option>
-                                <option value="fixed">Fixed</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-                <div class="stats-section collapsible" data-section="frequency" class:is-collapsed={collapsedSections.has('frequency')}>
-                    <button class="section-header" type="button" data-target="stats-frequency-section" on:click={() => toggleStatsSection('frequency')}>
-                        <span class="codicon codicon-chevron-down"></span>
-                        <span>Top Values</span>
-                    </button>
-                    <div class="section-content" id="stats-frequency-section">
-                        <div class="chart-container" id="frequency-chart" bind:this={frequencyContainer} style:display={frequencyVisible ? 'block' : 'none'}></div>
-                        <div class="slider-row">
-                            <label for="frequency-limit">Show top</label>
-                            <input
-                                type="range"
-                                id="frequency-limit"
-                                min="5"
-                                max="50"
-                                value={frequencyLimit}
-                                disabled={!statsControlsEnabled}
-                                on:input={(event) => {
-                                    frequencyLimit = readInputValue(event);
-                                    handleFrequencyLimitInput('slider');
-                                }}
-                            >
-                            <input
-                                type="number"
-                                id="frequency-limit-input"
-                                min="5"
-                                max="50"
-                                value={frequencyLimit}
-                                disabled={!statsControlsEnabled}
-                                on:input={(event) => {
-                                    frequencyLimit = readInputValue(event);
-                                    handleFrequencyLimitInput('input');
-                                }}
-                            >
-                        </div>
-                        <div class="stats-footnote" id="frequency-footnote" style:display={frequencyFootnote ? 'block' : 'none'}>{frequencyFootnote}</div>
-                    </div>
-                </div>
+                <StatsSummarySection
+                    title="Summary Statistics"
+                    sectionId="summary"
+                    rows={statsSummaryRows}
+                    emptyMessage={statsSummaryEmptyMessage}
+                    collapsed={collapsedSections.has('summary')}
+                    on:toggle={() => toggleStatsSection('summary')}
+                />
+                <StatsDistributionSection
+                    bind:histogramContainer={histogramContainer}
+                    histogramVisible={histogramVisible}
+                    histogramBins={histogramBins}
+                    bind:histogramMethod={histogramMethod}
+                    statsControlsEnabled={statsControlsEnabled}
+                    collapsed={collapsedSections.has('distribution')}
+                    on:toggle={() => toggleStatsSection('distribution')}
+                    on:binsInput={(event) => {
+                        histogramBins = event.detail.value;
+                        handleHistogramBinsInput(event.detail.source);
+                    }}
+                    on:methodChange={handleStatsMethodChange}
+                />
+                <StatsFrequencySection
+                    bind:frequencyContainer={frequencyContainer}
+                    frequencyVisible={frequencyVisible}
+                    frequencyLimit={frequencyLimit}
+                    statsControlsEnabled={statsControlsEnabled}
+                    frequencyFootnote={frequencyFootnote}
+                    collapsed={collapsedSections.has('frequency')}
+                    on:toggle={() => toggleStatsSection('frequency')}
+                    on:limitInput={(event) => {
+                        frequencyLimit = event.detail.value;
+                        handleFrequencyLimitInput(event.detail.source);
+                    }}
+                />
             </div>
         </div>
     </div>
