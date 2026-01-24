@@ -5,7 +5,6 @@
     import StatsDistributionSection from './stats/StatsDistributionSection.svelte';
     import StatsFrequencySection from './stats/StatsFrequencySection.svelte';
     import type { ColumnSchema, StatsRow, StatsMessageState } from './types';
-    import { SIDE_PANEL_MIN_WIDTH, SIDE_PANEL_MAX_WIDTH } from './types';
 
     // Props
     export let isOpen = false;
@@ -45,59 +44,8 @@
         binsInput: { source: 'slider' | 'input'; value: number };
         methodChange: void;
         limitInput: { source: 'slider' | 'input'; value: number };
-        resize: { width: number };
+        startResize: { event: MouseEvent };
     }>();
-
-    // Local state
-    let sidePanelResizeState: { startX: number; startWidth: number } | null = null;
-
-    function clampNumber(value: number, min: number, max: number, fallback: number): number {
-        if (!Number.isFinite(value)) {
-            return fallback;
-        }
-        return Math.min(Math.max(Math.round(value), min), max);
-    }
-
-    function startSidePanelResize(event: MouseEvent): void {
-        const startWidth = statsPanelEl?.getBoundingClientRect().width ?? SIDE_PANEL_MIN_WIDTH;
-        sidePanelResizeState = {
-            startX: event.clientX,
-            startWidth,
-        };
-        document.body.classList.add('panel-resizing');
-        event.preventDefault();
-    }
-
-    function handleSidePanelResize(event: MouseEvent): void {
-        if (!sidePanelResizeState) {
-            return;
-        }
-        const delta = sidePanelResizeState.startX - event.clientX;
-        const nextWidth = clampNumber(
-            sidePanelResizeState.startWidth + delta,
-            SIDE_PANEL_MIN_WIDTH,
-            SIDE_PANEL_MAX_WIDTH,
-            sidePanelResizeState.startWidth
-        );
-        dispatch('resize', { width: nextWidth });
-    }
-
-    function finishSidePanelResize(): void {
-        if (!sidePanelResizeState) {
-            return;
-        }
-        sidePanelResizeState = null;
-        document.body.classList.remove('panel-resizing');
-    }
-
-    // Expose resize handlers to parent
-    export function onWindowMouseMove(event: MouseEvent): void {
-        handleSidePanelResize(event);
-    }
-
-    export function onWindowMouseUp(): void {
-        finishSidePanelResize();
-    }
 
     function handleClose(): void {
         dispatch('close');
@@ -141,7 +89,7 @@
         class="panel-resizer"
         id="stats-panel-resizer"
         aria-label="Resize panel"
-        on:mousedown={startSidePanelResize}
+        on:mousedown={(event) => dispatch('startResize', { event })}
     ></button>
     <div class="panel-header">
         <span>Column Statistics</span>

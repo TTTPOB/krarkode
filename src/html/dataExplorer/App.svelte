@@ -26,6 +26,7 @@
     import CodeModal from './CodeModal.svelte';
     import ColumnVisibilityPanel from './ColumnVisibilityPanel.svelte';
     import RowFilterPanel from './RowFilterPanel.svelte';
+    import StatsPanel from './StatsPanel.svelte';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -2234,122 +2235,49 @@
     on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
 />
 
-<div
-    class="side-panel"
-    id="stats-panel"
-    bind:this={statsPanelEl}
-    class:open={statsPanelOpen}
-    class:is-pinned={isPanelPinned('stats-panel')}
->
-    <button
-        type="button"
-        class="panel-resizer"
-        id="stats-panel-resizer"
-        aria-label="Resize panel"
-        on:mousedown={(event) => startSidePanelResize(event, 'stats-panel')}
-    ></button>
-    <div class="panel-header">
-        <span>Column Statistics</span>
-        <div class="panel-actions">
-            <button
-                class="panel-pin"
-                data-panel-id="stats-panel"
-                aria-pressed={isPanelPinned('stats-panel')}
-                title="Pin panel"
-                on:click={(event) => {
-                    event.stopPropagation();
-                    setPanelPinned('stats-panel', !isPanelPinned('stats-panel'));
-                }}
-            >
-                <span class="codicon codicon-pin"></span>
-            </button>
-            <button class="close-btn" id="close-stats" on:click={() => {
-                setPanelPinned('stats-panel', false);
-                statsPanelOpen = false;
-            }}>
-                &times;
-            </button>
-        </div>
-    </div>
-    <div class="panel-content">
-        <StatsColumnSelector
-            schema={schema}
-            bind:value={statsColumnValue}
-            getColumnLabel={getColumnLabel}
-            on:change={handleStatsColumnChange}
-        />
-        <div class="stats-results" id="stats-results" bind:this={statsResultsEl}>
-            <div
-                class="stats-message"
-                id="stats-message"
-                class:is-hidden={statsSectionsVisible}
-                class:is-loading={statsMessageState === 'loading'}
-                class:is-error={statsMessageState === 'error'}
-            >
-                {statsMessageText}
-            </div>
-            <div class="stats-sections" id="stats-sections" class:is-hidden={!statsSectionsVisible}>
-                <div class="stats-section collapsible" data-section="overview" class:is-collapsed={collapsedSections.has('overview')}>
-                    <button class="section-header" type="button" data-target="stats-overview-section" on:click={() => toggleStatsSection('overview')}>
-                        <span class="codicon codicon-chevron-down"></span>
-                        <span>Overview</span>
-                    </button>
-                    <div class="section-content" id="stats-overview-section">
-                        <table class="stats-table" id="stats-overview-table">
-                            {#if statsOverviewRows.length === 0}
-                                <tr>
-                                    <td class="stats-empty" colspan="2">{statsOverviewEmptyMessage}</td>
-                                </tr>
-                            {:else}
-                                {#each statsOverviewRows as row}
-                                    <tr>
-                                        <td>{row.label}</td>
-                                        <td>{row.value}</td>
-                                    </tr>
-                                {/each}
-                            {/if}
-                        </table>
-                    </div>
-                </div>
-                <StatsSummarySection
-                    title="Summary Statistics"
-                    sectionId="summary"
-                    rows={statsSummaryRows}
-                    emptyMessage={statsSummaryEmptyMessage}
-                    collapsed={collapsedSections.has('summary')}
-                    on:toggle={() => toggleStatsSection('summary')}
-                />
-                <StatsDistributionSection
-                    bind:histogramContainer={histogramContainer}
-                    histogramVisible={histogramVisible}
-                    histogramBins={histogramBins}
-                    bind:histogramMethod={histogramMethod}
-                    statsControlsEnabled={statsControlsEnabled}
-                    collapsed={collapsedSections.has('distribution')}
-                    on:toggle={() => toggleStatsSection('distribution')}
-                    on:binsInput={(event) => {
-                        histogramBins = event.detail.value;
-                        handleHistogramBinsInput(event.detail.source);
-                    }}
-                    on:methodChange={handleStatsMethodChange}
-                />
-                <StatsFrequencySection
-                    bind:frequencyContainer={frequencyContainer}
-                    frequencyVisible={frequencyVisible}
-                    frequencyLimit={frequencyLimit}
-                    statsControlsEnabled={statsControlsEnabled}
-                    frequencyFootnote={frequencyFootnote}
-                    collapsed={collapsedSections.has('frequency')}
-                    on:toggle={() => toggleStatsSection('frequency')}
-                    on:limitInput={(event) => {
-                        frequencyLimit = event.detail.value;
-                        handleFrequencyLimitInput(event.detail.source);
-                    }}
-                />
-            </div>
-        </div>
-    </div>
-</div>
+<StatsPanel
+    isOpen={statsPanelOpen}
+    isPinned={isPanelPinned('stats-panel')}
+    schema={schema}
+    getColumnLabel={getColumnLabel}
+    bind:statsColumnValue
+    bind:statsMessageText
+    bind:statsMessageState
+    bind:statsSectionsVisible
+    bind:statsControlsEnabled
+    bind:statsOverviewRows
+    bind:statsSummaryRows
+    bind:statsOverviewEmptyMessage
+    bind:statsSummaryEmptyMessage
+    bind:frequencyFootnote
+    bind:histogramBins
+    bind:histogramMethod
+    bind:frequencyLimit
+    bind:histogramVisible
+    bind:frequencyVisible
+    bind:collapsedSections
+    bind:statsPanelEl
+    bind:statsResultsEl
+    bind:histogramContainer
+    bind:frequencyContainer
+    on:close={() => {
+        setPanelPinned('stats-panel', false);
+        statsPanelOpen = false;
+    }}
+    on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
+    on:columnChange={handleStatsColumnChange}
+    on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
+    on:binsInput={(e) => {
+        histogramBins = e.detail.value;
+        handleHistogramBinsInput(e.detail.source);
+    }}
+    on:methodChange={handleStatsMethodChange}
+    on:limitInput={(e) => {
+        frequencyLimit = e.detail.value;
+        handleFrequencyLimitInput(e.detail.source);
+    }}
+    on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}
+/>
 
 <CodeModal
     open={codeModalOpen}
