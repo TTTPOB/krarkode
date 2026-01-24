@@ -219,6 +219,15 @@
     $: columnVisibilityDisplayedColumns = computeDisplayedColumns(fullSchema, columnFilterMatches, columnVisibilitySearchTerm);
     $: tableMetaText = buildTableMetaText();
 
+    // Reactive statement to setup virtualizer when tableBodyEl becomes available
+    // This handles the case where init message arrives before DataTable is mounted
+    $: if (tableBodyEl && state && !rowVirtualizer) {
+        log('tableBodyEl bound, setting up virtualizer');
+        setupVirtualizer();
+        requestInitialBlock();
+        requestVisibleBlocks();
+    }
+
     function log(message: string, payload?: unknown): void {
         if (payload !== undefined) {
             console.log(`[dataExplorer] ${message}`, payload);
