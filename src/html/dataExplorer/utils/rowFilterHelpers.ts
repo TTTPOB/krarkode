@@ -12,6 +12,7 @@ import type {
     ColumnSchema,
     RowFilterDraft,
     SetRowFiltersFeatures,
+    RowFilterParams,
 } from '../types';
 import { ROW_FILTER_TYPE_LABELS } from '../types';
 
@@ -20,7 +21,7 @@ import { ROW_FILTER_TYPE_LABELS } from '../types';
  */
 export interface RowFilterParamsResult {
     valid: boolean;
-    value?: Record<string, unknown>;
+    value?: RowFilterParams;
     errorMessage?: string;
 }
 
@@ -33,6 +34,7 @@ export function createRowFilterDraft(
     columnIndex?: number,
     supportedTypes?: RowFilterType[]
 ): RowFilterDraft {
+    const params = filter?.params;
     const fallbackColumnIndex = schema[0]?.column_index ?? 0;
     const selectedColumnIndex = filter?.column_schema.column_index ?? columnIndex ?? fallbackColumnIndex;
     const availableTypes = supportedTypes && supportedTypes.length > 0
@@ -42,15 +44,15 @@ export function createRowFilterDraft(
     return {
         columnIndex: selectedColumnIndex,
         filterType: selectedType,
-        compareOp: (filter?.params as { op?: string })?.op as FilterComparisonOp ?? '=',
-        compareValue: (filter?.params as { value?: string })?.value ?? '',
-        betweenLeft: (filter?.params as { left_value?: string })?.left_value ?? '',
-        betweenRight: (filter?.params as { right_value?: string })?.right_value ?? '',
-        searchType: (filter?.params as { search_type?: string })?.search_type as TextSearchType ?? 'contains',
-        searchTerm: (filter?.params as { term?: string })?.term ?? '',
-        searchCase: (filter?.params as { case_sensitive?: boolean })?.case_sensitive ?? false,
-        setValues: ((filter?.params as { values?: string[] })?.values ?? []).join(', '),
-        setInclusive: (filter?.params as { inclusive?: boolean })?.inclusive !== false,
+        compareOp: params && 'op' in params ? params.op : '=',
+        compareValue: params && 'value' in params ? params.value : '',
+        betweenLeft: params && 'left_value' in params ? params.left_value : '',
+        betweenRight: params && 'right_value' in params ? params.right_value : '',
+        searchType: params && 'search_type' in params ? params.search_type : 'contains',
+        searchTerm: params && 'term' in params ? params.term : '',
+        searchCase: params && 'case_sensitive' in params ? params.case_sensitive ?? false : false,
+        setValues: params && 'values' in params ? params.values.join(', ') : '',
+        setInclusive: params && 'inclusive' in params ? params.inclusive !== false : true,
         condition: filter?.condition ?? 'and',
     };
 }

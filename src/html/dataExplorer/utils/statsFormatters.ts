@@ -164,20 +164,20 @@ export function isColumnNamed(column: ColumnSchema): boolean {
 export function formatRowFilterChip(filter: RowFilter, index: number): string {
     const columnLabel = getColumnLabel(filter.column_schema);
     const prefix = index > 0 ? `${filter.condition.toUpperCase()} ` : '';
-    const params = filter.params || {};
+    const params = filter.params;
 
     switch (filter.filter_type) {
         case 'compare':
-            return `${prefix}${columnLabel} ${(params as { op?: string }).op ?? '='} ${(params as { value?: string }).value ?? ''}`.trim();
+            return `${prefix}${columnLabel} ${params && 'op' in params ? params.op : '='} ${params && 'value' in params ? params.value : ''}`.trim();
         case 'between':
-            return `${prefix}${columnLabel} between ${(params as { left_value?: string }).left_value ?? ''} and ${(params as { right_value?: string }).right_value ?? ''}`.trim();
+            return `${prefix}${columnLabel} between ${params && 'left_value' in params ? params.left_value : ''} and ${params && 'right_value' in params ? params.right_value : ''}`.trim();
         case 'not_between':
-            return `${prefix}${columnLabel} not between ${(params as { left_value?: string }).left_value ?? ''} and ${(params as { right_value?: string }).right_value ?? ''}`.trim();
+            return `${prefix}${columnLabel} not between ${params && 'left_value' in params ? params.left_value : ''} and ${params && 'right_value' in params ? params.right_value : ''}`.trim();
         case 'search':
-            return `${prefix}${columnLabel} ${(params as { search_type?: string }).search_type ?? 'contains'} "${(params as { term?: string }).term ?? ''}"`.trim();
+            return `${prefix}${columnLabel} ${params && 'search_type' in params ? params.search_type : 'contains'} "${params && 'term' in params ? params.term : ''}"`.trim();
         case 'set_membership': {
-            const inclusive = (params as { inclusive?: boolean }).inclusive !== false;
-            const values = (params as { values?: string[] }).values ?? [];
+            const inclusive = params && 'inclusive' in params ? params.inclusive !== false : true;
+            const values = params && 'values' in params ? params.values : [];
             const label = inclusive ? 'in' : 'not in';
             return `${prefix}${columnLabel} ${label} [${values.join(', ')}]`;
         }

@@ -63,12 +63,39 @@ export type FilterComparisonOp = '=' | '!=' | '<' | '<=' | '>' | '>=';
 
 export type TextSearchType = 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'regex_match';
 
+export interface CompareRowFilterParams {
+    op: FilterComparisonOp;
+    value: string;
+}
+
+export interface BetweenRowFilterParams {
+    left_value: string;
+    right_value: string;
+}
+
+export interface SearchRowFilterParams {
+    search_type: TextSearchType;
+    term: string;
+    case_sensitive?: boolean;
+}
+
+export interface SetMembershipRowFilterParams {
+    values: string[];
+    inclusive?: boolean;
+}
+
+export type RowFilterParams =
+    | CompareRowFilterParams
+    | BetweenRowFilterParams
+    | SearchRowFilterParams
+    | SetMembershipRowFilterParams;
+
 export interface RowFilter {
     filter_id: string;
     filter_type: RowFilterType;
     column_schema: ColumnSchema;
     condition: RowFilterCondition;
-    params?: Record<string, unknown>;
+    params?: RowFilterParams;
 }
 
 export interface ColumnSummaryStats {
