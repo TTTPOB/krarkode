@@ -10,6 +10,9 @@
     export let searchTerm = '';
     export let status = '';
 
+    // Expose panel element for click-outside detection
+    export let panelEl: HTMLDivElement | undefined = undefined;
+
     const dispatch = createEventDispatcher<{
         close: void;
         togglePin: void;
@@ -78,6 +81,7 @@
 <div
     class="side-panel"
     id="column-visibility-panel"
+    bind:this={panelEl}
     class:open={open}
     class:is-pinned={pinned}
 >

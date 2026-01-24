@@ -24,6 +24,8 @@
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
+    import ColumnVisibilityPanel from './ColumnVisibilityPanel.svelte';
+    import RowFilterPanel from './RowFilterPanel.svelte';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -2187,90 +2189,32 @@
     on:removeFilter={(e) => removeRowFilter(e.detail.index)}
 />
 
-<div
-    class="side-panel"
-    id="column-visibility-panel"
-    bind:this={columnVisibilityPanelEl}
-    class:open={columnVisibilityOpen}
-    class:is-pinned={isPanelPinned('column-visibility-panel')}
->
-    <button
-        type="button"
-        class="panel-resizer"
-        aria-label="Resize panel"
-        on:mousedown={(event) => startSidePanelResize(event, 'column-visibility-panel')}
-    ></button>
-    <div class="panel-header">
-        <span>Column Visibility</span>
-        <div class="panel-actions">
-            <button
-                class="panel-pin"
-                data-panel-id="column-visibility-panel"
-                aria-pressed={isPanelPinned('column-visibility-panel')}
-                title="Pin panel"
-                on:click={(event) => {
-                    event.stopPropagation();
-                    setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'));
-                }}
-            >
-                <span class="codicon codicon-pin"></span>
-            </button>
-            <button class="close-btn" id="close-column-visibility" on:click={() => {
-                setPanelPinned('column-visibility-panel', false);
-                columnVisibilityOpen = false;
-            }}>
-                &times;
-            </button>
-        </div>
-    </div>
-    <div class="panel-content">
-        <div class="filter-section">
-            <label for="column-visibility-search">Search Columns</label>
-            <input
-                type="text"
-                id="column-visibility-search"
-                placeholder="Column name..."
-                bind:this={columnVisibilitySearchInput}
-                bind:value={columnVisibilitySearchTerm}
-                on:keydown={(event) => event.key === 'Enter' && applyColumnSearch()}
-                on:input={scheduleColumnVisibilitySearch}
-            >
-        </div>
-        <div class="filter-actions">
-            <button class="action" id="apply-column-visibility-filter" on:click={applyColumnSearch}>Apply</button>
-            <button class="action secondary" id="clear-column-visibility-filter" on:click={() => {
-                columnVisibilitySearchTerm = '';
-                applyColumnSearch();
-            }}>Clear</button>
-            <button class="action secondary" id="invert-column-visibility" on:click={invertColumnVisibility}>Invert</button>
-        </div>
-        <div class="filter-status" id="column-visibility-status">{columnVisibilityStatus}</div>
-        <div class="column-visibility-list" id="column-visibility-list">
-            {#if (columnFilterMatches ? resolveSchemaMatches(columnFilterMatches) : fullSchema).length === 0}
-                <div class="column-visibility-empty">No columns available.</div>
-            {:else}
-                {#each (columnFilterMatches ? resolveSchemaMatches(columnFilterMatches) : fullSchema) as column}
-                    <div class="column-visibility-item">
-                        <div class="column-visibility-details">
-                            <div class="column-visibility-name" title={getColumnLabel(column)}>{getColumnLabel(column)}</div>
-                            <div class="column-visibility-meta">{column.type_display || column.type_name}</div>
-                        </div>
-                        <button
-                            class="column-visibility-toggle"
-                            class:is-hidden={hiddenColumnIndices.has(column.column_index)}
-                            title={hiddenColumnIndices.has(column.column_index) ? 'Show column' : 'Hide column'}
-                            aria-pressed={!hiddenColumnIndices.has(column.column_index)}
-                            disabled={!hiddenColumnIndices.has(column.column_index) && resolveVisibleSchema().length <= 1}
-                            on:click={() => toggleColumnVisibility(column.column_index)}
-                        >
-                            <span class={`codicon ${hiddenColumnIndices.has(column.column_index) ? 'codicon-eye-closed' : 'codicon-eye'}`}></span>
-                        </button>
-                    </div>
-                {/each}
-            {/if}
-        </div>
-    </div>
-</div>
+<ColumnVisibilityPanel
+    open={columnVisibilityOpen}
+    pinned={isPanelPinned('column-visibility-panel')}
+    fullSchema={fullSchema}
+    columnFilterMatches={columnFilterMatches}
+    hiddenColumnIndices={hiddenColumnIndices}
+    bind:searchTerm={columnVisibilitySearchTerm}
+    status={columnVisibilityStatus}
+    bind:panelEl={columnVisibilityPanelEl}
+    on:close={() => {
+        setPanelPinned('column-visibility-panel', false);
+        columnVisibilityOpen = false;
+    }}
+    on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
+    on:search={(e) => {
+        columnVisibilitySearchTerm = e.detail.term;
+        applyColumnSearch();
+    }}
+    on:clear={() => {
+        columnVisibilitySearchTerm = '';
+        applyColumnSearch();
+    }}
+    on:invert={invertColumnVisibility}
+    on:toggleVisibility={(e) => toggleColumnVisibility(e.detail.columnIndex)}
+    on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
+/>
 
 <div
     class="side-panel"
