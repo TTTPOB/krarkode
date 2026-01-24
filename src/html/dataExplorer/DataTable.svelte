@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher, tick } from 'svelte';
+    import { createEventDispatcher } from 'svelte';
     import type {
         ColumnSchema,
         SortState,
@@ -22,6 +22,7 @@
     export let virtualRows: { index: number; start: number; size: number; key: number }[] = [];
     export let virtualizerTotalHeight: number = 0;
     export let rowCacheVersion: number = 0;
+    export let headerScrollLeft: number = 0;
     export let getCellValue: (rowIndex: number, columnIndex: number, version?: number) => string;
     export let getRowLabel: (rowIndex: number, version?: number) => string;
     export let getColumnLabel: (column: ColumnSchema) => string;
@@ -38,13 +39,10 @@
         openStats: { columnIndex: number };
         hideColumn: { columnIndex: number };
         scroll: void;
-        columnResize: { columnIndex: number; width: number };
+        startColumnResize: { event: MouseEvent; columnIndex: number };
     }>();
 
     // Local state
-    let headerScrollLeft = 0;
-    let lastScrollLeft = 0;
-    let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
     let ignoreHeaderSortClick = false;
 
     // Computed
@@ -86,52 +84,17 @@
 
     function handleTableScroll(): void {
         dispatch('scroll');
-        if (tableBodyEl && tableBodyEl.scrollLeft !== lastScrollLeft) {
-            headerScrollLeft = tableBodyEl.scrollLeft;
-            lastScrollLeft = tableBodyEl.scrollLeft;
-        }
     }
 
-    function startColumnResize(event: MouseEvent, columnIndex: number): void {
+    function handleColumnResizeStart(event: MouseEvent, columnIndex: number): void {
         event.preventDefault();
         event.stopPropagation();
-        const startWidth = columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
-        activeColumnResize = {
-            columnIndex,
-            startX: event.clientX,
-            startWidth,
-        };
-        document.body.classList.add('column-resizing');
+        dispatch('startColumnResize', { event, columnIndex });
     }
 
-    function handleColumnResizeMove(event: MouseEvent): void {
-        if (!activeColumnResize) {
-            return;
-        }
-        const delta = event.clientX - activeColumnResize.startX;
-        const nextWidth = Math.max(MIN_COLUMN_WIDTH, activeColumnResize.startWidth + delta);
-        dispatch('columnResize', { columnIndex: activeColumnResize.columnIndex, width: nextWidth });
-    }
-
-    function handleColumnResizeEnd(): void {
-        if (!activeColumnResize) {
-            return;
-        }
-        activeColumnResize = null;
-        document.body.classList.remove('column-resizing');
-        ignoreHeaderSortClick = true;
-        window.setTimeout(() => {
-            ignoreHeaderSortClick = false;
-        }, 0);
-    }
-
-    // Expose resize handlers to parent
-    export function onWindowMouseMove(event: MouseEvent): void {
-        handleColumnResizeMove(event);
-    }
-
-    export function onWindowMouseUp(): void {
-        handleColumnResizeEnd();
+    // Called by parent when column resize ends to prevent accidental sort clicks
+    export function setIgnoreHeaderSortClick(ignore: boolean): void {
+        ignoreHeaderSortClick = ignore;
     }
 
     // Update body inner width when total width changes
@@ -212,7 +175,7 @@
                             type="button"
                             class="column-resizer"
                             aria-label="Resize column"
-                            on:mousedown={(event) => startColumnResize(event, column.column_index)}
+                            on:mousedown={(event) => handleColumnResizeStart(event, column.column_index)}
                             on:click|stopPropagation
                         ></button>
                     {/if}

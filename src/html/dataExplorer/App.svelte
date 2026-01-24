@@ -27,6 +27,7 @@
     import ColumnVisibilityPanel from './ColumnVisibilityPanel.svelte';
     import RowFilterPanel from './RowFilterPanel.svelte';
     import StatsPanel from './StatsPanel.svelte';
+    import DataTable from './DataTable.svelte';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -1930,6 +1931,26 @@
         }
     }
 
+    function handleDataTableSort(columnIndex: number): void {
+        activeSort = getNextSort(columnIndex);
+        vscode.postMessage({
+            type: 'setSort',
+            sortKey: activeSort
+                ? { columnIndex: activeSort.columnIndex, direction: activeSort.direction }
+                : null,
+        });
+    }
+
+    function handleDataTableScroll(): void {
+        if (columnMenuOpen) {
+            closeColumnMenu();
+        }
+        if (tableBodyEl && tableBodyEl.scrollLeft !== lastScrollLeft) {
+            updateHeaderScroll(tableBodyEl.scrollLeft);
+            lastScrollLeft = tableBodyEl.scrollLeft;
+        }
+    }
+
     function buildTableMetaText(): string {
         if (!state) {
             return '';
@@ -2300,123 +2321,28 @@
     <button class="context-menu-item" id="column-menu-hide-column" disabled={schema.length <= 1} on:click={handleColumnMenuHideColumn}>Hide Column</button>
 </div>
 
-<div class="table-container">
-    <div class="table-header" id="table-header" bind:this={tableHeaderEl}>
-        <div class="table-header-bar">Columns</div>
-        <div
-            class="table-row header-row"
-            style:grid-template-columns={columnTemplate}
-            style:width={`${totalWidth}px`}
-            style:transform={`translateX(${-headerScrollLeft}px)`}
-        >
-            <div class="table-cell row-label">{state?.has_row_labels ? '#' : 'Row'}</div>
-            {#each schema as column, columnIndex}
-                <div
-                    class="table-cell header-cell"
-                    class:sortable={sortSupported}
-                    class:sorted-asc={activeSort?.columnIndex === column.column_index && activeSort.direction === 'asc'}
-                    class:sorted-desc={activeSort?.columnIndex === column.column_index && activeSort.direction === 'desc'}
-                    data-column-index={column.column_index}
-                    role="button"
-                    tabindex={sortSupported ? 0 : -1}
-                    on:click={(event) => sortSupported && handleHeaderSort(event, column.column_index)}
-                    on:keydown={(event) => {
-                        if (!sortSupported) {
-                            return;
-                        }
-                        if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            handleHeaderSort(event, column.column_index);
-                        }
-                    }}
-                    on:contextmenu|preventDefault={(event) => openColumnMenu(event, column.column_index)}
-                >
-                    <div class="header-content">
-                        <div class="header-label-row">
-                            <span class="header-label" title={getColumnLabel(column)}>{getColumnLabel(column)}</span>
-                            <span class="sort-indicator">{getSortIndicator(column.column_index)}</span>
-                        </div>
-                        <div class="header-actions">
-                            <button
-                                class="header-action"
-                                title="Filter rows by this column"
-                                aria-label="Filter rows by this column"
-                                disabled={!rowFilterSupported}
-                                on:click|stopPropagation={() => openRowFilterEditor(undefined, undefined, column.column_index)}
-                            >
-                                <span class="codicon codicon-filter"></span>
-                            </button>
-                            <span class="header-action-separator">|</span>
-                            <button
-                                class="header-action"
-                                title="Show statistics for this column"
-                                aria-label="Show statistics for this column"
-                                on:click|stopPropagation={() => openStatsPanel({ columnIndex: column.column_index })}
-                            >
-                                <span class="codicon codicon-graph"></span>
-                            </button>
-                            <span class="header-action-separator">|</span>
-                            <button
-                                class="header-action"
-                                title="Hide this column"
-                                aria-label="Hide this column"
-                                disabled={schema.length <= 1}
-                                on:click|stopPropagation={() => hideColumn(column.column_index)}
-                            >
-                                <span class="codicon codicon-eye-closed"></span>
-                            </button>
-                        </div>
-                    </div>
-                    {#if columnIndex < schema.length - 1}
-                        <button
-                            type="button"
-                            class="column-resizer"
-                            aria-label="Resize column"
-                            on:mousedown={(event) => startColumnResize(event, column.column_index)}
-                            on:click|stopPropagation
-                        ></button>
-                    {/if}
-                </div>
-            {/each}
-        </div>
-    </div>
-    <div class="table-body" id="table-body" bind:this={tableBodyEl} on:scroll={handleTableScroll}>
-        <div
-            class="table-body-inner"
-            bind:this={bodyInnerEl}
-            style:height={`${virtualizerTotalHeight}px`}
-            style:width={`${totalWidth}px`}
-        >
-            {#each virtualRows as virtualRow (virtualRow.key)}
-                {@const row = rowModel?.rows[virtualRow.index]}
-                {#if row}
-                    <div
-                        class="table-row"
-                        style:grid-template-columns={columnTemplate}
-                        style:width={`${totalWidth}px`}
-                        style:transform={`translateY(${virtualRow.start}px)`}
-                    >
-                        <div class="table-cell row-label">{getRowLabel(row.original.index, rowCacheVersion)}</div>
-                        {#each schema as column, columnIndex}
-                            {@const value = getCellValue(row.original.index, columnIndex, rowCacheVersion)}
-                            <div class="table-cell" class:cell-special={isSpecialValue(value)}>{value}</div>
-                        {/each}
-                    </div>
-                {:else}
-                    <div
-                        class="table-row"
-                        style:grid-template-columns={columnTemplate}
-                        style:width={`${totalWidth}px`}
-                        style:transform={`translateY(${virtualRow.start}px)`}
-                    >
-                        <div class="table-cell row-label">{getRowLabel(virtualRow.index, rowCacheVersion)}</div>
-                        {#each schema as column, columnIndex}
-                            {@const value = getCellValue(virtualRow.index, columnIndex, rowCacheVersion)}
-                            <div class="table-cell" class:cell-special={isSpecialValue(value)}>{value}</div>
-                        {/each}
-                    </div>
-                {/if}
-            {/each}
-        </div>
-    </div>
-</div>
+<DataTable
+    {state}
+    {schema}
+    {columnWidths}
+    {activeSort}
+    {sortSupported}
+    {rowFilterSupported}
+    {virtualRows}
+    {virtualizerTotalHeight}
+    {rowCacheVersion}
+    {headerScrollLeft}
+    {getCellValue}
+    {getRowLabel}
+    {getColumnLabel}
+    bind:tableBodyEl
+    bind:tableHeaderEl
+    bind:bodyInnerEl
+    on:sort={(e) => handleDataTableSort(e.detail.columnIndex)}
+    on:columnMenu={(e) => openColumnMenu(e.detail.event, e.detail.columnIndex)}
+    on:openRowFilter={(e) => openRowFilterEditor(undefined, undefined, e.detail.columnIndex)}
+    on:openStats={(e) => openStatsPanel({ columnIndex: e.detail.columnIndex })}
+    on:hideColumn={(e) => hideColumn(e.detail.columnIndex)}
+    on:scroll={handleDataTableScroll}
+    on:startColumnResize={(e) => startColumnResize(e.detail.event, e.detail.columnIndex)}
+/>
