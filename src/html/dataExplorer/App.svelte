@@ -2,6 +2,7 @@
     import { onDestroy, onMount, tick } from 'svelte';
     import { useVirtualizer, type VirtualRow } from './hooks/useVirtualizer';
     import { useStatsCharts } from './hooks/useStatsCharts';
+    import { useVscodeMessages } from './hooks/useVscodeMessages';
     import {
         ColumnDef,
         Table,
@@ -232,6 +233,19 @@
         getHistogramContainer: () => histogramContainer,
         getFrequencyContainer: () => frequencyContainer,
         log,
+    });
+
+    useVscodeMessages({
+        onInit: handleInit,
+        onRows: handleRows,
+        onError: (message) => {
+            tableMetaText = message;
+        },
+        onSearchSchemaResult: handleSearchSchemaResult,
+        onExportResult: handleExportResult,
+        onColumnProfilesResult: handleColumnProfilesResult,
+        onConvertToCodeResult: handleConvertToCodeResult,
+        onSuggestCodeSyntaxResult: handleSuggestCodeSyntaxResult,
     });
 
     function clampNumber(value: number, min: number, max: number, fallback: number): number {
@@ -1436,36 +1450,6 @@
         handleColumnResizeEnd();
     }
 
-    function handleMessage(event: MessageEvent): void {
-        const message = event.data;
-        switch (message.type) {
-            case 'init':
-                handleInit(message as InitMessage);
-                break;
-            case 'rows':
-                handleRows(message as RowsMessage);
-                break;
-            case 'error':
-                tableMetaText = message.message as string;
-                break;
-            case 'searchSchemaResult':
-                handleSearchSchemaResult(message.matches);
-                break;
-            case 'exportResult':
-                handleExportResult(message.data, message.format);
-                break;
-            case 'columnProfilesResult':
-                handleColumnProfilesResult(message.columnIndex, message.profiles, message.errorMessage);
-                break;
-            case 'convertToCodeResult':
-                handleConvertToCodeResult(message.code, message.syntax);
-                break;
-            case 'suggestCodeSyntaxResult':
-                handleSuggestCodeSyntaxResult(message.syntax);
-                break;
-        }
-    }
-
     onMount(() => {
         initializeStatsDefaults();
         setStatsMessage('Select a column to view statistics.', 'empty');
@@ -1489,7 +1473,6 @@
 </script>
 
 <svelte:window
-    on:message={handleMessage}
     on:resize={handleWindowResize}
     on:keydown={handleWindowKeydown}
     on:mousemove={handleWindowMouseMove}
