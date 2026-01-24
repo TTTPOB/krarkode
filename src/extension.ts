@@ -150,7 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         sidecarManager.onDidOpenHelpComm((e) => {
             helpCommId = e.commId;
-            console.log(`Help comm opened: ${helpCommId}`);
+            util.logDebug(`Help comm opened: ${helpCommId}`);
         }),
         sidecarManager.onDidShowHelp((e) => {
             void helpService?.showHelpContent(e.content, e.kind, e.focus);

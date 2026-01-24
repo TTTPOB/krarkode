@@ -7,6 +7,7 @@ export class HelpManager implements vscode.Disposable {
     private panel?: vscode.WebviewPanel;
     private readonly disposables: vscode.Disposable[] = [];
     private isFirstLoad = true;
+    private readonly outputChannel = vscode.window.createOutputChannel('Ark Help');
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -387,14 +388,27 @@ export class HelpManager implements vscode.Disposable {
             vscode.postMessage({ command: 'view-ready' });
         
         } catch (e) {
-            console.error('Error initializing help view:', e);
+            vscode.postMessage({
+                command: 'log',
+                level: 'error',
+                message: 'Error initializing help view',
+                detail: e instanceof Error ? e.message : String(e),
+            });
         }
     </script>
 </body>
 </html>`;
     }
 
-    private handleMessage(message: { command: string; title?: string; url?: string; query?: string; scrollTop?: number }): void {
+    private handleMessage(message: {
+        command: string;
+        title?: string;
+        url?: string;
+        query?: string;
+        scrollTop?: number;
+        message?: string;
+        detail?: string;
+    }): void {
         switch (message.command) {
             case 'view-ready':
                 if (this.isFirstLoad) {
@@ -430,6 +444,15 @@ export class HelpManager implements vscode.Disposable {
                     void this.helpService.showHelpTopic(message.query);
                 }
                 break;
+            case 'log': {
+                if (!util.isDebugLoggingEnabled()) {
+                    break;
+                }
+                const base = typeof message.message === 'string' ? message.message : 'Help webview log.';
+                const detail = typeof message.detail === 'string' ? ` ${message.detail}` : '';
+                this.outputChannel.appendLine(`[help:webview] ${base}${detail}`);
+                break;
+            }
         }
     }
 
@@ -454,5 +477,6 @@ export class HelpManager implements vscode.Disposable {
         this.disposables.forEach(d => d.dispose());
         this.disposables.length = 0;
         this.panel?.dispose();
+        this.outputChannel.dispose();
     }
 }

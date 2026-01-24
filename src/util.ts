@@ -17,6 +17,23 @@ export function config(): vscode.WorkspaceConfiguration {
     return vscode.workspace.getConfiguration();
 }
 
+let debugChannel: vscode.OutputChannel | undefined;
+
+export function isDebugLoggingEnabled(): boolean {
+    const value = process.env.KRARKODE_DEBUG;
+    return value === '1' || value === 'true';
+}
+
+export function logDebug(message: string): void {
+    if (!isDebugLoggingEnabled()) {
+        return;
+    }
+    if (!debugChannel) {
+        debugChannel = vscode.window.createOutputChannel('Ark Debug');
+    }
+    debugChannel.appendLine(message);
+}
+
 function substituteVariable(str: string, key: string, getValue: () => string | undefined) {
     if (str.includes(key)) {
         const value = getValue();
@@ -241,19 +258,19 @@ export function spawn(
     onDisposed?: () => unknown
 ): DisposableProcess {
     const proc = cp.spawn(command, args, options) as DisposableProcess;
-    console.log(proc.pid ? `Process ${proc.pid} spawned` : 'Process failed to spawn');
+    logDebug(proc.pid ? `Process ${proc.pid} spawned` : 'Process failed to spawn');
     
     let running = true;
     const exitHandler = () => {
         running = false;
-        console.log(`Process ${proc.pid || ''} exited`);
+        logDebug(`Process ${proc.pid || ''} exited`);
     };
     proc.on('exit', exitHandler);
     proc.on('error', exitHandler);
     
     proc.dispose = () => {
         if (running) {
-            console.log(`Process ${proc.pid || ''} terminating`);
+            logDebug(`Process ${proc.pid || ''} terminating`);
             if (process.platform === 'win32') {
                 if (proc.pid !== undefined) {
                     cp.spawnSync('taskkill', ['/pid', proc.pid.toString(), '/f', '/t']);

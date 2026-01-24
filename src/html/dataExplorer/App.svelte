@@ -108,6 +108,8 @@
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
     const vscode = getVsCodeApi();
+    const debugEnabled = typeof window !== 'undefined'
+        && (window as { __krarkodeDebug?: boolean }).__krarkodeDebug === true;
 
     let state: BackendState | null = null;
     let schema: ColumnSchema[] = [];
@@ -220,10 +222,13 @@
     $: tableMetaText = buildTableMetaText();
 
     function log(message: string, payload?: unknown): void {
+        if (!debugEnabled) {
+            return;
+        }
         if (payload !== undefined) {
-            console.log(`[dataExplorer] ${message}`, payload);
+            vscode.postMessage({ type: 'log', message, payload });
         } else {
-            console.log(`[dataExplorer] ${message}`);
+            vscode.postMessage({ type: 'log', message });
         }
     }
 

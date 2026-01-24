@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
-import { getNonce } from '../util';
+import { getNonce, isDebugLoggingEnabled } from '../util';
 import {
     BackendState,
     ColumnFilter,
@@ -151,6 +151,19 @@ class DataExplorerPanel implements vscode.Disposable {
 
     private handleWebviewMessage(message: { type?: string; [key: string]: unknown }): void {
         switch (message.type) {
+            case 'log': {
+                if (!isDebugLoggingEnabled()) {
+                    return;
+                }
+                const logMessage = typeof message.message === 'string' ? message.message : 'Webview log message.';
+                const payload = message.payload;
+                if (payload !== undefined) {
+                    this.outputChannel.appendLine(`[dataExplorer:webview] ${logMessage} ${JSON.stringify(payload)}`);
+                } else {
+                    this.outputChannel.appendLine(`[dataExplorer:webview] ${logMessage}`);
+                }
+                return;
+            }
             case 'ready':
                 void this.initialize();
                 return;
@@ -695,6 +708,7 @@ class DataExplorerPanel implements vscode.Disposable {
             vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css')
         );
         const nonce = getNonce();
+        const debugEnabled = isDebugLoggingEnabled();
 
         return `<!DOCTYPE html>
             <html lang="en">
@@ -708,6 +722,7 @@ class DataExplorerPanel implements vscode.Disposable {
             </head>
             <body>
                 <div id="svelte-root"></div>
+                <script nonce="${nonce}">window.__krarkodeDebug = ${debugEnabled ? 'true' : 'false'};</script>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;

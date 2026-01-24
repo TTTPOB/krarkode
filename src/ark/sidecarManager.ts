@@ -249,7 +249,7 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         if (msg.event === 'ui_comm_open') {
             if (msg.comm_id) {
-                console.log(`UI comm opened: ${msg.comm_id}`);
+                util.logDebug(`UI comm opened: ${msg.comm_id}`);
             }
             return;
         }
