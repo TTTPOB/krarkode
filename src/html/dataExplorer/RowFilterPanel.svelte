@@ -19,6 +19,9 @@
     export let error = '';
     export let rowFilterSupport: SetRowFiltersFeatures | undefined = undefined;
 
+    // Expose panel element for click-outside detection
+    export let panelEl: HTMLDivElement | undefined = undefined;
+
     const dispatch = createEventDispatcher<{
         close: void;
         togglePin: void;
@@ -70,6 +73,7 @@
 <div
     class="side-panel"
     id="row-filter-panel"
+    bind:this={panelEl}
     class:open={open}
     class:is-pinned={pinned}
 >

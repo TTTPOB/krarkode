@@ -2216,127 +2216,23 @@
     on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
 />
 
-<div
-    class="side-panel"
-    id="row-filter-panel"
-    bind:this={rowFilterPanelEl}
-    class:open={rowFilterPanelOpen}
-    class:is-pinned={isPanelPinned('row-filter-panel')}
->
-    <button
-        type="button"
-        class="panel-resizer"
-        aria-label="Resize panel"
-        on:mousedown={(event) => startSidePanelResize(event, 'row-filter-panel')}
-    ></button>
-    <div class="panel-header">
-        <span>Row Filter</span>
-        <div class="panel-actions">
-            <button
-                class="panel-pin"
-                data-panel-id="row-filter-panel"
-                aria-pressed={isPanelPinned('row-filter-panel')}
-                title="Pin panel"
-                on:click={(event) => {
-                    event.stopPropagation();
-                    setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'));
-                }}
-            >
-                <span class="codicon codicon-pin"></span>
-            </button>
-            <button class="close-btn" id="close-row-filter" on:click={() => {
-                setPanelPinned('row-filter-panel', false);
-                rowFilterPanelOpen = false;
-            }}>
-                &times;
-            </button>
-        </div>
-    </div>
-    <div class="panel-content">
-        <div class="filter-section">
-            <label for="row-filter-column">Column</label>
-            <select id="row-filter-column" value={rowFilterDraft.columnIndex} on:change={handleRowFilterColumnChange}>
-                {#each schema as column}
-                    <option value={column.column_index}>{getColumnLabel(column)}</option>
-                {/each}
-            </select>
-        </div>
-        <div class="filter-section">
-            <label for="row-filter-type">Filter Type</label>
-            <select id="row-filter-type" bind:value={rowFilterDraft.filterType}>
-                {#each getSupportedRowFilterTypes() as filterType}
-                    <option value={filterType}>{ROW_FILTER_TYPE_LABELS[filterType] ?? filterType}</option>
-                {/each}
-            </select>
-        </div>
-        {#if rowFilterSection === 'compare'}
-            <div class="filter-section" id="row-filter-compare-section">
-                <label for="row-filter-compare-op">Comparison</label>
-                <div class="row-filter-inline">
-                    <select id="row-filter-compare-op" bind:value={rowFilterDraft.compareOp}>
-                        <option value="=">=</option>
-                        <option value="!=">!=</option>
-                        <option value="<">&lt;</option>
-                        <option value="<=">&lt;=</option>
-                        <option value=">">&gt;</option>
-                        <option value=">=">&gt;=</option>
-                    </select>
-                    <input type="text" id="row-filter-compare-value" placeholder="Value" bind:value={rowFilterDraft.compareValue}>
-                </div>
-            </div>
-        {/if}
-        {#if rowFilterSection === 'between'}
-            <div class="filter-section" id="row-filter-between-section">
-                <label for="row-filter-between-left">Between</label>
-                <div class="row-filter-inline">
-                    <input type="text" id="row-filter-between-left" placeholder="From" bind:value={rowFilterDraft.betweenLeft}>
-                    <input type="text" id="row-filter-between-right" placeholder="To" bind:value={rowFilterDraft.betweenRight}>
-                </div>
-            </div>
-        {/if}
-        {#if rowFilterSection === 'search'}
-            <div class="filter-section" id="row-filter-search-section">
-                <label for="row-filter-search-type">Text Search</label>
-                <select id="row-filter-search-type" bind:value={rowFilterDraft.searchType}>
-                    <option value="contains">contains</option>
-                    <option value="not_contains">not contains</option>
-                    <option value="starts_with">starts with</option>
-                    <option value="ends_with">ends with</option>
-                    <option value="regex_match">regex</option>
-                </select>
-                <input type="text" id="row-filter-search-term" placeholder="Search term" bind:value={rowFilterDraft.searchTerm}>
-                <label class="checkbox-inline">
-                    <input type="checkbox" id="row-filter-search-case" bind:checked={rowFilterDraft.searchCase}> Case sensitive
-                </label>
-            </div>
-        {/if}
-        {#if rowFilterSection === 'set'}
-            <div class="filter-section" id="row-filter-set-section">
-                <label for="row-filter-set-values">Set Membership</label>
-                <input type="text" id="row-filter-set-values" placeholder="Comma-separated values" bind:value={rowFilterDraft.setValues}>
-                <label class="checkbox-inline">
-                    <input type="checkbox" id="row-filter-set-inclusive" bind:checked={rowFilterDraft.setInclusive}> Include values
-                </label>
-            </div>
-        {/if}
-        {#if supportsRowFilterConditions()}
-            <div class="filter-section" id="row-filter-condition-section">
-                <label for="row-filter-condition">Condition</label>
-                <select id="row-filter-condition" bind:value={rowFilterDraft.condition}>
-                    <option value="and">AND</option>
-                    <option value="or">OR</option>
-                </select>
-            </div>
-        {/if}
-        <div class="filter-status" id="row-filter-error">{rowFilterError}</div>
-        <div class="filter-actions">
-            <button class="action" id="save-row-filter" on:click={saveRowFilter}>Save</button>
-            <button class="action secondary" id="cancel-row-filter" on:click={() => {
-                rowFilterPanelOpen = false;
-            }}>Cancel</button>
-        </div>
-    </div>
-</div>
+<RowFilterPanel
+    open={rowFilterPanelOpen}
+    pinned={isPanelPinned('row-filter-panel')}
+    schema={schema}
+    bind:draft={rowFilterDraft}
+    error={rowFilterError}
+    rowFilterSupport={rowFilterSupport}
+    bind:panelEl={rowFilterPanelEl}
+    on:close={() => {
+        setPanelPinned('row-filter-panel', false);
+        rowFilterPanelOpen = false;
+    }}
+    on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
+    on:save={(e) => saveRowFilter()}
+    on:cancel={() => { rowFilterPanelOpen = false; }}
+    on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
+/>
 
 <div
     class="side-panel"
