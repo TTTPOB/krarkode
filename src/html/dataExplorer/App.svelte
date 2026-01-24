@@ -24,6 +24,10 @@
     import StatsPanel from './StatsPanel.svelte';
     import DataTable from './DataTable.svelte';
     import {
+        // UI stores - using $ syntax for reactive access
+        collapsedSections as collapsedSectionsStore,
+    } from './stores';
+    import {
         type BackendState,
         type ColumnSchema,
         type ColumnSortKey,
@@ -191,7 +195,7 @@
     let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
     let sidePanelResizeState: { startX: number; startWidth: number; panelId?: string } | null = null;
 
-    let collapsedSections = new Set<string>();
+    // collapsedSections now comes from store via $collapsedSectionsStore
 
     let tableTitleText = 'Data Explorer';
     let tableMetaText = '';
@@ -1394,13 +1398,15 @@
     }
 
     function toggleStatsSection(sectionId: string): void {
-        const next = new Set(collapsedSections);
-        if (next.has(sectionId)) {
-            next.delete(sectionId);
-        } else {
-            next.add(sectionId);
-        }
-        collapsedSections = next;
+        collapsedSectionsStore.update((sections) => {
+            const next = new Set(sections);
+            if (next.has(sectionId)) {
+                next.delete(sectionId);
+            } else {
+                next.add(sectionId);
+            }
+            return next;
+        });
         requestAnimationFrame(() => {
             histogramChart?.resize();
             frequencyChart?.resize();
@@ -1634,7 +1640,7 @@
     bind:frequencyLimit
     bind:histogramVisible
     bind:frequencyVisible
-    bind:collapsedSections
+    collapsedSections={$collapsedSectionsStore}
     bind:statsPanelEl
     bind:statsResultsEl
     bind:histogramContainer
