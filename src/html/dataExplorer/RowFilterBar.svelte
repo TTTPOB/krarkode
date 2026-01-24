@@ -6,6 +6,9 @@
     export let rowFilters: RowFilter[] = [];
     export let visible = true;
 
+    // Expose button element for click-outside detection
+    export let addFilterButtonEl: HTMLButtonElement | undefined = undefined;
+
     const dispatch = createEventDispatcher<{
         addFilter: void;
         editFilter: { filter: RowFilter; index: number };
@@ -82,7 +85,7 @@
                 {/each}
             {/if}
         </div>
-        <button class="action secondary" id="add-row-filter" on:click={() => dispatch('addFilter')}>
+        <button class="action secondary" id="add-row-filter" bind:this={addFilterButtonEl} on:click={() => dispatch('addFilter')}>
             + Filter
         </button>
     </div>

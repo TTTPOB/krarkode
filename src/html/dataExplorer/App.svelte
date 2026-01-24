@@ -22,6 +22,7 @@
     import StatsDistributionSection from './stats/StatsDistributionSection.svelte';
     import StatsFrequencySection from './stats/StatsFrequencySection.svelte';
     import Toolbar from './Toolbar.svelte';
+    import RowFilterBar from './RowFilterBar.svelte';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -2176,37 +2177,14 @@
     on:export={(e) => handleExport(e.detail.format)}
 />
 
-{#if rowFilterSupported}
-    <div class="row-filter-bar" id="row-filter-bar">
-        <div class="row-filter-label">Row Filters</div>
-        <div class="row-filter-chips" id="row-filter-chips">
-            {#if rowFilters.length === 0}
-                <span class="row-filter-label">No filters</span>
-            {:else}
-                {#each rowFilters as filter, index}
-                    <div
-                        class="row-filter-chip"
-                        role="button"
-                        tabindex="0"
-                        on:click={() => openRowFilterEditor(filter, index)}
-                        on:keydown={(event) => {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                openRowFilterEditor(filter, index);
-                            }
-                        }}
-                    >
-                        <span>{formatRowFilterChip(filter, index)}</span>
-                        <button on:click|stopPropagation={() => removeRowFilter(index)}>×</button>
-                    </div>
-                {/each}
-            {/if}
-        </div>
-        <button class="action secondary" id="add-row-filter" bind:this={addRowFilterButtonEl} on:click={() => openRowFilterEditor()}>
-            + Filter
-        </button>
-    </div>
-{/if}
+<RowFilterBar
+    rowFilters={rowFilters}
+    visible={rowFilterSupported}
+    bind:addFilterButtonEl={addRowFilterButtonEl}
+    on:addFilter={() => openRowFilterEditor()}
+    on:editFilter={(e) => openRowFilterEditor(e.detail.filter, e.detail.index)}
+    on:removeFilter={(e) => removeRowFilter(e.detail.index)}
+/>
 
 <div
     class="side-panel"
