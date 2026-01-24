@@ -1316,13 +1316,24 @@
         }
         const lookup = new Map(fullSchema.map((column) => [column.column_index, column]));
         const resolved: ColumnSchema[] = [];
-        for (const index of matches) {
-            const column = lookup.get(index);
+        let foundByIndex = false;
+
+        for (const match of matches) {
+            const matchIndex = Number(match);
+            const column = lookup.get(matchIndex);
             if (column) {
                 resolved.push(column);
+                foundByIndex = true;
             }
         }
-        return resolved;
+
+        if (foundByIndex) {
+            return resolved;
+        }
+
+        return matches
+            .map((match) => fullSchema[Number(match)])
+            .filter((column): column is ColumnSchema => Boolean(column));
     }
 
     function resolveVisibleSchema(): ColumnSchema[] {
