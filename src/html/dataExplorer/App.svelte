@@ -1262,6 +1262,11 @@
                 nextWidths.set(column.column_index, width);
             }
         });
+        nextSchema.forEach((column) => {
+            if (!nextWidths.has(column.column_index)) {
+                nextWidths.set(column.column_index, COLUMN_WIDTH);
+            }
+        });
         columnWidths = nextWidths;
         refreshVirtualRows();
         requestInitialBlock();
@@ -1497,16 +1502,7 @@
     }
 
     function resolveColumnWidths(): number[] {
-        return schema.map((column) => {
-            const existing = columnWidths.get(column.column_index);
-            if (existing !== undefined) {
-                return existing;
-            }
-            const nextWidths = new Map(columnWidths);
-            nextWidths.set(column.column_index, COLUMN_WIDTH);
-            columnWidths = nextWidths;
-            return COLUMN_WIDTH;
-        });
+        return schema.map((column) => columnWidths.get(column.column_index) ?? COLUMN_WIDTH);
     }
 
     function applyColumnLayout(): void {
