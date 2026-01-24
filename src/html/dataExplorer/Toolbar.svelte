@@ -4,6 +4,11 @@
     export let title = 'Data Explorer';
     export let meta = '';
 
+    // Expose button elements for click-outside detection
+    export let columnsButtonEl: HTMLButtonElement | undefined = undefined;
+    export let statsButtonEl: HTMLButtonElement | undefined = undefined;
+    export let codeButtonEl: HTMLButtonElement | undefined = undefined;
+
     const dispatch = createEventDispatcher<{
         openColumns: void;
         openStats: void;
@@ -21,10 +26,10 @@
     <div class="title" id="table-title">{title}</div>
     <div class="meta" id="table-meta">{meta}</div>
     <div class="toolbar-actions">
-        <button class="action" id="columns-btn" title="Column Visibility" on:click={() => dispatch('openColumns')}>
+        <button class="action" id="columns-btn" title="Column Visibility" bind:this={columnsButtonEl} on:click={() => dispatch('openColumns')}>
             Columns
         </button>
-        <button class="action" id="stats-btn" title="Column Statistics" on:click={() => dispatch('openStats')}>
+        <button class="action" id="stats-btn" title="Column Statistics" bind:this={statsButtonEl} on:click={() => dispatch('openStats')}>
             Stats
         </button>
         <div class="dropdown">
@@ -35,7 +40,7 @@
                 <button data-format="html" on:click={() => handleExport('html')}>Export as HTML</button>
             </div>
         </div>
-        <button class="action" id="code-btn" title="Convert to Code" on:click={() => dispatch('openCode')}>
+        <button class="action" id="code-btn" title="Convert to Code" bind:this={codeButtonEl} on:click={() => dispatch('openCode')}>
             Code
         </button>
         <button class="action" id="refresh-btn" on:click={() => dispatch('refresh')}>

@@ -21,6 +21,7 @@
     import StatsSummarySection from './stats/StatsSummarySection.svelte';
     import StatsDistributionSection from './stats/StatsDistributionSection.svelte';
     import StatsFrequencySection from './stats/StatsFrequencySection.svelte';
+    import Toolbar from './Toolbar.svelte';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
@@ -2162,32 +2163,18 @@
     on:mouseup={handleWindowMouseUp}
 />
 
-<div class="toolbar">
-    <div class="title" id="table-title">{tableTitleText}</div>
-    <div class="meta" id="table-meta">{tableMetaText}</div>
-    <div class="toolbar-actions">
-        <button class="action" id="columns-btn" title="Column Visibility" bind:this={columnsButtonEl} on:click={openColumnVisibilityPanel}>
-            Columns
-        </button>
-        <button class="action" id="stats-btn" title="Column Statistics" bind:this={statsButtonEl} on:click={() => openStatsPanel({ toggle: true })}>
-            Stats
-        </button>
-        <div class="dropdown">
-            <button class="action" id="export-btn">Export ▾</button>
-            <div class="dropdown-content" id="export-dropdown">
-                <button data-format="csv" on:click={() => handleExport('csv')}>Export as CSV</button>
-                <button data-format="tsv" on:click={() => handleExport('tsv')}>Export as TSV</button>
-                <button data-format="html" on:click={() => handleExport('html')}>Export as HTML</button>
-            </div>
-        </div>
-        <button class="action" id="code-btn" title="Convert to Code" bind:this={codeButtonEl} on:click={openCodeModal}>
-            Code
-        </button>
-        <button class="action" id="refresh-btn" on:click={() => vscode.postMessage({ type: 'refresh' })}>
-            Refresh
-        </button>
-    </div>
-</div>
+<Toolbar
+    title={tableTitleText}
+    meta={tableMetaText}
+    bind:columnsButtonEl
+    bind:statsButtonEl
+    bind:codeButtonEl
+    on:openColumns={openColumnVisibilityPanel}
+    on:openStats={() => openStatsPanel({ toggle: true })}
+    on:openCode={openCodeModal}
+    on:refresh={() => vscode.postMessage({ type: 'refresh' })}
+    on:export={(e) => handleExport(e.detail.format)}
+/>
 
 {#if rowFilterSupported}
     <div class="row-filter-bar" id="row-filter-bar">
