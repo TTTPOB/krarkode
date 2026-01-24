@@ -221,16 +221,47 @@
 
     // Reactive statement to setup virtualizer when tableBodyEl becomes available
     // This handles the case where init message arrives before DataTable is mounted
-    // Use tick() to ensure DOM is fully updated before initializing virtualizer
+    // Use tick() + requestAnimationFrame to ensure DOM is fully rendered with proper dimensions
     $: if (tableBodyEl && state && !rowVirtualizer) {
-        log('tableBodyEl bound, scheduling virtualizer setup');
+        log('tableBodyEl bound, scheduling virtualizer setup', {
+            width: tableBodyEl.offsetWidth,
+            height: tableBodyEl.offsetHeight
+        });
+        // Use tick() to flush Svelte updates, then requestAnimationFrame to wait for browser layout
         void tick().then(() => {
-            if (tableBodyEl && state && !rowVirtualizer) {
-                log('Setting up virtualizer after tick');
-                setupVirtualizer();
-                requestInitialBlock();
-                requestVisibleBlocks();
-            }
+            requestAnimationFrame(() => {
+                if (tableBodyEl && state && !rowVirtualizer) {
+                    // Check if element has dimensions - if not, the browser hasn't laid out yet
+                    if (tableBodyEl.offsetWidth === 0 || tableBodyEl.offsetHeight === 0) {
+                        log('tableBodyEl has no dimensions yet, waiting for resize');
+                        // Set up a one-time ResizeObserver to catch when dimensions become available
+                        const observer = new ResizeObserver((entries) => {
+                            const entry = entries[0];
+                            if (entry && (entry.contentRect.width > 0 || entry.contentRect.height > 0)) {
+                                observer.disconnect();
+                                log('tableBodyEl now has dimensions, setting up virtualizer', {
+                                    width: entry.contentRect.width,
+                                    height: entry.contentRect.height
+                                });
+                                if (tableBodyEl && state && !rowVirtualizer) {
+                                    setupVirtualizer();
+                                    requestInitialBlock();
+                                    requestVisibleBlocks();
+                                }
+                            }
+                        });
+                        observer.observe(tableBodyEl);
+                        return;
+                    }
+                    log('Setting up virtualizer after layout', {
+                        width: tableBodyEl.offsetWidth,
+                        height: tableBodyEl.offsetHeight
+                    });
+                    setupVirtualizer();
+                    requestInitialBlock();
+                    requestVisibleBlocks();
+                }
+            });
         });
     }
 
@@ -1305,7 +1336,8 @@
         }
         applySchemaUpdate(schema);
         setupTable();
-        setupVirtualizer();
+        // Note: setupVirtualizer is NOT called here - it's handled by the reactive statement
+        // that monitors tableBodyEl, which ensures the DOM element exists with proper dimensions
         if (pendingRows.length > 0) {
             const queued = [...pendingRows];
             pendingRows = [];
