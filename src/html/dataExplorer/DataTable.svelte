@@ -5,6 +5,7 @@
         SortState,
         BackendState,
     } from './types';
+    import type { VirtualRow } from './hooks/useVirtualizer';
     import {
         ROW_HEIGHT,
         ROW_LABEL_WIDTH,
@@ -19,7 +20,7 @@
     export let activeSort: SortState | null = null;
     export let sortSupported: boolean = true;
     export let rowFilterSupported: boolean = true;
-    export let virtualRows: { index: number; start: number; size: number; key: number }[] = [];
+    export let virtualRows: VirtualRow[] = [];
     export let virtualizerTotalHeight: number = 0;
     export let rowCacheVersion: number = 0;
     export let headerScrollLeft: number = 0;

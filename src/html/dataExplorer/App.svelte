@@ -1,11 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount, tick } from 'svelte';
-    import {
-        Virtualizer,
-        elementScroll,
-        observeElementOffset,
-        observeElementRect,
-    } from '@tanstack/virtual-core';
+    import { useVirtualizer, type VirtualRow } from './hooks/useVirtualizer';
     import {
         ColumnDef,
         Table,
@@ -186,9 +181,7 @@
     let histogramChart: echarts.ECharts | null = null;
     let frequencyChart: echarts.ECharts | null = null;
 
-    let rowVirtualizer: Virtualizer<HTMLDivElement, HTMLDivElement> | null = null;
-    let rowVirtualizerCleanup: (() => void) | null = null;
-    let virtualRows: { index: number; start: number; size: number; key: number }[] = [];
+    let virtualRows: VirtualRow[] = [];
     let virtualizerTotalHeight = 0;
     let headerScrollLeft = 0;
     let lastScrollLeft = 0;
@@ -231,6 +224,18 @@
             vscode.postMessage({ type: 'log', message });
         }
     }
+
+    const virtualizer = useVirtualizer({
+        getScrollElement: () => tableBodyEl ?? null,
+        rowHeight: ROW_HEIGHT,
+        rowCount: () => state?.table_shape.num_rows ?? 0,
+        onVirtualRowsChange: (rows, totalHeight) => {
+            virtualRows = rows;
+            virtualizerTotalHeight = totalHeight;
+            requestVisibleBlocks();
+        },
+        log,
+    });
 
     function clampNumber(value: number, min: number, max: number, fallback: number): number {
         if (!Number.isFinite(value)) {
@@ -785,9 +790,8 @@
         });
         columnWidths = nextWidths;
         setupTable();
-        refreshVirtualRows();
+        updateVirtualizer();
         requestInitialBlock();
-        requestVisibleBlocks();
         if ($statsPanelOpenStore) {
             if (activeStatsColumnIndex !== null) {
                 const stillExists = schema.some((column) => column.column_index === activeStatsColumnIndex);
@@ -1045,18 +1049,8 @@
         }, 0);
     }
 
-    function refreshVirtualRows(): void {
-        if (!rowVirtualizer) {
-            return;
-        }
-        virtualRows = rowVirtualizer.getVirtualItems().map((item) => ({
-            index: item.index,
-            start: item.start,
-            size: item.size,
-            key: item.key,
-        }));
-        virtualizerTotalHeight = rowVirtualizer.getTotalSize();
-        requestVisibleBlocks();
+    function updateVirtualizer(): void {
+        virtualizer.update();
     }
 
     function buildColumnDefs(): ColumnDef<RowData>[] {
@@ -1112,44 +1106,6 @@
         log('Table setup complete', { rowCount, columnCount: columns.length });
     }
 
-    function setupVirtualizer(): void {
-        if (!state || !tableBodyEl) {
-            return;
-        }
-        if (!rowVirtualizer) {
-            rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
-                count: state.table_shape.num_rows,
-                getScrollElement: () => tableBodyEl,
-                estimateSize: () => ROW_HEIGHT,
-                overscan: 8,
-                scrollToFn: elementScroll,
-                observeElementRect,
-                observeElementOffset,
-                onChange: () => {
-                    refreshVirtualRows();
-                },
-            });
-            rowVirtualizerCleanup = rowVirtualizer._didMount();
-            log('Row virtualizer created', {
-                count: state.table_shape.num_rows,
-                hasScrollElement: Boolean(tableBodyEl),
-            });
-        }
-
-        const nextOptions = {
-            ...rowVirtualizer.options,
-            count: state.table_shape.num_rows,
-        };
-        rowVirtualizer.setOptions(nextOptions);
-        log('Row virtualizer options updated', {
-            count: nextOptions.count,
-            hasScrollElement: typeof nextOptions.getScrollElement === 'function',
-        });
-        rowVirtualizer._willUpdate();
-        rowVirtualizer.measure();
-        refreshVirtualRows();
-    }
-
     function requestInitialBlock(): void {
         if (!state) {
             return;
@@ -1170,11 +1126,11 @@
     }
 
     function requestVisibleBlocks(): void {
-        if (!state || !rowVirtualizer) {
+        if (!state) {
             return;
         }
 
-        const virtualItems = rowVirtualizer.getVirtualItems();
+        const virtualItems = virtualizer.getVirtualItems();
         if (!virtualItems.length) {
             return;
         }
@@ -1235,8 +1191,7 @@
         rowCache = new Map(rowCache);
         rowLabelCache = new Map(rowLabelCache);
         rowCacheVersion += 1;
-        rowVirtualizer?.measure();
-        refreshVirtualRows();
+        virtualizer.measure();
         log('Rows rendered', { startIndex, endIndex, rows: rowCount, columns: columnCount });
     }
 
@@ -1277,7 +1232,7 @@
         }
         applySchemaUpdate(schema);
         setupTable();
-        setupVirtualizer();
+        updateVirtualizer();
         if (pendingRows.length > 0) {
             const queued = [...pendingRows];
             pendingRows = [];
@@ -1551,7 +1506,7 @@
         if (columnVisibilityDebounceId !== undefined) {
             window.clearTimeout(columnVisibilityDebounceId);
         }
-        rowVirtualizerCleanup?.();
+        virtualizer.dispose();
         histogramChart?.dispose();
         frequencyChart?.dispose();
     });
