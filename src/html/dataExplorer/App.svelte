@@ -694,17 +694,22 @@
 
     function clearStatsContent(options: { preserveScrollTop?: boolean } = {}): void {
         const preserveScrollTop = options.preserveScrollTop === true;
-        const previousScrollTop = statsResultsEl?.scrollTop ?? 0;
-        statsOverviewRows = [];
-        statsSummaryRows = [];
-        statsOverviewEmptyMessage = 'No overview data.';
-        statsSummaryEmptyMessage = 'No summary statistics.';
-        frequencyFootnote = '';
-        clearHistogram();
-        clearFrequency();
-        if (statsResultsEl) {
-            statsResultsEl.scrollTop = preserveScrollTop ? previousScrollTop : 0;
+        // When preserving scroll, keep existing data to prevent DOM rebuild
+        // New data will replace it when profiles arrive
+        if (!preserveScrollTop) {
+            statsOverviewRows = [];
+            statsSummaryRows = [];
+            statsOverviewEmptyMessage = 'No overview data.';
+            statsSummaryEmptyMessage = 'No summary statistics.';
+            frequencyFootnote = '';
+            clearHistogram();
+            clearFrequency();
+            if (statsResultsEl) {
+                statsResultsEl.scrollTop = 0;
+            }
         }
+        // Charts are cleared regardless since they will be redrawn
+        // but histogram/frequency data is kept visually until new data arrives
     }
 
     function syncHistogramBins(source: 'slider' | 'input'): void {
@@ -775,7 +780,11 @@
             pendingStatsScrollTop = null;
         }
 
-        setStatsMessage('Loading statistics...', 'loading');
+        // When preserving scroll (slider adjustments), keep sections visible
+        // to prevent DOM rebuild and scroll jump
+        if (!preserveScrollTop) {
+            setStatsMessage('Loading statistics...', 'loading');
+        }
         clearStatsContent({ preserveScrollTop });
         vscode.postMessage({
             type: 'getColumnProfiles',
