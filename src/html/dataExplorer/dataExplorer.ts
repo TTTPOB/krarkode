@@ -1744,7 +1744,9 @@ function renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: st
             },
         ],
     });
-    chart.resize();
+    requestAnimationFrame(() => {
+        chart.resize();
+    });
 }
 
 function renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
@@ -1814,7 +1816,9 @@ function renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void
             },
         ],
     });
-    chart.resize();
+    requestAnimationFrame(() => {
+        chart.resize();
+    });
 }
 
 function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfileResult[], errorMessage?: string): void {
