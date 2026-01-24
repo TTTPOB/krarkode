@@ -1458,6 +1458,22 @@ function requestColumnProfiles(reason: string): void {
     });
 }
 
+function syncHistogramBinsFromProfile(histogram: ColumnHistogram | undefined): void {
+    if (!histogram || histogramMethodSelect.value === 'fixed') {
+        return;
+    }
+    const binCount = histogram.bin_counts?.length ?? 0;
+    if (binCount <= 0) {
+        return;
+    }
+    const nextValue = clampNumber(binCount, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
+    if (histogramBinsSlider.value !== String(nextValue) || histogramBinsInput.value !== String(nextValue)) {
+        histogramBinsSlider.value = String(nextValue);
+        histogramBinsInput.value = String(nextValue);
+        log('Histogram bins synced from profile', { value: nextValue, method: histogramMethodSelect.value });
+    }
+}
+
 function setSidePanelWidth(width: number): void {
     document.body.style.setProperty('--side-panel-width', `${width}px`);
     requestAnimationFrame(() => {
@@ -1883,6 +1899,7 @@ function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfile
     }));
     setStatsTableRows(statsQuantilesTable, quantileRows, 'No quantile data.');
 
+    syncHistogramBinsFromProfile(histogram);
     renderHistogram(histogram, columnLabel);
     renderFrequencyChart(frequency);
     if (!frequency) {
