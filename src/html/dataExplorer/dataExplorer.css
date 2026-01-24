@@ -5,6 +5,7 @@ body {
     font-size: var(--vscode-font-size);
     color: var(--vscode-editor-foreground);
     background-color: var(--vscode-editor-background);
+    --side-panel-width: 300px;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -181,9 +182,9 @@ body {
 .side-panel {
     position: fixed;
     top: 0;
-    right: -320px;
-    width: 300px;
-    min-width: 260px;
+    right: calc(-1 * var(--side-panel-width) - 20px);
+    width: var(--side-panel-width);
+    min-width: 280px;
     max-width: 600px;
     height: 100%;
     background: var(--vscode-sideBar-background);
@@ -192,18 +193,6 @@ body {
     transition: right 0.2s ease;
     display: flex;
     flex-direction: column;
-}
-
-#stats-panel {
-    --stats-panel-width: 300px;
-    width: var(--stats-panel-width);
-    right: calc(-1 * var(--stats-panel-width) - 20px);
-    min-width: 280px;
-    max-width: 600px;
-}
-
-#stats-panel.open {
-    right: 0;
 }
 
 .side-panel.open {

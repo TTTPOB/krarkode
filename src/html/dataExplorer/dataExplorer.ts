@@ -253,7 +253,7 @@ const rowFilterBetweenSection = document.getElementById('row-filter-between-sect
 const rowFilterSearchSection = document.getElementById('row-filter-search-section') as HTMLDivElement;
 const rowFilterSetSection = document.getElementById('row-filter-set-section') as HTMLDivElement;
 const rowFilterConditionSection = document.getElementById('row-filter-condition-section') as HTMLDivElement;
-const statsPanelResizer = document.getElementById('stats-panel-resizer') as HTMLDivElement;
+const sidePanelResizers = document.querySelectorAll<HTMLDivElement>('.panel-resizer');
 const statsColumnSelect = document.getElementById('stats-column') as HTMLSelectElement;
 const statsResults = document.getElementById('stats-results') as HTMLDivElement;
 const statsMessage = document.getElementById('stats-message') as HTMLDivElement;
@@ -288,8 +288,8 @@ const FREQUENCY_LIMIT_MAX = 50;
 const SMALL_HISTOGRAM_MAX_BINS = 80;
 const SMALL_FREQUENCY_MAX_LIMIT = 12;
 const STATS_REFRESH_DEBOUNCE_MS = 300;
-const STATS_PANEL_MIN_WIDTH = 280;
-const STATS_PANEL_MAX_WIDTH = 600;
+const SIDE_PANEL_MIN_WIDTH = 280;
+const SIDE_PANEL_MAX_WIDTH = 600;
 
 const rowCache = new Map<number, string[]>();
 const rowLabelCache = new Map<number, string>();
@@ -322,7 +322,7 @@ let columnMenuColumnIndex: number | null = null;
 let columnVisibilityDebounceId: number | undefined;
 let statsRefreshDebounceId: number | undefined;
 let activeStatsColumnIndex: number | null = null;
-let statsPanelResizeState: { startX: number; startWidth: number } | null = null;
+let sidePanelResizeState: { startX: number; startWidth: number; panelId?: string } | null = null;
 let pendingRows: RowsMessage[] = [];
 let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
 let ignoreHeaderSortClick = false;
@@ -494,13 +494,20 @@ frequencyLimitInput.addEventListener('input', () => {
     syncFrequencyLimit('input');
 });
 
-statsPanelResizer.addEventListener('mousedown', (event) => {
-    statsPanelResizeState = {
-        startX: event.clientX,
-        startWidth: statsPanel.getBoundingClientRect().width,
-    };
-    document.body.classList.add('panel-resizing');
-    event.preventDefault();
+sidePanelResizers.forEach((resizer) => {
+    resizer.addEventListener('mousedown', (event) => {
+        const panel = resizer.closest('.side-panel') as HTMLDivElement | null;
+        const panelId = panel?.id;
+        const startWidth = panel?.getBoundingClientRect().width ?? statsPanel.getBoundingClientRect().width;
+        sidePanelResizeState = {
+            startX: event.clientX,
+            startWidth,
+            panelId,
+        };
+        log('Side panel resize started', { panelId, startWidth });
+        document.body.classList.add('panel-resizing');
+        event.preventDefault();
+    });
 });
 
 document.querySelectorAll('.stats-section.collapsible .section-header').forEach((element) => {
@@ -602,11 +609,11 @@ window.addEventListener('resize', () => {
 });
 
 document.addEventListener('mousemove', (event) => {
-    handleStatsPanelResize(event);
+    handleSidePanelResize(event);
 });
 
 document.addEventListener('mouseup', () => {
-    finishStatsPanelResize();
+    finishSidePanelResize();
 });
 
 function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
@@ -1285,33 +1292,36 @@ function requestColumnProfiles(reason: string): void {
     });
 }
 
-function setStatsPanelWidth(width: number): void {
-    statsPanel.style.setProperty('--stats-panel-width', `${width}px`);
+function setSidePanelWidth(width: number): void {
+    document.documentElement.style.setProperty('--side-panel-width', `${width}px`);
     requestAnimationFrame(() => {
         histogramChart?.resize();
         frequencyChart?.resize();
     });
 }
 
-function handleStatsPanelResize(event: MouseEvent): void {
-    if (!statsPanelResizeState) {
+function handleSidePanelResize(event: MouseEvent): void {
+    if (!sidePanelResizeState) {
         return;
     }
-    const delta = statsPanelResizeState.startX - event.clientX;
+    const delta = sidePanelResizeState.startX - event.clientX;
     const nextWidth = clampNumber(
-        statsPanelResizeState.startWidth + delta,
-        STATS_PANEL_MIN_WIDTH,
-        STATS_PANEL_MAX_WIDTH,
-        statsPanelResizeState.startWidth
+        sidePanelResizeState.startWidth + delta,
+        SIDE_PANEL_MIN_WIDTH,
+        SIDE_PANEL_MAX_WIDTH,
+        sidePanelResizeState.startWidth
     );
-    setStatsPanelWidth(nextWidth);
+    setSidePanelWidth(nextWidth);
 }
 
-function finishStatsPanelResize(): void {
-    if (!statsPanelResizeState) {
+function finishSidePanelResize(): void {
+    if (!sidePanelResizeState) {
         return;
     }
-    statsPanelResizeState = null;
+    const { panelId, startWidth } = sidePanelResizeState;
+    const resolvedWidth = statsPanel.getBoundingClientRect().width;
+    log('Side panel resize finished', { panelId, startWidth, resolvedWidth });
+    sidePanelResizeState = null;
     document.body.classList.remove('panel-resizing');
 }
 

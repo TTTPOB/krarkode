@@ -730,6 +730,7 @@ class DataExplorerPanel implements vscode.Disposable {
                     <button class="action secondary" id="add-row-filter">+ Filter</button>
                 </div>
                 <div class="side-panel" id="column-visibility-panel">
+                    <div class="panel-resizer"></div>
                     <div class="panel-header">
                         <span>Column Visibility</span>
                         <button class="close-btn" id="close-column-visibility">&times;</button>
@@ -749,6 +750,7 @@ class DataExplorerPanel implements vscode.Disposable {
                     </div>
                 </div>
                 <div class="side-panel" id="row-filter-panel">
+                    <div class="panel-resizer"></div>
                     <div class="panel-header">
                         <span>Row Filter</span>
                         <button class="close-btn" id="close-row-filter">&times;</button>
