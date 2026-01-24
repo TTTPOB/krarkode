@@ -219,52 +219,6 @@
     $: columnVisibilityDisplayedColumns = computeDisplayedColumns(fullSchema, columnFilterMatches, columnVisibilitySearchTerm);
     $: tableMetaText = buildTableMetaText();
 
-    // Reactive statement to setup virtualizer when tableBodyEl becomes available
-    // This handles the case where init message arrives before DataTable is mounted
-    // Use tick() + requestAnimationFrame to ensure DOM is fully rendered with proper dimensions
-    $: if (tableBodyEl && state && !rowVirtualizer) {
-        log('tableBodyEl bound, scheduling virtualizer setup', {
-            width: tableBodyEl.offsetWidth,
-            height: tableBodyEl.offsetHeight
-        });
-        // Use tick() to flush Svelte updates, then requestAnimationFrame to wait for browser layout
-        void tick().then(() => {
-            requestAnimationFrame(() => {
-                if (tableBodyEl && state && !rowVirtualizer) {
-                    // Check if element has dimensions - if not, the browser hasn't laid out yet
-                    if (tableBodyEl.offsetWidth === 0 || tableBodyEl.offsetHeight === 0) {
-                        log('tableBodyEl has no dimensions yet, waiting for resize');
-                        // Set up a one-time ResizeObserver to catch when dimensions become available
-                        const observer = new ResizeObserver((entries) => {
-                            const entry = entries[0];
-                            if (entry && (entry.contentRect.width > 0 || entry.contentRect.height > 0)) {
-                                observer.disconnect();
-                                log('tableBodyEl now has dimensions, setting up virtualizer', {
-                                    width: entry.contentRect.width,
-                                    height: entry.contentRect.height
-                                });
-                                if (tableBodyEl && state && !rowVirtualizer) {
-                                    setupVirtualizer();
-                                    requestInitialBlock();
-                                    requestVisibleBlocks();
-                                }
-                            }
-                        });
-                        observer.observe(tableBodyEl);
-                        return;
-                    }
-                    log('Setting up virtualizer after layout', {
-                        width: tableBodyEl.offsetWidth,
-                        height: tableBodyEl.offsetHeight
-                    });
-                    setupVirtualizer();
-                    requestInitialBlock();
-                    requestVisibleBlocks();
-                }
-            });
-        });
-    }
-
     function log(message: string, payload?: unknown): void {
         if (payload !== undefined) {
             console.log(`[dataExplorer] ${message}`, payload);
@@ -1155,58 +1109,40 @@
 
     function setupVirtualizer(): void {
         if (!state || !tableBodyEl) {
-            log('setupVirtualizer skipped', { hasState: !!state, hasTableBodyEl: !!tableBodyEl });
             return;
         }
-
-        log('setupVirtualizer called', {
-            rowCount: state.table_shape.num_rows,
-            tableBodyEl: tableBodyEl ? 'present' : 'missing',
-            tableBodyElDimensions: tableBodyEl ? { 
-                width: tableBodyEl.offsetWidth, 
-                height: tableBodyEl.offsetHeight,
-                clientWidth: tableBodyEl.clientWidth,
-                clientHeight: tableBodyEl.clientHeight
-            } : null
-        });
-
-        try {
-            if (!rowVirtualizer) {
-                rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
-                    count: state.table_shape.num_rows,
-                    getScrollElement: () => tableBodyEl,
-                    estimateSize: () => ROW_HEIGHT,
-                    overscan: 8,
-                    scrollToFn: elementScroll,
-                    observeElementRect,
-                    observeElementOffset,
-                    onChange: () => {
-                        refreshVirtualRows();
-                    },
-                });
-                rowVirtualizerCleanup = rowVirtualizer._didMount();
-                log('Row virtualizer created', {
-                    count: state.table_shape.num_rows,
-                    hasScrollElement: Boolean(tableBodyEl),
-                });
-            }
-
-            const nextOptions = {
-                ...rowVirtualizer.options,
+        if (!rowVirtualizer) {
+            rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
                 count: state.table_shape.num_rows,
-            };
-            rowVirtualizer.setOptions(nextOptions);
-            log('Row virtualizer options updated', {
-                count: nextOptions.count,
-                hasScrollElement: typeof nextOptions.getScrollElement === 'function',
+                getScrollElement: () => tableBodyEl,
+                estimateSize: () => ROW_HEIGHT,
+                overscan: 8,
+                scrollToFn: elementScroll,
+                observeElementRect,
+                observeElementOffset,
+                onChange: () => {
+                    refreshVirtualRows();
+                },
             });
-            rowVirtualizer._willUpdate();
-            rowVirtualizer.measure();
-            refreshVirtualRows();
-        } catch (error) {
-            log('setupVirtualizer error', { error: error instanceof Error ? error.message : String(error) });
-            console.error('[dataExplorer] setupVirtualizer failed:', error);
+            rowVirtualizerCleanup = rowVirtualizer._didMount();
+            log('Row virtualizer created', {
+                count: state.table_shape.num_rows,
+                hasScrollElement: Boolean(tableBodyEl),
+            });
         }
+
+        const nextOptions = {
+            ...rowVirtualizer.options,
+            count: state.table_shape.num_rows,
+        };
+        rowVirtualizer.setOptions(nextOptions);
+        log('Row virtualizer options updated', {
+            count: nextOptions.count,
+            hasScrollElement: typeof nextOptions.getScrollElement === 'function',
+        });
+        rowVirtualizer._willUpdate();
+        rowVirtualizer.measure();
+        refreshVirtualRows();
     }
 
     function requestInitialBlock(): void {
@@ -1336,8 +1272,7 @@
         }
         applySchemaUpdate(schema);
         setupTable();
-        // Note: setupVirtualizer is NOT called here - it's handled by the reactive statement
-        // that monitors tableBodyEl, which ensures the DOM element exists with proper dimensions
+        setupVirtualizer();
         if (pendingRows.length > 0) {
             const queued = [...pendingRows];
             pendingRows = [];
