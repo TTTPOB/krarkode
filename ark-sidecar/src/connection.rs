@@ -12,7 +12,7 @@ use runtimelib::{
     JupyterMessageContent,
 };
 
-use crate::logging::{debug_enabled, log_debug};
+use tracing::debug;
 use crate::types::{
     DATA_EXPLORER_COMM_TARGET, HELP_COMM_TARGET, LSP_COMM_TARGET, UI_COMM_TARGET,
     VARIABLES_COMM_TARGET,
@@ -123,6 +123,7 @@ pub(crate) async fn wait_for_iopub_welcome(
     iopub: &mut runtimelib::ClientIoPubConnection,
     timeout: Duration,
 ) -> Result<()> {
+    debug!("Sidecar: waiting for iopub_welcome");
     let deadline = Instant::now() + timeout;
     loop {
         let remaining = deadline
@@ -134,14 +135,12 @@ pub(crate) async fn wait_for_iopub_welcome(
         let message = tokio::time::timeout(remaining, iopub.read())
             .await
             .map_err(|_| anyhow!("Timed out waiting for iopub_welcome"))??;
-        if debug_enabled() {
-            log_debug(&format!(
-                "Sidecar: iopub message while waiting for welcome: {}",
-                message.content.message_type()
-            ));
-        }
+        debug!(
+            message_type = %message.content.message_type(),
+            "Sidecar: iopub message while waiting for welcome"
+        );
         if matches!(message.content, JupyterMessageContent::IoPubWelcome(_)) {
-            log_debug("Sidecar: received iopub_welcome");
+            debug!("Sidecar: received iopub_welcome");
             return Ok(());
         }
     }
@@ -179,6 +178,7 @@ pub(crate) async fn wait_for_comm_port(
     comm_id: &str,
     timeout: Duration,
 ) -> Result<u16> {
+    debug!(comm_id = %comm_id, "Sidecar: waiting for comm port");
     let deadline = Instant::now() + timeout;
     loop {
         let remaining = deadline
@@ -191,19 +191,12 @@ pub(crate) async fn wait_for_comm_port(
             .await
             .map_err(|_| anyhow!("Timed out waiting for Ark LSP comm response"))??;
         let JupyterMessage { content, .. } = message;
-        if debug_enabled() {
-            log_debug(&format!(
-                "Sidecar: iopub message while waiting for port: {}",
-                content.message_type()
-            ));
-        }
+        debug!(
+            message_type = %content.message_type(),
+            "Sidecar: iopub message while waiting for port"
+        );
         if let JupyterMessageContent::StreamContent(stream) = &content {
-            if debug_enabled() {
-                log_debug(&format!(
-                    "Sidecar: iopub stream ({:?}): {}",
-                    stream.name, stream.text
-                ));
-            }
+            debug!(stream_name = ?stream.name, stream_text = %stream.text, "Sidecar: iopub stream");
         }
         let JupyterMessageContent::CommMsg(comm_msg) = content else {
             if let JupyterMessageContent::CommClose(comm_close) = content {
@@ -216,12 +209,7 @@ pub(crate) async fn wait_for_comm_port(
         if comm_msg.comm_id.0 != comm_id {
             continue;
         }
-        if debug_enabled() {
-            log_debug(&format!(
-                "Sidecar: comm_msg data: {}",
-                Value::Object(comm_msg.data.clone())
-            ));
-        }
+        debug!(comm_msg_data = ?comm_msg.data, "Sidecar: comm_msg data");
         if let Some(port) = extract_comm_port(&comm_msg.data) {
             return Ok(port);
         }

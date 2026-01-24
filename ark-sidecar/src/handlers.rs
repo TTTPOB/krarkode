@@ -4,6 +4,8 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use uuid::Uuid;
 
+use tracing::{debug, error, info, warn};
+
 use runtimelib::{
     create_client_iopub_connection, CommId, CommMsg, CommOpen, CommClose, ExecuteRequest,
     ExecutionState, JupyterMessage, JupyterMessageContent, KernelInfoRequest, Stdio,
@@ -13,7 +15,6 @@ use crate::connection::{
     create_shell_connection, send_comm_open, send_data_explorer_comm_open, send_help_comm_open,
     send_ui_comm_open, send_variables_comm_open, wait_for_comm_port, wait_for_iopub_idle,
 };
-use crate::logging::log_debug;
 use crate::types::{
     DATA_EXPLORER_COMM_TARGET, HELP_COMM_TARGET, PLOT_COMM_TARGET, UI_COMM_TARGET,
     VARIABLES_COMM_TARGET,
@@ -25,6 +26,7 @@ pub(crate) async fn run_lsp(
     ip_address: &str,
     timeout_ms: u64,
 ) -> Result<()> {
+    info!(mode = "lsp", "Sidecar: starting mode");
     let mut iopub = create_client_iopub_connection(connection, "", session_id)
         .await
         .context("Failed to connect iopub")?;
@@ -36,7 +38,7 @@ pub(crate) async fn run_lsp(
 
     let comm_id = Uuid::new_v4().to_string();
     send_comm_open(&mut shell, &comm_id, ip_address).await?;
-    log_debug("Sidecar: sent comm_open.");
+    info!(comm_id = %comm_id, "Sidecar: sent comm_open");
 
     let port = wait_for_comm_port(&mut iopub, &comm_id, Duration::from_millis(timeout_ms)).await?;
     let payload = json!({
@@ -55,6 +57,7 @@ pub(crate) async fn run_execute_request(
     timeout_ms: u64,
     wait_for_idle: bool,
 ) -> Result<()> {
+    info!(mode = "execute", "Sidecar: starting mode");
     let mut iopub = create_client_iopub_connection(connection, "", session_id)
         .await
         .context("Failed to connect iopub")?;
@@ -69,6 +72,7 @@ pub(crate) async fn run_execute_request(
     let execute_request = ExecuteRequest::new(code.to_string());
     let message = JupyterMessage::new(execute_request, None);
     let msg_id = message.header.msg_id.clone();
+    debug!(code_len = code.len(), "Sidecar: sending execute_request");
     shell.send(message).await.context("Failed to send execute_request")?;
 
     if wait_for_idle {
@@ -83,6 +87,7 @@ pub(crate) async fn run_plot_watcher(
     session_id: &str,
     timeout_ms: u64,
 ) -> Result<()> {
+    info!(mode = "watch_plot", "Sidecar: starting mode");
     let mut iopub = create_client_iopub_connection(connection, "", session_id)
         .await
         .context("Failed to connect iopub")?;
@@ -101,7 +106,7 @@ pub(crate) async fn run_plot_watcher(
             "target_name": HELP_COMM_TARGET
         })
     );
-    log_debug("Sidecar: sent help comm_open.");
+    info!(comm_id = %help_comm_id, "Sidecar: sent help comm_open");
 
     // Open the UI comm so Ark knows the UI is connected (enables dynamic plots)
     let ui_comm_id = Uuid::new_v4().to_string();
@@ -114,7 +119,7 @@ pub(crate) async fn run_plot_watcher(
             "target_name": UI_COMM_TARGET
         })
     );
-    log_debug("Sidecar: sent UI comm_open.");
+    info!(comm_id = %ui_comm_id, "Sidecar: sent UI comm_open");
 
     // Open the Variables comm so Ark starts sending variable updates
     let variables_comm_id = Uuid::new_v4().to_string();
@@ -127,7 +132,7 @@ pub(crate) async fn run_plot_watcher(
             "target_name": VARIABLES_COMM_TARGET
         })
     );
-    log_debug("Sidecar: sent variables comm_open.");
+    info!(comm_id = %variables_comm_id, "Sidecar: sent variables comm_open");
 
     // Open the Data Explorer comm so Ark knows we support it (enables View())
     let data_explorer_comm_id = Uuid::new_v4().to_string();
@@ -140,7 +145,7 @@ pub(crate) async fn run_plot_watcher(
             "target_name": DATA_EXPLORER_COMM_TARGET
         })
     );
-    log_debug("Sidecar: sent data explorer comm_open.");
+    info!(comm_id = %data_explorer_comm_id, "Sidecar: sent data explorer comm_open");
 
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
@@ -163,10 +168,10 @@ pub(crate) async fn run_plot_watcher(
                                         json.get("comm_id").and_then(|s| s.as_str()),
                                         json.get("data").and_then(|d| d.as_object()),
                                     ) {
-                                        eprintln!(
-                                            "Forwarding comm_msg to shell {}: {:?}",
-                                            comm_id,
-                                            data
+                                        debug!(
+                                            comm_id = %comm_id,
+                                            data = ?data,
+                                            "Forwarding comm_msg to shell"
                                         );
                                         let comm_msg = CommMsg {
                                             comm_id: CommId(comm_id.to_string()),
@@ -174,7 +179,7 @@ pub(crate) async fn run_plot_watcher(
                                         };
                                         let message = JupyterMessage::new(comm_msg, None);
                                         if let Err(e) = shell.send(message).await {
-                                            eprintln!("Failed to send comm_msg: {}", e);
+                                            warn!(error = %e, "Failed to send comm_msg");
                                         }
                                     }
                                 } else if command == "comm_open" {
@@ -183,11 +188,11 @@ pub(crate) async fn run_plot_watcher(
                                         json.get("target_name").and_then(|s| s.as_str()),
                                         json.get("data").and_then(|d| d.as_object()),
                                     ) {
-                                        eprintln!(
-                                            "Forwarding comm_open {} -> {} with data {:?}",
-                                            comm_id,
-                                            target_name,
-                                            data
+                                        debug!(
+                                            comm_id = %comm_id,
+                                            target_name = %target_name,
+                                            data = ?data,
+                                            "Forwarding comm_open"
                                         );
                                         let comm_open = CommOpen {
                                             comm_id: CommId(comm_id.to_string()),
@@ -197,7 +202,7 @@ pub(crate) async fn run_plot_watcher(
                                         };
                                         let message = JupyterMessage::new(comm_open, None);
                                         if let Err(e) = shell.send(message).await {
-                                            eprintln!("Failed to send comm_open: {}", e);
+                                            warn!(error = %e, "Failed to send comm_open");
                                         }
                                     }
                                 } else if command == "comm_close" {
@@ -209,7 +214,7 @@ pub(crate) async fn run_plot_watcher(
                                         };
                                         let message = JupyterMessage::new(comm_close, None);
                                         if let Err(e) = shell.send(message).await {
-                                            eprintln!("Failed to send comm_close: {}", e);
+                                            warn!(error = %e, "Failed to send comm_close");
                                         }
                                     }
                                 }
@@ -218,7 +223,7 @@ pub(crate) async fn run_plot_watcher(
                     }
                     Ok(None) => break Ok(()), // EOF
                     Err(e) => {
-                         eprintln!("Error reading stdin: {}", e);
+                         warn!(error = %e, "Error reading stdin");
                          break Ok(());
                     }
                 }
@@ -228,10 +233,10 @@ pub(crate) async fn run_plot_watcher(
                     Ok(message) => message,
                     Err(err) => {
                         if is_comm_close_missing_data(&err) {
-                            eprintln!("Ignoring comm_close without data: {err:?}");
+                            debug!(error = ?err, "Ignoring comm_close without data");
                             continue;
                         }
-                        eprintln!("IOPub read error: {err:?}");
+                        error!(error = ?err, "IOPub read error");
                         return Err(err).context("Failed to read iopub message");
                     }
                 };
@@ -294,7 +299,7 @@ pub(crate) async fn run_plot_watcher(
                         }
                     }
                     JupyterMessageContent::CommMsg(comm_msg) => {
-                        eprintln!("IOPub comm_msg {}: {:?}", comm_msg.comm_id.0, comm_msg.data);
+                        debug!(comm_id = %comm_msg.comm_id.0, data = ?comm_msg.data, "IOPub comm_msg");
                         // Check for UI methods
                         if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
                             if method == "show_html_file" {
@@ -338,7 +343,7 @@ pub(crate) async fn run_plot_watcher(
                             ExecutionState::Starting => "starting",
                             _ => "unknown",
                         };
-                        log_debug(&format!("Sidecar: kernel status {state}"));
+                        debug!(state = %state, "Sidecar: kernel status");
                         Some(json!({
                             "event": "kernel_status",
                             "status": state
@@ -355,7 +360,7 @@ pub(crate) async fn run_plot_watcher(
                 if let Ok(message) = shell_msg {
                     // Handle shell replies. Specifically look for CommMsg replies (Variables list, etc.)
                     if let JupyterMessageContent::CommMsg(comm_msg) = &message.content {
-                        eprintln!("Shell comm_msg {}: {:?}", comm_msg.comm_id.0, comm_msg.data);
+                        debug!(comm_id = %comm_msg.comm_id.0, data = ?comm_msg.data, "Shell comm_msg");
                         let payload = Some(json!({
                             "event": "comm_msg",
                             "comm_id": comm_msg.comm_id.0,
@@ -412,7 +417,7 @@ pub(crate) async fn run_check(
             Ok(Err(e)) => {
                 // Deserialization error (e.g., missing fields in kernel_info_reply).
                 // This is expected with Ark. If we got this far, the kernel is alive.
-                log_debug(&format!("Sidecar: ignoring shell read error: {}", e));
+                debug!(error = %e, "Sidecar: ignoring shell read error");
                 break;
             }
             Err(_) => {

@@ -1,13 +1,12 @@
-use std::env;
+use tracing_subscriber::EnvFilter;
 
-pub(crate) fn debug_enabled() -> bool {
-    env::var("ARK_SIDECAR_DEBUG")
-        .map(|val| val != "0")
-        .unwrap_or(false)
-}
+pub(crate) fn init_logging() {
+    let filter = EnvFilter::try_from_env("ARK_SIDECAR_LOG")
+        .or_else(|_| EnvFilter::try_from_default_env())
+        .unwrap_or_else(|_| EnvFilter::new("info"));
 
-pub(crate) fn log_debug(message: &str) {
-    if debug_enabled() {
-        eprintln!("{message}");
-    }
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .try_init();
 }

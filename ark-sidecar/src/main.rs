@@ -7,16 +7,19 @@ mod types;
 use anyhow::{anyhow, Context, Result};
 use serde_json::json;
 use tokio::runtime::Builder;
+use tracing::error;
 use uuid::Uuid;
 
 use crate::commands::{decode_code, parse_args};
 use crate::connection::read_connection;
 use crate::handlers::{run_check, run_execute_request, run_lsp, run_plot_watcher};
+use crate::logging::init_logging;
 use crate::types::{Mode, SUPPORTED_SIGNATURE_SCHEME};
 
 fn main() {
+    init_logging();
     if let Err(err) = run() {
-        eprintln!("Ark sidecar error: {err}");
+        error!(error = ?err, "Ark sidecar error");
         let payload = json!({
             "event": "error",
             "message": err.to_string(),
