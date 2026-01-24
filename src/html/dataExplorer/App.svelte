@@ -292,7 +292,7 @@
     let state: BackendState | null = null;
     let schema: ColumnSchema[] = [];
     let fullSchema: ColumnSchema[] = [];
-    let columnFilterMatches: number[] | null = null;
+    let columnFilterMatches: Array<number | string | Record<string, unknown>> | null = null;
     let hiddenColumnIndices = new Set<number>();
     let columnWidths = new Map<number, number>();
     let rowCache = new Map<number, string[]>();
@@ -1294,7 +1294,7 @@
         codeSyntax = syntax;
     }
 
-    function handleSearchSchemaResult(matches: number[]): void {
+    function handleSearchSchemaResult(matches: Array<number | string | Record<string, unknown>>): void {
         const searchTerm = columnVisibilitySearchTerm.trim();
         if (!searchTerm) {
             columnFilterMatches = null;
@@ -1307,33 +1307,83 @@
             applySchemaUpdate(resolveVisibleSchema());
         }
         columnVisibilityStatus = `Found ${matches.length} matching columns.`;
-        log('Column search results', { matches: matches.length });
+        log('Column search results', { matches: matches.length, sample: matches.slice(0, 5) });
     }
 
-    function resolveSchemaMatches(matches: number[]): ColumnSchema[] {
+    function resolveSchemaMatches(matches: Array<number | string | Record<string, unknown>>): ColumnSchema[] {
         if (!fullSchema.length || matches.length === 0) {
             return [];
         }
         const lookup = new Map(fullSchema.map((column) => [column.column_index, column]));
         const resolved: ColumnSchema[] = [];
-        let foundByIndex = false;
+        const seen = new Set<number>();
+        const numericMatches: number[] = [];
+        const nameMatches: string[] = [];
+
+        const resolveIndex = (match: number | string | Record<string, unknown>): number | null => {
+            if (typeof match === 'number' && Number.isFinite(match)) {
+                return match;
+            }
+            if (typeof match === 'string') {
+                const numeric = Number(match);
+                if (Number.isFinite(numeric)) {
+                    return numeric;
+                }
+                nameMatches.push(match);
+                return null;
+            }
+            if (match && typeof match === 'object') {
+                const record = match as Record<string, unknown>;
+                const candidate = record.column_index ?? record.columnIndex ?? record.index;
+                if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+                    return candidate;
+                }
+                if (typeof candidate === 'string') {
+                    const numeric = Number(candidate);
+                    if (Number.isFinite(numeric)) {
+                        return numeric;
+                    }
+                }
+                const name = record.column_name ?? record.column_label;
+                if (typeof name === 'string') {
+                    nameMatches.push(name);
+                }
+            }
+            return null;
+        };
 
         for (const match of matches) {
-            const matchIndex = Number(match);
-            const column = lookup.get(matchIndex);
-            if (column) {
-                resolved.push(column);
-                foundByIndex = true;
+            const matchIndex = resolveIndex(match);
+            if (matchIndex === null) {
+                continue;
             }
+            numericMatches.push(matchIndex);
         }
 
-        if (foundByIndex) {
+        for (const matchIndex of numericMatches) {
+            const column = lookup.get(matchIndex) ?? fullSchema[matchIndex];
+            if (!column || seen.has(column.column_index)) {
+                continue;
+            }
+            resolved.push(column);
+            seen.add(column.column_index);
+        }
+
+        if (resolved.length > 0) {
             return resolved;
         }
 
-        return matches
-            .map((match) => fullSchema[Number(match)])
-            .filter((column): column is ColumnSchema => Boolean(column));
+        if (nameMatches.length === 0) {
+            return [];
+        }
+
+        const normalizedNames = new Set(nameMatches.map((name) => name.trim().toLowerCase()).filter(Boolean));
+        return fullSchema.filter((column) => {
+            const columnName = column.column_name?.toLowerCase();
+            const columnLabel = column.column_label?.toLowerCase();
+            return (columnName && normalizedNames.has(columnName))
+                || (columnLabel && normalizedNames.has(columnLabel));
+        });
     }
 
     function resolveVisibleSchema(): ColumnSchema[] {
