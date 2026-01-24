@@ -17,6 +17,23 @@
     import StatsPanel from './StatsPanel.svelte';
     import DataTable from './DataTable.svelte';
     import {
+        backendState,
+        fullSchema,
+        visibleSchema,
+        columnFilterMatches,
+        hiddenColumnIndices,
+        columnWidths,
+        rowCache,
+        rowLabelCache,
+        rowCacheVersion,
+        loadedBlocks,
+        loadingBlocks,
+        rowFilters,
+        activeSort,
+        rowFilterSupport,
+        columnFilterSupport,
+        setColumnFilterSupport,
+        initializeDataStore,
         // UI stores - using $ syntax for reactive access
         collapsedSections as collapsedSectionsStore,
         pinnedPanels as pinnedPanelsStore,
@@ -33,9 +50,7 @@
         codeModalOpen as codeModalOpenStore,
     } from './stores';
     import {
-        type BackendState,
         type ColumnSchema,
-        type ColumnSortKey,
         type ColumnFilter,
         type RowFilter,
         type RowFilterType,
@@ -43,9 +58,6 @@
         type ColumnHistogram,
         type ColumnFrequencyTable,
         type ColumnProfileResult,
-        type SetRowFiltersFeatures,
-        type SearchSchemaFeatures,
-        type SetColumnFiltersFeatures,
         type ColumnValue,
         type RowsMessage,
         type InitMessage,
@@ -100,24 +112,8 @@
     const debugEnabled = typeof window !== 'undefined'
         && (window as { __krarkodeDebug?: boolean }).__krarkodeDebug === true;
 
-    let state: BackendState | null = null;
-    let schema: ColumnSchema[] = [];
-    let fullSchema: ColumnSchema[] = [];
-    let columnFilterMatches: Array<number | string | Record<string, unknown>> | null = null;
-    let hiddenColumnIndices = new Set<number>();
-    let columnWidths = new Map<number, number>();
-    let rowCache = new Map<number, string[]>();
-    let rowLabelCache = new Map<number, string>();
-    let rowCacheVersion = 0;
-    let loadedBlocks = new Set<number>();
-    let loadingBlocks = new Set<number>();
     let pendingRows: RowsMessage[] = [];
-    let activeSort: SortState | null = null;
-    let rowFilters: RowFilter[] = [];
     let editingRowFilterIndex: number | null = null;
-    let rowFilterSupport: SetRowFiltersFeatures | undefined;
-    let columnFilterSupport: SearchSchemaFeatures | undefined;
-    let setColumnFilterSupport: SetColumnFiltersFeatures | undefined;
 
     // Panel visibility now comes from stores via $columnVisibilityOpenStore, $rowFilterPanelOpenStore, etc.
     // columnMenuOpen, columnMenuPosition, columnMenuColumnIndex now come from stores
@@ -164,7 +160,6 @@
     let codeModalEl: HTMLDivElement;
     let columnMenuEl: HTMLDivElement;
     let statsResultsEl: HTMLDivElement;
-    let columnVisibilitySearchInput: HTMLInputElement;
     let columnsButtonEl: HTMLButtonElement;
     let statsButtonEl: HTMLButtonElement;
     let codeButtonEl: HTMLButtonElement;
@@ -193,7 +188,7 @@
     let tableTitleText = 'Data Explorer';
     let tableMetaText = '';
 
-    $: resolvedColumnWidths = schema.map((column) => resolveColumnWidth(columnWidths.get(column.column_index)));
+    $: resolvedColumnWidths = $visibleSchema.map((column) => resolveColumnWidth($columnWidths.get(column.column_index)));
     $: columnTemplate = resolvedColumnWidths.length > 0
         ? `${ROW_LABEL_WIDTH}px ${resolvedColumnWidths.map((width) => `${width}px`).join(' ')}`
         : `${ROW_LABEL_WIDTH}px`;
@@ -201,9 +196,9 @@
     $: rowFilterSection = ROW_FILTER_SECTION_MAP[rowFilterDraft.filterType] ?? 'none';
     $: rowFilterSupported = isRowFilterSupported();
     $: sortSupported = isSortSupported();
-    $: tableTitleText = state?.display_name || 'Data Explorer';
+    $: tableTitleText = $backendState?.display_name || 'Data Explorer';
     // Compute displayed columns reactively based on search matches and full schema
-    $: columnVisibilityDisplayedColumns = computeDisplayedColumns(fullSchema, columnFilterMatches, columnVisibilitySearchTerm);
+    $: columnVisibilityDisplayedColumns = computeDisplayedColumns($fullSchema, $columnFilterMatches, columnVisibilitySearchTerm);
     $: tableMetaText = buildTableMetaText();
 
     function log(message: string, payload?: unknown): void {
@@ -220,7 +215,7 @@
     const virtualizer = useVirtualizer({
         getScrollElement: () => tableBodyEl ?? null,
         rowHeight: ROW_HEIGHT,
-        rowCount: () => state?.table_shape.num_rows ?? 0,
+        rowCount: () => $backendState?.table_shape.num_rows ?? 0,
         onVirtualRowsChange: (rows, totalHeight) => {
             virtualRows = rows;
             virtualizerTotalHeight = totalHeight;
@@ -263,12 +258,12 @@
     }
 
     function logTableLayoutState(stage: string): void {
-        const rawWidths = schema.map((column) => columnWidths.get(column.column_index));
+        const rawWidths = $visibleSchema.map((column) => $columnWidths.get(column.column_index));
         const invalidWidths = rawWidths.filter((value) => typeof value !== 'number' || !Number.isFinite(value) || value <= 0);
         log('Table layout state', {
             stage,
             sequence: (tableLayoutLogSequence += 1),
-            schemaCount: schema.length,
+            schemaCount: $visibleSchema.length,
             resolvedWidthCount: resolvedColumnWidths.length,
             widthSample: resolvedColumnWidths.slice(0, 6),
             totalWidth,
@@ -318,23 +313,23 @@
 
     // Wrapper functions for feature support checks (use local state)
     function isRowFilterSupported(): boolean {
-        return checkRowFilterSupported(rowFilterSupport);
+        return checkRowFilterSupported($rowFilterSupport);
     }
 
     function isColumnFilterSupported(): boolean {
-        return checkColumnFilterSupported(columnFilterSupport);
+        return checkColumnFilterSupported($columnFilterSupport);
     }
 
     function isSetColumnFiltersSupported(): boolean {
-        return checkSetColumnFiltersSupported(setColumnFilterSupport);
+        return checkSetColumnFiltersSupported($setColumnFilterSupport);
     }
 
     function supportsRowFilterConditions(): boolean {
-        return checkSupportsRowFilterConditions(rowFilterSupport);
+        return checkSupportsRowFilterConditions($rowFilterSupport);
     }
 
     function isSortSupported(): boolean {
-        return checkSortSupported(state);
+        return checkSortSupported($backendState);
     }
 
     function openRowFilterEditor(filter?: RowFilter, index?: number, columnIndex?: number): void {
@@ -342,13 +337,18 @@
             return;
         }
 
-        if (!schema.length) {
+        if (!$visibleSchema.length) {
             log('Row filter editor skipped; schema not loaded.');
             return;
         }
 
         editingRowFilterIndex = index ?? null;
-        rowFilterDraft = createRowFilterDraft(schema, filter, columnIndex, getSupportedRowFilterTypes(rowFilterSupport));
+        rowFilterDraft = createRowFilterDraft(
+            $visibleSchema,
+            filter,
+            columnIndex,
+            getSupportedRowFilterTypes($rowFilterSupport)
+        );
         rowFilterError = '';
         $rowFilterPanelOpenStore = true;
         $columnVisibilityOpenStore = false;
@@ -370,7 +370,7 @@
     }
 
     function saveRowFilter(): void {
-        const column = schema.find((item) => item.column_index === rowFilterDraft.columnIndex);
+        const column = $visibleSchema.find((item) => item.column_index === rowFilterDraft.columnIndex);
         if (!column) {
             rowFilterError = 'Select a column.';
             return;
@@ -387,7 +387,7 @@
             : 'and';
 
         const filterId = editingRowFilterIndex !== null
-            ? rowFilters[editingRowFilterIndex]?.filter_id
+            ? $rowFilters[editingRowFilterIndex]?.filter_id
             : createRowFilterId();
 
         if (!filterId) {
@@ -403,25 +403,25 @@
             params: params.value,
         };
 
-        const nextFilters = [...rowFilters];
+        const nextFilters = [...$rowFilters];
         if (editingRowFilterIndex !== null) {
             nextFilters[editingRowFilterIndex] = filter;
         } else {
             nextFilters.push(filter);
         }
-        rowFilters = nextFilters;
+        rowFilters.set(nextFilters);
         $rowFilterPanelOpenStore = false;
         rowFilterError = '';
-        vscode.postMessage({ type: 'setRowFilters', filters: rowFilters });
-        log('Row filters saved', { count: rowFilters.length, filter });
+        vscode.postMessage({ type: 'setRowFilters', filters: nextFilters });
+        log('Row filters saved', { count: nextFilters.length, filter });
     }
 
     function removeRowFilter(index: number): void {
-        const nextFilters = [...rowFilters];
+        const nextFilters = [...$rowFilters];
         nextFilters.splice(index, 1);
-        rowFilters = nextFilters;
-        vscode.postMessage({ type: 'setRowFilters', filters: rowFilters });
-        log('Row filter removed', { index, count: rowFilters.length });
+        rowFilters.set(nextFilters);
+        vscode.postMessage({ type: 'setRowFilters', filters: nextFilters });
+        log('Row filter removed', { index, count: nextFilters.length });
     }
 
     function setStatsMessage(message: string, stateValue: StatsMessageState): void {
@@ -695,7 +695,7 @@
             }
         });
 
-        const column = schema.find((col) => col.column_index === columnIndex);
+        const column = $visibleSchema.find((col) => col.column_index === columnIndex);
         const columnLabel = column ? getColumnLabel(column) : `Column ${columnIndex + 1}`;
         const summaryStats = combined.summary_stats;
         const histogram = combined.large_histogram ?? combined.small_histogram;
@@ -748,11 +748,11 @@
     function handleSearchSchemaResult(matches: Array<number | string | Record<string, unknown>>): void {
         const searchTerm = columnVisibilitySearchTerm.trim();
         if (!searchTerm) {
-            columnFilterMatches = null;
+            columnFilterMatches.set(null);
             columnVisibilityStatus = 'Showing all columns.';
             return;
         }
-        columnFilterMatches = matches;
+        columnFilterMatches.set(matches);
         if (!isSetColumnFiltersSupported()) {
             applySchemaUpdate(getResolvedVisibleSchema());
         }
@@ -760,18 +760,18 @@
     }
 
     function getResolvedVisibleSchema(): ColumnSchema[] {
-        return resolveVisibleSchema(fullSchema, columnFilterMatches, hiddenColumnIndices, isSetColumnFiltersSupported());
+        return resolveVisibleSchema($fullSchema, $columnFilterMatches, $hiddenColumnIndices, isSetColumnFiltersSupported());
     }
 
     function applySchemaUpdate(nextSchema: ColumnSchema[]): void {
-        schema = nextSchema;
-        rowCache.clear();
-        rowLabelCache.clear();
-        loadedBlocks.clear();
-        loadingBlocks.clear();
-        const previousWidths = new Map(columnWidths);
+        rowCache.set(new Map());
+        rowLabelCache.set(new Map());
+        loadedBlocks.set(new Set());
+        loadingBlocks.set(new Set());
+        rowCacheVersion.set(0);
+        const previousWidths = new Map($columnWidths);
         const nextWidths = new Map<number, number>();
-        fullSchema.forEach((column) => {
+        $fullSchema.forEach((column) => {
             const width = previousWidths.get(column.column_index);
             if (width !== undefined) {
                 nextWidths.set(column.column_index, width);
@@ -782,13 +782,13 @@
                 nextWidths.set(column.column_index, COLUMN_WIDTH);
             }
         });
-        columnWidths = nextWidths;
+        columnWidths.set(nextWidths);
         setupTable();
         updateVirtualizer();
         requestInitialBlock();
         if ($statsPanelOpenStore) {
             if (activeStatsColumnIndex !== null) {
-                const stillExists = schema.some((column) => column.column_index === activeStatsColumnIndex);
+                const stillExists = nextSchema.some((column) => column.column_index === activeStatsColumnIndex);
                 if (!stillExists) {
                     activeStatsColumnIndex = null;
                     statsColumnValue = '';
@@ -813,7 +813,7 @@
 
         const filters: ColumnFilter[] = [];
         if (!searchTerm) {
-            columnFilterMatches = null;
+            columnFilterMatches.set(null);
             columnVisibilityStatus = 'Showing all columns.';
             if (!isSetColumnFiltersSupported()) {
                 applySchemaUpdate(getResolvedVisibleSchema());
@@ -852,29 +852,33 @@
     }
 
     function hideColumn(columnIndex: number): void {
-        if (hiddenColumnIndices.has(columnIndex)) {
+        if ($hiddenColumnIndices.has(columnIndex)) {
             return;
         }
-        const nextHidden = new Set(hiddenColumnIndices);
-        nextHidden.add(columnIndex);
-        hiddenColumnIndices = nextHidden;
+        hiddenColumnIndices.update((indices) => {
+            const nextHidden = new Set(indices);
+            nextHidden.add(columnIndex);
+            return nextHidden;
+        });
         log('Column hidden', { columnIndex });
         applySchemaUpdate(getResolvedVisibleSchema());
     }
 
     function showColumn(columnIndex: number): void {
-        if (!hiddenColumnIndices.has(columnIndex)) {
+        if (!$hiddenColumnIndices.has(columnIndex)) {
             return;
         }
-        const nextHidden = new Set(hiddenColumnIndices);
-        nextHidden.delete(columnIndex);
-        hiddenColumnIndices = nextHidden;
+        hiddenColumnIndices.update((indices) => {
+            const nextHidden = new Set(indices);
+            nextHidden.delete(columnIndex);
+            return nextHidden;
+        });
         log('Column shown', { columnIndex });
         applySchemaUpdate(getResolvedVisibleSchema());
     }
 
     function toggleColumnVisibility(columnIndex: number): void {
-        if (hiddenColumnIndices.has(columnIndex)) {
+        if ($hiddenColumnIndices.has(columnIndex)) {
             showColumn(columnIndex);
             return;
         }
@@ -885,17 +889,19 @@
     }
 
     function invertColumnVisibility(): void {
-        if (!fullSchema.length) {
+        if (!$fullSchema.length) {
             return;
         }
 
-        const baseSchema = columnFilterMatches ? resolveSchemaMatches(fullSchema, columnFilterMatches) : fullSchema;
+        const baseSchema = $columnFilterMatches
+            ? resolveSchemaMatches($fullSchema, $columnFilterMatches)
+            : $fullSchema;
         if (!baseSchema.length) {
             return;
         }
 
         log('Inverting column visibility', { matches: baseSchema.length });
-        const nextHidden = new Set(hiddenColumnIndices);
+        const nextHidden = new Set($hiddenColumnIndices);
         for (const column of baseSchema) {
             const index = column.column_index;
             if (nextHidden.has(index)) {
@@ -905,11 +911,11 @@
             }
         }
 
-        if (nextHidden.size >= fullSchema.length) {
-            nextHidden.delete(fullSchema[0].column_index);
+        if (nextHidden.size >= $fullSchema.length) {
+            nextHidden.delete($fullSchema[0]?.column_index ?? 0);
         }
 
-        hiddenColumnIndices = nextHidden;
+        hiddenColumnIndices.set(nextHidden);
         applySchemaUpdate(getResolvedVisibleSchema());
     }
 
@@ -947,11 +953,6 @@
         $statsPanelOpenStore = false;
         $codeModalOpenStore = false;
         $rowFilterPanelOpenStore = false;
-        if ($columnVisibilityOpenStore) {
-            void tick().then(() => {
-                columnVisibilitySearchInput?.focus();
-            });
-        }
     }
 
     function openCodeModal(): void {
@@ -965,22 +966,11 @@
         $rowFilterPanelOpenStore = false;
     }
 
-    function resolveSortState(sortKeys?: ColumnSortKey[]): SortState | null {
-        if (!sortKeys || sortKeys.length === 0) {
-            return null;
-        }
-        const primary = sortKeys[0];
-        return {
-            columnIndex: primary.column_index,
-            direction: primary.ascending ? 'asc' : 'desc',
-        };
-    }
-
     function getNextSort(columnIndex: number): SortState | null {
-        if (!activeSort || activeSort.columnIndex !== columnIndex) {
+        if (!$activeSort || $activeSort.columnIndex !== columnIndex) {
             return { columnIndex, direction: 'asc' };
         }
-        if (activeSort.direction === 'asc') {
+        if ($activeSort.direction === 'asc') {
             return { columnIndex, direction: 'desc' };
         }
         return null;
@@ -999,7 +989,7 @@
     function startColumnResize(event: MouseEvent, columnIndex: number): void {
         event.preventDefault();
         event.stopPropagation();
-        const startWidth = columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
+        const startWidth = $columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
         activeColumnResize = {
             columnIndex,
             startX: event.clientX,
@@ -1015,13 +1005,13 @@
         }
         const delta = event.clientX - activeColumnResize.startX;
         const nextWidth = Math.max(MIN_COLUMN_WIDTH, activeColumnResize.startWidth + delta);
-        const currentWidth = columnWidths.get(activeColumnResize.columnIndex) ?? COLUMN_WIDTH;
+        const currentWidth = $columnWidths.get(activeColumnResize.columnIndex) ?? COLUMN_WIDTH;
         if (currentWidth === nextWidth) {
             return;
         }
-        const nextWidths = new Map(columnWidths);
+        const nextWidths = new Map($columnWidths);
         nextWidths.set(activeColumnResize.columnIndex, nextWidth);
-        columnWidths = nextWidths;
+        columnWidths.set(nextWidths);
         log('Column resize update', { columnIndex: activeColumnResize.columnIndex, width: nextWidth });
         applyColumnLayout();
     }
@@ -1031,7 +1021,7 @@
             return;
         }
         const columnIndex = activeColumnResize.columnIndex;
-        const width = columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
+        const width = $columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
         log('Column resize ended', { columnIndex, width });
         activeColumnResize = null;
         document.body.classList.remove('column-resizing');
@@ -1052,13 +1042,13 @@
         // Row label column
         columns.push({
             id: 'row-label',
-            header: state?.has_row_labels ? '#' : 'Row',
+            header: $backendState?.has_row_labels ? '#' : 'Row',
             accessorFn: (row) => getRowLabel(row.index),
         });
 
         // Data columns
-        for (let i = 0; i < schema.length; i++) {
-            const column = schema[i];
+        for (let i = 0; i < $visibleSchema.length; i++) {
+            const column = $visibleSchema[i];
             const schemaIndex = i;
             columns.push({
                 id: `col-${column.column_index}`,
@@ -1071,11 +1061,11 @@
     }
 
     function setupTable(): void {
-        if (!state) {
+        if (!$backendState) {
             return;
         }
 
-        const rowCount = state.table_shape.num_rows;
+        const rowCount = $backendState.table_shape.num_rows;
         const rowData: RowData[] = Array.from({ length: rowCount }, (_, index) => ({ index }));
         const columns = buildColumnDefs();
 
@@ -1100,17 +1090,21 @@
     }
 
     function requestInitialBlock(): void {
-        if (!state) {
+        if (!$backendState) {
             return;
         }
-        if (state.table_shape.num_rows === 0) {
+        if ($backendState.table_shape.num_rows === 0) {
             return;
         }
-        const endIndex = Math.min(state.table_shape.num_rows - 1, ROW_BLOCK_SIZE - 1);
-        if (loadedBlocks.has(0) || loadingBlocks.has(0)) {
+        const endIndex = Math.min($backendState.table_shape.num_rows - 1, ROW_BLOCK_SIZE - 1);
+        if ($loadedBlocks.has(0) || $loadingBlocks.has(0)) {
             return;
         }
-        loadingBlocks.add(0);
+        loadingBlocks.update((blocks: Set<number>) => {
+            const next = new Set(blocks);
+            next.add(0);
+            return next;
+        });
         vscode.postMessage({
             type: 'requestRows',
             startIndex: 0,
@@ -1119,7 +1113,7 @@
     }
 
     function requestVisibleBlocks(): void {
-        if (!state) {
+        if (!$backendState) {
             return;
         }
 
@@ -1134,12 +1128,16 @@
         const endBlock = Math.floor(endIndex / ROW_BLOCK_SIZE);
 
         for (let block = startBlock; block <= endBlock; block += 1) {
-            if (loadedBlocks.has(block) || loadingBlocks.has(block)) {
+            if ($loadedBlocks.has(block) || $loadingBlocks.has(block)) {
                 continue;
             }
             const blockStart = block * ROW_BLOCK_SIZE;
-            const blockEnd = Math.min(state.table_shape.num_rows - 1, blockStart + ROW_BLOCK_SIZE - 1);
-            loadingBlocks.add(block);
+            const blockEnd = Math.min($backendState.table_shape.num_rows - 1, blockStart + ROW_BLOCK_SIZE - 1);
+            loadingBlocks.update((blocks: Set<number>) => {
+                const next = new Set(blocks);
+                next.add(block);
+                return next;
+            });
             vscode.postMessage({
                 type: 'requestRows',
                 startIndex: blockStart,
@@ -1149,14 +1147,16 @@
     }
 
     function handleRows(message: RowsMessage): void {
-        if (!state || schema.length === 0) {
+        if (!$backendState || $visibleSchema.length === 0) {
             pendingRows.push(message);
             log('Queued rows before init', { startIndex: message.startIndex, endIndex: message.endIndex });
             return;
         }
         const { startIndex, endIndex, columns, rowLabels } = message;
         const rowCount = endIndex - startIndex + 1;
-        const columnCount = schema.length;
+        const columnCount = $visibleSchema.length;
+        const nextRowCache = new Map($rowCache);
+        const nextRowLabelCache = new Map($rowLabelCache);
 
         for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
             const rowIndex = startIndex + rowOffset;
@@ -1168,49 +1168,32 @@
                 values[columnIndex] = formatColumnValue(value);
             }
 
-            rowCache.set(rowIndex, values);
+            nextRowCache.set(rowIndex, values);
             if (rowLabels && rowLabels[rowOffset] !== undefined) {
-                rowLabelCache.set(rowIndex, rowLabels[rowOffset]);
+                nextRowLabelCache.set(rowIndex, rowLabels[rowOffset]);
             }
         }
 
         const startBlock = Math.floor(startIndex / ROW_BLOCK_SIZE);
         const endBlock = Math.floor(endIndex / ROW_BLOCK_SIZE);
+        const nextLoadedBlocks = new Set($loadedBlocks);
+        const nextLoadingBlocks = new Set($loadingBlocks);
         for (let block = startBlock; block <= endBlock; block += 1) {
-            loadingBlocks.delete(block);
-            loadedBlocks.add(block);
+            nextLoadingBlocks.delete(block);
+            nextLoadedBlocks.add(block);
         }
 
-        rowCache = new Map(rowCache);
-        rowLabelCache = new Map(rowLabelCache);
-        rowCacheVersion += 1;
+        rowCache.set(nextRowCache);
+        rowLabelCache.set(nextRowLabelCache);
+        loadedBlocks.set(nextLoadedBlocks);
+        loadingBlocks.set(nextLoadingBlocks);
+        rowCacheVersion.update((version: number) => version + 1);
         virtualizer.measure();
         log('Rows rendered', { startIndex, endIndex, rows: rowCount, columns: columnCount });
     }
 
     function handleInit(message: InitMessage): void {
-        state = message.state;
-        fullSchema = message.schema ?? [];
-        columnFilterMatches = null;
-        hiddenColumnIndices = new Set();
-        schema = getResolvedVisibleSchema();
-        rowCache.clear();
-        rowLabelCache.clear();
-        loadedBlocks.clear();
-        loadingBlocks.clear();
-        const previousWidths = new Map(columnWidths);
-        columnWidths = new Map();
-        fullSchema.forEach((column) => {
-            const width = previousWidths.get(column.column_index);
-            if (width !== undefined) {
-                columnWidths.set(column.column_index, width);
-            }
-        });
-        activeSort = resolveSortState(state.sort_keys);
-        rowFilters = state.row_filters ?? [];
-        rowFilterSupport = state.supported_features?.set_row_filters;
-        columnFilterSupport = state.supported_features?.search_schema;
-        setColumnFilterSupport = state.supported_features?.set_column_filters;
+        initializeDataStore(message.state, message.schema ?? []);
         columnVisibilityStatus = '';
         columnVisibilitySearchTerm = '';
         if (activeStatsColumnIndex === null) {
@@ -1220,12 +1203,7 @@
         }
         clearStatsContent();
         codePreview = '';
-        if (columnFilterMatches && !isSetColumnFiltersSupported()) {
-            schema = getResolvedVisibleSchema();
-        }
-        applySchemaUpdate(schema);
-        setupTable();
-        updateVirtualizer();
+        applySchemaUpdate($visibleSchema);
         if (pendingRows.length > 0) {
             const queued = [...pendingRows];
             pendingRows = [];
@@ -1233,8 +1211,8 @@
             log('Applied pending rows', { count: queued.length });
         }
         log('Data explorer initialized', {
-            rows: state.table_shape.num_rows,
-            columns: schema.length,
+            rows: message.state.table_shape.num_rows,
+            columns: $visibleSchema.length,
         });
         scheduleTableLayoutDiagnostics('init');
     }
@@ -1280,11 +1258,12 @@
     }
 
     function handleDataTableSort(columnIndex: number): void {
-        activeSort = getNextSort(columnIndex);
+        const nextSort = getNextSort(columnIndex);
+        activeSort.set(nextSort);
         vscode.postMessage({
             type: 'setSort',
-            sortKey: activeSort
-                ? { columnIndex: activeSort.columnIndex, direction: activeSort.direction }
+            sortKey: nextSort
+                ? { columnIndex: nextSort.columnIndex, direction: nextSort.direction }
                 : null,
         });
     }
@@ -1300,24 +1279,24 @@
     }
 
     function buildTableMetaText(): string {
-        if (!state) {
+        if (!$backendState) {
             return '';
         }
-        const { num_rows } = state.table_shape;
-        const num_columns = schema.length;
-        const { num_rows: rawRows, num_columns: rawColumns } = state.table_unfiltered_shape;
+        const { num_rows } = $backendState.table_shape;
+        const num_columns = $visibleSchema.length;
+        const { num_rows: rawRows, num_columns: rawColumns } = $backendState.table_unfiltered_shape;
         const filteredText = num_rows !== rawRows || num_columns !== rawColumns
             ? ` (${rawRows}x${rawColumns} raw)`
             : '';
-        const unnamedCount = fullSchema.filter((column) => !isColumnNamed(column)).length;
+        const unnamedCount = $fullSchema.filter((column) => !isColumnNamed(column)).length;
         const unnamedText = unnamedCount
-            ? ` - ${unnamedCount === fullSchema.length ? 'No column names' : `${unnamedCount} unnamed columns`}`
+            ? ` - ${unnamedCount === $fullSchema.length ? 'No column names' : `${unnamedCount} unnamed columns`}`
             : '';
         return `${num_rows}x${num_columns}${filteredText}${unnamedText}`;
     }
 
     function getCellValue(rowIndex: number, columnIndex: number, _version?: number): string {
-        const values = rowCache.get(rowIndex);
+        const values = $rowCache.get(rowIndex);
         if (!values) {
             return '';
         }
@@ -1325,8 +1304,8 @@
     }
 
     function getRowLabel(rowIndex: number, _version?: number): string {
-        if (state?.has_row_labels) {
-            return rowLabelCache.get(rowIndex) ?? '';
+        if ($backendState?.has_row_labels) {
+            return $rowLabelCache.get(rowIndex) ?? '';
         }
         return String(rowIndex + 1);
     }
@@ -1493,7 +1472,7 @@
 />
 
 <RowFilterBar
-    rowFilters={rowFilters}
+    rowFilters={$rowFilters}
     visible={rowFilterSupported}
     bind:addFilterButtonEl={addRowFilterButtonEl}
     on:addFilter={() => openRowFilterEditor()}
@@ -1505,7 +1484,7 @@
     open={$columnVisibilityOpenStore}
     pinned={isPanelPinned('column-visibility-panel')}
     displayedColumns={columnVisibilityDisplayedColumns}
-    hiddenColumnIndices={hiddenColumnIndices}
+    hiddenColumnIndices={$hiddenColumnIndices}
     bind:searchTerm={columnVisibilitySearchTerm}
     status={columnVisibilityStatus}
     bind:panelEl={columnVisibilityPanelEl}
@@ -1530,10 +1509,10 @@
 <RowFilterPanel
     open={$rowFilterPanelOpenStore}
     pinned={isPanelPinned('row-filter-panel')}
-    schema={schema}
+    schema={$visibleSchema}
     bind:draft={rowFilterDraft}
     error={rowFilterError}
-    rowFilterSupport={rowFilterSupport}
+    rowFilterSupport={$rowFilterSupport}
     bind:panelEl={rowFilterPanelEl}
     on:close={() => {
         setPanelPinned('row-filter-panel', false);
@@ -1548,7 +1527,7 @@
 <StatsPanel
     isOpen={$statsPanelOpenStore}
     isPinned={isPanelPinned('stats-panel')}
-    schema={schema}
+    schema={$visibleSchema}
     getColumnLabel={getColumnLabel}
     bind:statsColumnValue
     bind:statsMessageText
@@ -1607,20 +1586,20 @@
     style={`left: ${$columnMenuPositionStore.x}px; top: ${$columnMenuPositionStore.y}px;`}
 >
     <button class="context-menu-item" id="column-menu-add-filter" disabled={!rowFilterSupported} on:click={handleColumnMenuAddFilter}>Add Filter</button>
-    <button class="context-menu-item" id="column-menu-hide-column" disabled={schema.length <= 1} on:click={handleColumnMenuHideColumn}>Hide Column</button>
+    <button class="context-menu-item" id="column-menu-hide-column" disabled={$visibleSchema.length <= 1} on:click={handleColumnMenuHideColumn}>Hide Column</button>
 </div>
 
 <DataTable
     bind:this={dataTableComponent}
-    {state}
-    {schema}
-    {columnWidths}
-    {activeSort}
+    state={$backendState}
+    schema={$visibleSchema}
+    columnWidths={$columnWidths}
+    activeSort={$activeSort}
     {sortSupported}
     {rowFilterSupported}
     {virtualRows}
     {virtualizerTotalHeight}
-    {rowCacheVersion}
+    rowCacheVersion={$rowCacheVersion}
     {headerScrollLeft}
     {getCellValue}
     {getRowLabel}

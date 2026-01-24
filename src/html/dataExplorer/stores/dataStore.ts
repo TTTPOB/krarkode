@@ -47,6 +47,15 @@ export const columnWidths = writable<Map<number, number>>(new Map());
 export const rowFilters = writable<RowFilter[]>([]);
 
 /**
+ * Row cache data and metadata.
+ */
+export const rowCache = writable<Map<number, string[]>>(new Map());
+export const rowLabelCache = writable<Map<number, string>>(new Map());
+export const rowCacheVersion = writable(0);
+export const loadedBlocks = writable<Set<number>>(new Set());
+export const loadingBlocks = writable<Set<number>>(new Set());
+
+/**
  * Active sort state.
  */
 export const activeSort = writable<SortState | null>(null);
@@ -166,6 +175,11 @@ export function initializeDataStore(state: BackendState, schema: ColumnSchema[])
     fullSchema.set(schema);
     columnFilterMatches.set(null);
     hiddenColumnIndices.set(new Set());
+    rowCache.set(new Map());
+    rowLabelCache.set(new Map());
+    rowCacheVersion.set(0);
+    loadedBlocks.set(new Set());
+    loadingBlocks.set(new Set());
     
     // Preserve existing column widths
     const currentWidths = get(columnWidths);
