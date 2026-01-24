@@ -1459,7 +1459,7 @@ function requestColumnProfiles(reason: string): void {
 }
 
 function setSidePanelWidth(width: number): void {
-    document.documentElement.style.setProperty('--side-panel-width', `${width}px`);
+    document.body.style.setProperty('--side-panel-width', `${width}px`);
     requestAnimationFrame(() => {
         histogramChart?.resize();
         frequencyChart?.resize();
