@@ -68,7 +68,7 @@ fn run() -> Result<()> {
                 .await?;
             }
             Mode::WatchPlot => {
-                run_plot_watcher(&connection, &session_id, args.timeout_ms).await?;
+                run_plot_watcher(&connection, &session_id).await?;
             }
             Mode::Check => {
                 run_check(&connection, &session_id, args.timeout_ms).await?;

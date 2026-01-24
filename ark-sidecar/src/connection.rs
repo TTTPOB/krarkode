@@ -119,33 +119,6 @@ pub(crate) async fn create_shell_connection(
     Ok(Connection::new(socket, &connection_info.key, session_id))
 }
 
-pub(crate) async fn wait_for_iopub_welcome(
-    iopub: &mut runtimelib::ClientIoPubConnection,
-    timeout: Duration,
-) -> Result<()> {
-    debug!("Sidecar: waiting for iopub_welcome");
-    let deadline = Instant::now() + timeout;
-    loop {
-        let remaining = deadline
-            .checked_duration_since(Instant::now())
-            .unwrap_or(Duration::from_millis(0));
-        if remaining.is_zero() {
-            return Err(anyhow!("Timed out waiting for iopub_welcome"));
-        }
-        let message = tokio::time::timeout(remaining, iopub.read())
-            .await
-            .map_err(|_| anyhow!("Timed out waiting for iopub_welcome"))??;
-        debug!(
-            message_type = %message.content.message_type(),
-            "Sidecar: iopub message while waiting for welcome"
-        );
-        if matches!(message.content, JupyterMessageContent::IoPubWelcome(_)) {
-            debug!("Sidecar: received iopub_welcome");
-            return Ok(());
-        }
-    }
-}
-
 pub(crate) async fn wait_for_iopub_idle(
     iopub: &mut runtimelib::ClientIoPubConnection,
     msg_id: &str,

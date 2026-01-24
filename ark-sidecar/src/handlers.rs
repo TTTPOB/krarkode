@@ -34,8 +34,6 @@ pub(crate) async fn run_lsp(
         .await
         .context("Failed to connect shell")?;
 
-    // wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
-
     let comm_id = Uuid::new_v4().to_string();
     send_comm_open(&mut shell, &comm_id, ip_address).await?;
     info!(comm_id = %comm_id, "Sidecar: sent comm_open");
@@ -85,7 +83,6 @@ pub(crate) async fn run_execute_request(
 pub(crate) async fn run_plot_watcher(
     connection: &runtimelib::ConnectionInfo,
     session_id: &str,
-    timeout_ms: u64,
 ) -> Result<()> {
     info!(mode = "watch_plot", "Sidecar: starting mode");
     let mut iopub = create_client_iopub_connection(connection, "", session_id)
@@ -154,8 +151,6 @@ pub(crate) async fn run_plot_watcher(
     // the kernel might not send a welcome message, or it might have already sent it.
     // Also, waiting for it might cause us to drop other important messages (like plot data)
     // that arrive in the meantime. We just start listening.
-    // wait_for_iopub_welcome(&mut iopub, Duration::from_millis(timeout_ms)).await?;
-
     loop {
         tokio::select! {
             line = reader.next_line() => {
