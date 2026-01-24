@@ -16,10 +16,6 @@
     import { BarChart } from 'echarts/charts';
     import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components';
     import { CanvasRenderer } from 'echarts/renderers';
-    import StatsColumnSelector from './stats/StatsColumnSelector.svelte';
-    import StatsSummarySection from './stats/StatsSummarySection.svelte';
-    import StatsDistributionSection from './stats/StatsDistributionSection.svelte';
-    import StatsFrequencySection from './stats/StatsFrequencySection.svelte';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -27,267 +23,57 @@
     import RowFilterPanel from './RowFilterPanel.svelte';
     import StatsPanel from './StatsPanel.svelte';
     import DataTable from './DataTable.svelte';
+    import {
+        type BackendState,
+        type ColumnSchema,
+        type ColumnSortKey,
+        type ColumnFilter,
+        type RowFilter,
+        type RowFilterType,
+        type RowFilterCondition,
+        type FilterComparisonOp,
+        type TextSearchType,
+        type ColumnSummaryStats,
+        type ColumnQuantileValue,
+        type ColumnHistogram,
+        type ColumnFrequencyTable,
+        type ColumnProfileResult,
+        type SetRowFiltersFeatures,
+        type SearchSchemaFeatures,
+        type SetColumnFiltersFeatures,
+        type ColumnValue,
+        type RowsMessage,
+        type InitMessage,
+        type SortDirection,
+        type SortState,
+        type StatsMessageState,
+        type StatsRow,
+        type RowFilterDraft,
+        ROW_HEIGHT,
+        ROW_BLOCK_SIZE,
+        COLUMN_WIDTH,
+        MIN_COLUMN_WIDTH,
+        ROW_LABEL_WIDTH,
+        UNNAMED_COLUMN_PREFIX,
+        DEFAULT_HISTOGRAM_BINS,
+        DEFAULT_FREQUENCY_LIMIT,
+        HISTOGRAM_BINS_MIN,
+        HISTOGRAM_BINS_MAX,
+        FREQUENCY_LIMIT_MIN,
+        FREQUENCY_LIMIT_MAX,
+        SMALL_HISTOGRAM_MAX_BINS,
+        SMALL_FREQUENCY_MAX_LIMIT,
+        STATS_REFRESH_DEBOUNCE_MS,
+        SIDE_PANEL_MIN_WIDTH,
+        SIDE_PANEL_MAX_WIDTH,
+        ROW_FILTER_TYPE_LABELS,
+        ROW_FILTER_SECTION_MAP,
+        getVsCodeApi,
+    } from './types';
 
     echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
-    interface TableShape {
-        num_rows: number;
-        num_columns: number;
-    }
-
-    interface BackendState {
-        display_name: string;
-        table_shape: TableShape;
-        table_unfiltered_shape: TableShape;
-        has_row_labels: boolean;
-        sort_keys?: ColumnSortKey[];
-        supported_features?: SupportedFeatures;
-        column_filters?: ColumnFilter[];
-        row_filters?: RowFilter[];
-    }
-
-    interface ColumnSchema {
-        column_name: string;
-        column_label?: string;
-        column_index: number;
-        type_name: string;
-        type_display: string;
-        description?: string;
-    }
-
-    type SupportStatus = 'supported' | 'unsupported';
-
-    interface ColumnSortKey {
-        column_index: number;
-        ascending: boolean;
-    }
-
-    interface ColumnFilter {
-        filter_type: 'text_search' | 'match_data_types';
-        params: {
-            search_type?: string;
-            term?: string;
-            case_sensitive?: boolean;
-            display_types?: string[];
-        };
-    }
-
-    type RowFilterType =
-        | 'between'
-        | 'compare'
-        | 'is_empty'
-        | 'is_false'
-        | 'is_null'
-        | 'is_true'
-        | 'not_between'
-        | 'not_empty'
-        | 'not_null'
-        | 'search'
-        | 'set_membership';
-
-    type RowFilterCondition = 'and' | 'or';
-
-    type FilterComparisonOp = '=' | '!=' | '<' | '<=' | '>' | '>=';
-
-    type TextSearchType = 'contains' | 'not_contains' | 'starts_with' | 'ends_with' | 'regex_match';
-
-    interface RowFilter {
-        filter_id: string;
-        filter_type: RowFilterType;
-        column_schema: ColumnSchema;
-        condition: RowFilterCondition;
-        params?: Record<string, unknown>;
-    }
-
-    interface ColumnSummaryStats {
-        type_display: string;
-        number_stats?: {
-            min_value?: string;
-            max_value?: string;
-            mean?: string;
-            median?: string;
-            stdev?: string;
-        };
-        string_stats?: {
-            num_empty?: number;
-            num_unique?: number;
-        };
-        boolean_stats?: {
-            true_count?: number;
-            false_count?: number;
-        };
-        date_stats?: {
-            num_unique?: number;
-            min_date?: string;
-            mean_date?: string;
-            median_date?: string;
-            max_date?: string;
-        };
-        datetime_stats?: {
-            num_unique?: number;
-            min_date?: string;
-            mean_date?: string;
-            median_date?: string;
-            max_date?: string;
-            timezone?: string;
-        };
-        other_stats?: {
-            num_unique?: number;
-        };
-    }
-
-    interface ColumnQuantileValue {
-        q: number;
-        value: string;
-        exact: boolean;
-    }
-
-    interface ColumnHistogram {
-        bin_edges: string[];
-        bin_counts: number[];
-        quantiles?: ColumnQuantileValue[];
-    }
-
-    interface ColumnFrequencyTable {
-        values: ColumnValue[];
-        counts: number[];
-        other_count?: number;
-    }
-
-    interface ColumnProfileResult {
-        null_count?: number;
-        summary_stats?: ColumnSummaryStats;
-        small_histogram?: ColumnHistogram;
-        large_histogram?: ColumnHistogram;
-        small_frequency_table?: ColumnFrequencyTable;
-        large_frequency_table?: ColumnFrequencyTable;
-    }
-
-    interface SetSortColumnsFeatures {
-        support_status?: SupportStatus;
-    }
-
-    interface SearchSchemaFeatures {
-        support_status?: SupportStatus;
-    }
-
-    interface SetColumnFiltersFeatures {
-        support_status?: SupportStatus;
-    }
-
-    interface RowFilterTypeSupportStatus {
-        row_filter_type: RowFilterType;
-        support_status: SupportStatus;
-    }
-
-    interface SetRowFiltersFeatures {
-        support_status?: SupportStatus;
-        supports_conditions?: SupportStatus;
-        supported_types?: RowFilterTypeSupportStatus[];
-    }
-
-    interface SupportedFeatures {
-        search_schema?: SearchSchemaFeatures;
-        set_column_filters?: SetColumnFiltersFeatures;
-        set_row_filters?: SetRowFiltersFeatures;
-        set_sort_columns?: SetSortColumnsFeatures;
-        [key: string]: unknown;
-    }
-
-    type ColumnValue = string | number;
-
-    interface RowsMessage {
-        startIndex: number;
-        endIndex: number;
-        columns: ColumnValue[][];
-        rowLabels?: string[];
-    }
-
-    interface InitMessage {
-        state: BackendState;
-        schema: ColumnSchema[];
-    }
-
-    type SortDirection = 'asc' | 'desc';
-
-    interface SortState {
-        columnIndex: number;
-        direction: SortDirection;
-    }
-
-    type StatsMessageState = 'loading' | 'empty' | 'error';
-
-    type StatsRow = {
-        label: string;
-        value: string;
-    };
-
-    type RowFilterDraft = {
-        columnIndex: number;
-        filterType: RowFilterType;
-        compareOp: FilterComparisonOp;
-        compareValue: string;
-        betweenLeft: string;
-        betweenRight: string;
-        searchType: TextSearchType;
-        searchTerm: string;
-        searchCase: boolean;
-        setValues: string;
-        setInclusive: boolean;
-        condition: RowFilterCondition;
-    };
-
-    declare const acquireVsCodeApi: () => {
-        postMessage: (message: unknown) => void;
-    };
-
-    const vscode = acquireVsCodeApi();
-
-    const ROW_HEIGHT = 26;
-    const ROW_BLOCK_SIZE = 200;
-    const COLUMN_WIDTH = 160;
-    const MIN_COLUMN_WIDTH = 80;
-    const ROW_LABEL_WIDTH = 72;
-    const UNNAMED_COLUMN_PREFIX = 'Unnamed';
-    const DEFAULT_HISTOGRAM_BINS = 20;
-    const DEFAULT_FREQUENCY_LIMIT = 10;
-    const HISTOGRAM_BINS_MIN = 5;
-    const HISTOGRAM_BINS_MAX = 200;
-    const FREQUENCY_LIMIT_MIN = 5;
-    const FREQUENCY_LIMIT_MAX = 50;
-    const SMALL_HISTOGRAM_MAX_BINS = 80;
-    const SMALL_FREQUENCY_MAX_LIMIT = 12;
-    const STATS_REFRESH_DEBOUNCE_MS = 300;
-    const SIDE_PANEL_MIN_WIDTH = 280;
-    const SIDE_PANEL_MAX_WIDTH = 600;
-
-    const ROW_FILTER_TYPE_LABELS: Record<RowFilterType, string> = {
-        between: 'Between',
-        compare: 'Compare',
-        is_empty: 'Is empty',
-        is_false: 'Is false',
-        is_null: 'Is null',
-        is_true: 'Is true',
-        not_between: 'Not between',
-        not_empty: 'Not empty',
-        not_null: 'Not null',
-        search: 'Search',
-        set_membership: 'Set membership',
-    };
-
-    const ROW_FILTER_SECTION_MAP: Record<RowFilterType, 'compare' | 'between' | 'search' | 'set' | 'none'> = {
-        between: 'between',
-        compare: 'compare',
-        is_empty: 'none',
-        is_false: 'none',
-        is_null: 'none',
-        is_true: 'none',
-        not_between: 'between',
-        not_empty: 'none',
-        not_null: 'none',
-        search: 'search',
-        set_membership: 'set',
-    };
+    const vscode = getVsCodeApi();
 
     let state: BackendState | null = null;
     let schema: ColumnSchema[] = [];
@@ -401,14 +187,8 @@
     $: rowFilterSupported = isRowFilterSupported();
     $: sortSupported = isSortSupported();
     $: tableTitleText = state?.display_name || 'Data Explorer';
-    // Explicitly reference dependencies for Svelte reactivity tracking
-    $: columnVisibilityDisplayedColumns = (() => {
-        // These references ensure Svelte tracks changes to these variables
-        const _schema = fullSchema;
-        const _matches = columnFilterMatches;
-        const _searchTerm = columnVisibilitySearchTerm;
-        return resolveColumnVisibilityColumns();
-    })();
+    // Compute displayed columns reactively based on search matches and full schema
+    $: columnVisibilityDisplayedColumns = computeDisplayedColumns(fullSchema, columnFilterMatches, columnVisibilitySearchTerm);
     $: tableMetaText = buildTableMetaText();
 
     function log(message: string, payload?: unknown): void {
@@ -1393,27 +1173,35 @@
         });
     }
 
-    function resolveColumnVisibilityColumns(): ColumnSchema[] {
-        if (!fullSchema.length) {
+    /**
+     * Compute displayed columns for the visibility panel.
+     * Pure function with explicit parameters for Svelte reactivity tracking.
+     */
+    function computeDisplayedColumns(
+        schemaList: ColumnSchema[],
+        matches: Array<number | string | Record<string, unknown>> | null,
+        searchTerm: string
+    ): ColumnSchema[] {
+        if (!schemaList.length) {
             return [];
         }
-        if (!columnFilterMatches || columnFilterMatches.length === 0) {
-            return fullSchema;
+        if (!matches || matches.length === 0) {
+            return schemaList;
         }
-        const resolvedMatches = resolveSchemaMatches(columnFilterMatches);
+        const resolvedMatches = resolveSchemaMatches(matches);
         if (resolvedMatches.length > 0) {
             return resolvedMatches;
         }
         // Fallback: filter locally by search term if matches couldn't be resolved
-        const searchTerm = columnVisibilitySearchTerm.trim().toLowerCase();
-        if (!searchTerm) {
-            return fullSchema;
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) {
+            return schemaList;
         }
-        return fullSchema.filter((column) => {
+        return schemaList.filter((column) => {
             const columnName = column.column_name?.toLowerCase();
             const columnLabel = column.column_label?.toLowerCase();
-            return (columnName && columnName.includes(searchTerm))
-                || (columnLabel && columnLabel.includes(searchTerm));
+            return (columnName && columnName.includes(term))
+                || (columnLabel && columnLabel.includes(term));
         });
     }
 
