@@ -385,7 +385,7 @@
     let tableTitleText = 'Data Explorer';
     let tableMetaText = '';
 
-    $: resolvedColumnWidths = resolveColumnWidths();
+    $: resolvedColumnWidths = schema.map((column) => columnWidths.get(column.column_index) ?? COLUMN_WIDTH);
     $: columnTemplate = resolvedColumnWidths.length > 0
         ? `${ROW_LABEL_WIDTH}px ${resolvedColumnWidths.map((width) => `${width}px`).join(' ')}`
         : `${ROW_LABEL_WIDTH}px`;
@@ -1520,10 +1520,6 @@
 
     function updateHeaderScroll(scrollLeft: number): void {
         headerScrollLeft = scrollLeft;
-    }
-
-    function resolveColumnWidths(): number[] {
-        return schema.map((column) => columnWidths.get(column.column_index) ?? COLUMN_WIDTH);
     }
 
     function applyColumnLayout(): void {
