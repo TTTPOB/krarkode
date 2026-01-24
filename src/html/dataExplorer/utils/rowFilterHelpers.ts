@@ -28,7 +28,7 @@ export interface RowFilterParamsResult {
  * Create a new row filter draft from an existing filter or defaults.
  */
 export function createRowFilterDraft(
-    schema: ColumnSchema[],
+    schema: ColumnSchema[] = [],
     filter?: RowFilter,
     columnIndex?: number,
     supportedTypes?: RowFilterType[]
