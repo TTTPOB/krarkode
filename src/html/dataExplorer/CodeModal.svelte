@@ -23,10 +23,10 @@
 </script>
 
 <div class="modal" id="code-modal" bind:this={codeModalEl} class:open={open}>
-    <div class="modal-content">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="code-modal-title">
         <div class="modal-header">
-            <span>Convert to Code</span>
-            <button class="close-btn" id="close-code" on:click={() => dispatch('close')}>&times;</button>
+            <span id="code-modal-title">Convert to Code</span>
+            <button class="close-btn" id="close-code" aria-label="Close code modal" on:click={() => dispatch('close')}>&times;</button>
         </div>
         <div class="modal-body">
             <div class="code-section">

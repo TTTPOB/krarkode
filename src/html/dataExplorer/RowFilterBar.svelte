@@ -60,9 +60,9 @@
 </script>
 
 {#if visible}
-    <div class="row-filter-bar" id="row-filter-bar">
+    <div class="row-filter-bar" id="row-filter-bar" role="region" aria-label="Row filters">
         <div class="row-filter-label">Row Filters</div>
-        <div class="row-filter-chips" id="row-filter-chips">
+        <div class="row-filter-chips" id="row-filter-chips" role="list" aria-label="Active row filters">
             {#if rowFilters.length === 0}
                 <span class="row-filter-label">No filters</span>
             {:else}
@@ -71,6 +71,7 @@
                         class="row-filter-chip"
                         role="button"
                         tabindex="0"
+                        aria-label={`Edit filter ${formatRowFilterChip(filter, index)}`}
                         on:click={() => dispatch('editFilter', { filter, index })}
                         on:keydown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
@@ -80,12 +81,18 @@
                         }}
                     >
                         <span>{formatRowFilterChip(filter, index)}</span>
-                        <button on:click|stopPropagation={() => dispatch('removeFilter', { index })}>x</button>
+                        <button aria-label="Remove filter" on:click|stopPropagation={() => dispatch('removeFilter', { index })}>x</button>
                     </div>
                 {/each}
             {/if}
         </div>
-        <button class="action secondary" id="add-row-filter" bind:this={addFilterButtonEl} on:click={() => dispatch('addFilter')}>
+        <button
+            class="action secondary"
+            id="add-row-filter"
+            aria-label="Add row filter"
+            bind:this={addFilterButtonEl}
+            on:click={() => dispatch('addFilter')}
+        >
             + Filter
         </button>
     </div>

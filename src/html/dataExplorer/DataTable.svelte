@@ -103,16 +103,19 @@
     }
 </script>
 
-<div class="table-container">
-    <div class="table-header" id="table-header" bind:this={tableHeaderEl}>
-        <div class="table-header-bar">Columns</div>
+<div class="table-container" role="table" aria-label="Data explorer table">
+    <div class="table-header" id="table-header" role="rowgroup" bind:this={tableHeaderEl}>
+        <div class="table-header-bar" role="heading" aria-level="2">Columns</div>
         <div
             class="table-row header-row"
+            role="row"
             style:grid-template-columns={columnTemplate}
             style:width={`${totalWidth}px`}
             style:transform={`translateX(${-headerScrollLeft}px)`}
         >
-            <div class="table-cell row-label">{state?.has_row_labels ? '#' : 'Row'}</div>
+            <div class="table-cell row-label" role="columnheader" aria-label="Row label">
+                {state?.has_row_labels ? '#' : 'Row'}
+            </div>
             {#each schema as column, columnIndex}
                 <div
                     class="table-cell header-cell"
@@ -120,7 +123,11 @@
                     class:sorted-asc={activeSort?.columnIndex === column.column_index && activeSort.direction === 'asc'}
                     class:sorted-desc={activeSort?.columnIndex === column.column_index && activeSort.direction === 'desc'}
                     data-column-index={column.column_index}
-                    role="button"
+                    role="columnheader"
+                    aria-sort={activeSort?.columnIndex === column.column_index
+                        ? activeSort.direction === 'asc' ? 'ascending' : 'descending'
+                        : 'none'}
+                    aria-label={getColumnLabel(column)}
                     tabindex={sortSupported ? 0 : -1}
                     on:click={(event) => sortSupported && handleHeaderSort(event, column.column_index)}
                     on:keydown={(event) => {
@@ -183,7 +190,7 @@
             {/each}
         </div>
     </div>
-    <div class="table-body" id="table-body" bind:this={tableBodyEl} on:scroll={handleTableScroll}>
+    <div class="table-body" id="table-body" role="rowgroup" bind:this={tableBodyEl} on:scroll={handleTableScroll}>
         <div
             class="table-body-inner"
             bind:this={bodyInnerEl}
@@ -193,14 +200,17 @@
             {#each virtualRows as virtualRow (virtualRow.key)}
                 <div
                     class="table-row"
+                    role="row"
                     style:grid-template-columns={columnTemplate}
                     style:width={`${totalWidth}px`}
                     style:transform={`translateY(${virtualRow.start}px)`}
                 >
-                    <div class="table-cell row-label">{getRowLabel(virtualRow.index, rowCacheVersion)}</div>
+                    <div class="table-cell row-label" role="rowheader">
+                        {getRowLabel(virtualRow.index, rowCacheVersion)}
+                    </div>
                     {#each schema as column, columnIndex}
                         {@const value = getCellValue(virtualRow.index, columnIndex, rowCacheVersion)}
-                        <div class="table-cell" class:cell-special={isSpecialValue(value)}>{value}</div>
+                        <div class="table-cell" role="cell" class:cell-special={isSpecialValue(value)}>{value}</div>
                     {/each}
                 </div>
             {/each}
