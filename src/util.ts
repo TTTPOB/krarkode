@@ -216,6 +216,10 @@ export function createTempDir(root: string, hidden?: boolean): string {
     return tempDir;
 }
 
+export function getNonce(): string {
+    return randomBytes(16).toString('hex');
+}
+
 /**
  * DisposableProcess type - a child process that can be disposed.
  */
