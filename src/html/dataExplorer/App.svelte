@@ -221,11 +221,17 @@
 
     // Reactive statement to setup virtualizer when tableBodyEl becomes available
     // This handles the case where init message arrives before DataTable is mounted
+    // Use tick() to ensure DOM is fully updated before initializing virtualizer
     $: if (tableBodyEl && state && !rowVirtualizer) {
-        log('tableBodyEl bound, setting up virtualizer');
-        setupVirtualizer();
-        requestInitialBlock();
-        requestVisibleBlocks();
+        log('tableBodyEl bound, scheduling virtualizer setup');
+        void tick().then(() => {
+            if (tableBodyEl && state && !rowVirtualizer) {
+                log('Setting up virtualizer after tick');
+                setupVirtualizer();
+                requestInitialBlock();
+                requestVisibleBlocks();
+            }
+        });
     }
 
     function log(message: string, payload?: unknown): void {
@@ -1118,41 +1124,58 @@
 
     function setupVirtualizer(): void {
         if (!state || !tableBodyEl) {
+            log('setupVirtualizer skipped', { hasState: !!state, hasTableBodyEl: !!tableBodyEl });
             return;
         }
 
-        if (!rowVirtualizer) {
-            rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
-                count: state.table_shape.num_rows,
-                getScrollElement: () => tableBodyEl,
-                estimateSize: () => ROW_HEIGHT,
-                overscan: 8,
-                scrollToFn: elementScroll,
-                observeElementRect,
-                observeElementOffset,
-                onChange: () => {
-                    refreshVirtualRows();
-                },
-            });
-            rowVirtualizerCleanup = rowVirtualizer._didMount();
-            log('Row virtualizer created', {
-                count: state.table_shape.num_rows,
-                hasScrollElement: Boolean(tableBodyEl),
-            });
-        }
-
-        const nextOptions = {
-            ...rowVirtualizer.options,
-            count: state.table_shape.num_rows,
-        };
-        rowVirtualizer.setOptions(nextOptions);
-        log('Row virtualizer options updated', {
-            count: nextOptions.count,
-            hasScrollElement: typeof nextOptions.getScrollElement === 'function',
+        log('setupVirtualizer called', {
+            rowCount: state.table_shape.num_rows,
+            tableBodyEl: tableBodyEl ? 'present' : 'missing',
+            tableBodyElDimensions: tableBodyEl ? { 
+                width: tableBodyEl.offsetWidth, 
+                height: tableBodyEl.offsetHeight,
+                clientWidth: tableBodyEl.clientWidth,
+                clientHeight: tableBodyEl.clientHeight
+            } : null
         });
-        rowVirtualizer._willUpdate();
-        rowVirtualizer.measure();
-        refreshVirtualRows();
+
+        try {
+            if (!rowVirtualizer) {
+                rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
+                    count: state.table_shape.num_rows,
+                    getScrollElement: () => tableBodyEl,
+                    estimateSize: () => ROW_HEIGHT,
+                    overscan: 8,
+                    scrollToFn: elementScroll,
+                    observeElementRect,
+                    observeElementOffset,
+                    onChange: () => {
+                        refreshVirtualRows();
+                    },
+                });
+                rowVirtualizerCleanup = rowVirtualizer._didMount();
+                log('Row virtualizer created', {
+                    count: state.table_shape.num_rows,
+                    hasScrollElement: Boolean(tableBodyEl),
+                });
+            }
+
+            const nextOptions = {
+                ...rowVirtualizer.options,
+                count: state.table_shape.num_rows,
+            };
+            rowVirtualizer.setOptions(nextOptions);
+            log('Row virtualizer options updated', {
+                count: nextOptions.count,
+                hasScrollElement: typeof nextOptions.getScrollElement === 'function',
+            });
+            rowVirtualizer._willUpdate();
+            rowVirtualizer.measure();
+            refreshVirtualRows();
+        } catch (error) {
+            log('setupVirtualizer error', { error: error instanceof Error ? error.message : String(error) });
+            console.error('[dataExplorer] setupVirtualizer failed:', error);
+        }
     }
 
     function requestInitialBlock(): void {
