@@ -262,6 +262,7 @@
     "@types/vscode": "^1.75.0",
     "esbuild": "^0.25.9",
     "esbuild-svelte": "^0.9.3",
+    "svelte-preprocess": "^5.0.4",
     "typescript": "^5.4.0"
   },
   "dependencies": {

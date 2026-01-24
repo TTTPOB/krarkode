@@ -1,5 +1,6 @@
 import esbuild from 'esbuild';
 import svelte from 'esbuild-svelte';
+import sveltePreprocess from 'svelte-preprocess';
 
 try {
     await esbuild.build({
@@ -10,6 +11,9 @@ try {
         minify: true,
         plugins: [
             svelte({
+                preprocess: sveltePreprocess({
+                    typescript: true,
+                }),
                 compilerOptions: {
                     css: 'injected',
                 },
