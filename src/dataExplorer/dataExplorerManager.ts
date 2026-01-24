@@ -925,6 +925,7 @@ class DataExplorerPanel implements vscode.Disposable {
                     <div class="table-header" id="table-header"></div>
                     <div class="table-body" id="table-body"></div>
                 </div>
+                <div id="svelte-root" class="svelte-root"></div>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;

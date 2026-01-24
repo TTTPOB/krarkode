@@ -253,7 +253,7 @@
     ]
   },
   "scripts": {
-    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && esbuild src/html/dataExplorer/dataExplorer.ts --bundle --outfile=dist/html/dataExplorer/dataExplorer.js --format=iife --minify && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && node scripts/build-data-explorer.mjs && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
     "vscode:prepublish": "pnpm run compile"
   },
@@ -261,6 +261,7 @@
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.75.0",
     "esbuild": "^0.25.9",
+    "esbuild-svelte": "^0.9.3",
     "typescript": "^5.4.0"
   },
   "dependencies": {
@@ -268,6 +269,7 @@
     "@tanstack/table-core": "^8.21.3",
     "@tanstack/virtual-core": "^3.13.18",
     "echarts": "^5.6.0",
+    "svelte": "^4.2.18",
     "vscode-languageclient": "^9.0.1"
   }
 }
