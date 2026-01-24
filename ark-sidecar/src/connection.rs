@@ -235,3 +235,27 @@ fn parse_port_value(value: Option<&Value>) -> Option<u16> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_port_value;
+    use serde_json::Value;
+
+    #[test]
+    fn parse_port_value_accepts_number() {
+        let value = serde_json::json!(8787);
+        assert_eq!(parse_port_value(Some(&value)), Some(8787));
+    }
+
+    #[test]
+    fn parse_port_value_accepts_string() {
+        let value = Value::String("9090".to_string());
+        assert_eq!(parse_port_value(Some(&value)), Some(9090));
+    }
+
+    #[test]
+    fn parse_port_value_rejects_invalid_type() {
+        let value = Value::Bool(true);
+        assert_eq!(parse_port_value(Some(&value)), None);
+    }
+}

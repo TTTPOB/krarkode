@@ -456,3 +456,21 @@ fn is_comm_close_missing_data<E: std::fmt::Debug>(err: &E) -> bool {
     let text = format!("{err:?}");
     text.contains("comm_close") && text.contains("missing field `data`")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::extract_png_data;
+    use runtimelib::{Media, MediaType};
+
+    #[test]
+    fn extract_png_data_returns_png() {
+        let media = Media::new(vec![MediaType::Png("png-data".to_string())]);
+        assert_eq!(extract_png_data(&media), Some("png-data".to_string()));
+    }
+
+    #[test]
+    fn extract_png_data_skips_non_png() {
+        let media = Media::new(vec![MediaType::Html("<p>hi</p>".to_string())]);
+        assert_eq!(extract_png_data(&media), None);
+    }
+}
