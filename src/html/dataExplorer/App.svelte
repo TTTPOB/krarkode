@@ -1308,7 +1308,6 @@
         if (!searchTerm) {
             columnFilterMatches = null;
             columnVisibilityStatus = 'Showing all columns.';
-            log('Ignoring column search results for empty term', { matches: matches.length });
             return;
         }
         columnFilterMatches = matches;
@@ -1316,7 +1315,6 @@
             applySchemaUpdate(resolveVisibleSchema());
         }
         columnVisibilityStatus = `Found ${matches.length} matching columns.`;
-        log('Column search results', { matches: matches.length, sample: matches.slice(0, 5) });
     }
 
     function resolveSchemaMatches(matches: Array<number | string | Record<string, unknown>>): ColumnSchema[] {
@@ -1396,11 +1394,6 @@
     }
 
     function resolveColumnVisibilityColumns(): ColumnSchema[] {
-        log('resolveColumnVisibilityColumns called', {
-            fullSchemaLen: fullSchema.length,
-            matchesLen: columnFilterMatches?.length ?? 0,
-            searchTerm: columnVisibilitySearchTerm,
-        });
         if (!fullSchema.length) {
             return [];
         }
@@ -1408,13 +1401,10 @@
             return fullSchema;
         }
         const resolvedMatches = resolveSchemaMatches(columnFilterMatches);
-        log('resolveColumnVisibilityColumns resolved matches', {
-            resolvedLen: resolvedMatches.length,
-            sample: resolvedMatches.slice(0, 3).map(c => ({ idx: c.column_index, name: c.column_name })),
-        });
         if (resolvedMatches.length > 0) {
             return resolvedMatches;
         }
+        // Fallback: filter locally by search term if matches couldn't be resolved
         const searchTerm = columnVisibilitySearchTerm.trim().toLowerCase();
         if (!searchTerm) {
             return fullSchema;
