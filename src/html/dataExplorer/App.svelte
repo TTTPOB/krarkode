@@ -401,7 +401,14 @@
     $: rowFilterSupported = isRowFilterSupported();
     $: sortSupported = isSortSupported();
     $: tableTitleText = state?.display_name || 'Data Explorer';
-    $: columnVisibilityDisplayedColumns = resolveColumnVisibilityColumns();
+    // Explicitly reference dependencies for Svelte reactivity tracking
+    $: columnVisibilityDisplayedColumns = (() => {
+        // These references ensure Svelte tracks changes to these variables
+        const _schema = fullSchema;
+        const _matches = columnFilterMatches;
+        const _searchTerm = columnVisibilitySearchTerm;
+        return resolveColumnVisibilityColumns();
+    })();
     $: tableMetaText = buildTableMetaText();
 
     function log(message: string, payload?: unknown): void {
@@ -1389,6 +1396,11 @@
     }
 
     function resolveColumnVisibilityColumns(): ColumnSchema[] {
+        log('resolveColumnVisibilityColumns called', {
+            fullSchemaLen: fullSchema.length,
+            matchesLen: columnFilterMatches?.length ?? 0,
+            searchTerm: columnVisibilitySearchTerm,
+        });
         if (!fullSchema.length) {
             return [];
         }
@@ -1396,6 +1408,10 @@
             return fullSchema;
         }
         const resolvedMatches = resolveSchemaMatches(columnFilterMatches);
+        log('resolveColumnVisibilityColumns resolved matches', {
+            resolvedLen: resolvedMatches.length,
+            sample: resolvedMatches.slice(0, 3).map(c => ({ idx: c.column_index, name: c.column_name })),
+        });
         if (resolvedMatches.length > 0) {
             return resolvedMatches;
         }
