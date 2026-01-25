@@ -74,6 +74,124 @@
     "configuration": {
       "title": "Krarkode",
       "properties": {
+        "krarkode.r.rBinaryPath": {
+          "type": "string",
+          "default": "",
+          "scope": "window",
+          "markdownDescription": "Path to the R binary. Leave empty to auto-detect."
+        },
+        "krarkode.ark.path": {
+          "type": "string",
+          "default": "ark",
+          "scope": "window",
+          "markdownDescription": "Ark executable path."
+        },
+        "krarkode.ark.sessionMode": {
+          "type": "string",
+          "default": "console",
+          "enum": ["console", "notebook", "background"],
+          "scope": "window",
+          "markdownDescription": "Ark session mode (console is recommended; other modes are not fully supported)."
+        },
+        "krarkode.ark.console.driver": {
+          "type": "string",
+          "default": "tmux",
+          "enum": ["tmux", "external"],
+          "scope": "window",
+          "markdownDescription": "Console driver for Ark sessions."
+        },
+        "krarkode.ark.console.commandTemplate": {
+          "type": "string",
+          "default": "jupyter console --existing {connectionFile}",
+          "scope": "window",
+          "markdownDescription": "Console launch command template. Supports {connectionFile}."
+        },
+        "krarkode.ark.kernel.commandTemplate": {
+          "type": "string",
+          "default": "{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}",
+          "scope": "window",
+          "markdownDescription": "Ark kernel command template. Supports {arkPath}, {connectionFile}, {sessionMode}, {startupFile}."
+        },
+        "krarkode.ark.kernel.startupFileTemplate": {
+          "type": "string",
+          "default": "{sessionsDir}/{name}/init-ark.R",
+          "scope": "window",
+          "markdownDescription": "Ark kernel startup file template. Supports {sessionsDir} and {name}."
+        },
+        "krarkode.ark.sidecarPath": {
+          "type": "string",
+          "default": "",
+          "scope": "window",
+          "markdownDescription": "Override the Ark sidecar executable path."
+        },
+        "krarkode.ark.sidecarTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "scope": "window",
+          "markdownDescription": "Timeout for Ark sidecar startup, in milliseconds."
+        },
+        "krarkode.ark.ipAddress": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "scope": "window",
+          "markdownDescription": "IP address used for Ark LSP connections."
+        },
+        "krarkode.ark.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Enable the Ark language server."
+        },
+        "krarkode.ark.lspTimeoutMs": {
+          "type": "number",
+          "default": 15000,
+          "scope": "window",
+          "markdownDescription": "Timeout for Ark LSP sidecar startup, in milliseconds."
+        },
+        "krarkode.ark.tmux.path": {
+          "type": "string",
+          "default": "tmux",
+          "scope": "window",
+          "markdownDescription": "tmux executable path for Ark console sessions."
+        },
+        "krarkode.ark.tmux.manageKernel": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Automatically start the Ark kernel inside tmux."
+        },
+        "krarkode.plot.viewColumn": {
+          "type": "string",
+          "default": "Two",
+          "enum": ["Active", "Beside", "One", "Two", "Three", "Disable"],
+          "scope": "window",
+          "markdownDescription": "Where to show plots, or disable plot display."
+        },
+        "krarkode.plot.maxHistory": {
+          "type": "number",
+          "default": 50,
+          "scope": "window",
+          "markdownDescription": "Maximum number of plots to keep in history."
+        },
+        "krarkode.html.viewColumn": {
+          "type": "string",
+          "default": "Two",
+          "enum": ["Active", "Beside", "One", "Two", "Three"],
+          "scope": "window",
+          "markdownDescription": "Where to show HTML viewer panels."
+        },
+        "krarkode.source.encoding": {
+          "type": "string",
+          "default": "UTF-8",
+          "scope": "window",
+          "markdownDescription": "Encoding used for source() when running files."
+        },
+        "krarkode.source.echo": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "markdownDescription": "Echo code when sourcing files."
+        },
         "krarkode.logging.channels.ark": {
           "type": "boolean",
           "default": true,
