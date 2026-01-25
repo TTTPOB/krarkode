@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from './sidecarManager';
 
@@ -205,9 +206,23 @@ export class ArkCommBackend implements IPlotBackend {
         this._onPlotsChanged.fire(this.getPlots());
     }
 
-    public async savePlot(_id: PlotId, _renderer: string, _outFile: string): Promise<void> {
-        // Not implemented yet
-        throw new Error('Not implemented');
+    public async savePlot(id: PlotId, renderer: string, outFile: string): Promise<void> {
+        const format = renderer === 'svg' || renderer === 'svgp'
+            ? 'svg'
+            : renderer === 'png'
+                ? 'png'
+                : undefined;
+        if (!format) {
+            throw new Error(`Unsupported plot renderer: ${renderer}`);
+        }
+
+        this.outputChannel.appendLine(`Saving plot ${id} as ${format} to ${outFile}`);
+
+        const result = await this.renderPlot(id, { width: 800, height: 600 }, 1, format);
+        const buffer = Buffer.from(result.data, 'base64');
+        await fs.promises.writeFile(outFile, buffer);
+
+        this.outputChannel.appendLine(`Saved plot ${id} to ${outFile}`);
     }
 
     private handleOpenPlot(e: { commId: string; data: unknown }): void {
