@@ -202,10 +202,12 @@
         "krarkode.logging.channels.ark": {
           "type": "string",
           "default": "error",
-          "enum": ["none", "error", "debug"],
+          "enum": ["none", "error", "warn", "info", "debug"],
           "enumDescriptions": [
             "Disable the Krarkode output channel.",
+            "Show errors only.",
             "Show warnings and errors.",
+            "Show info/warn/error messages.",
             "Show verbose logs (debug/info/warn/error)."
           ],
           "scope": "window",
@@ -214,10 +216,12 @@
         "krarkode.logging.channels.arkKernel": {
           "type": "string",
           "default": "none",
-          "enum": ["none", "error", "debug"],
+          "enum": ["none", "error", "warn", "info", "debug"],
           "enumDescriptions": [
             "Disable the Ark Kernel output channel.",
+            "Show errors only.",
             "Show warnings and errors.",
+            "Show info/warn/error messages.",
             "Show verbose logs (debug/info/warn/error)."
           ],
           "scope": "window",
@@ -226,10 +230,12 @@
         "krarkode.logging.channels.lsp": {
           "type": "string",
           "default": "error",
-          "enum": ["none", "error", "debug"],
+          "enum": ["none", "error", "warn", "info", "debug"],
           "enumDescriptions": [
             "Disable the Krarkode LSP output channel.",
+            "Show errors only.",
             "Show warnings and errors.",
+            "Show info/warn/error messages.",
             "Show verbose logs (debug/info/warn/error)."
           ],
           "scope": "window",
@@ -238,10 +244,12 @@
         "krarkode.logging.channels.sidecar": {
           "type": "string",
           "default": "error",
-          "enum": ["none", "error", "debug"],
+          "enum": ["none", "error", "warn", "info", "debug"],
           "enumDescriptions": [
             "Disable the Krarkode Sidecar output channel.",
+            "Show errors only.",
             "Show warnings and errors.",
+            "Show info/warn/error messages.",
             "Show verbose logs (debug/info/warn/error)."
           ],
           "scope": "window",

@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 export type LogChannelId = 'ark' | 'ark-kernel' | 'lsp' | 'sidecar';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
-export type LogChannelSetting = 'none' | 'error' | 'debug';
+export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug';
 
 type WriteOptions = {
     category?: string;
@@ -29,7 +29,7 @@ const LOG_LEVEL_RANK: Record<LogLevel, number> = {
 const MESSAGE_LEVEL_RE = /^\[(Trace|Debug|Info|Warn|Error)\b/i;
 
 function normalizeChannelSetting(value: unknown): LogChannelSetting {
-    if (value === 'none' || value === 'error' || value === 'debug') {
+    if (value === 'none' || value === 'error' || value === 'warn' || value === 'info' || value === 'debug') {
         return value;
     }
     if (value === false) {
@@ -73,7 +73,8 @@ function isLevelAllowed(setting: LogChannelSetting, level: LogLevel): boolean {
     if (setting === 'debug') {
         return true;
     }
-    return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK.warn;
+    const minLevel: LogLevel = setting === 'info' ? 'info' : setting === 'warn' ? 'warn' : 'error';
+    return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK[minLevel];
 }
 
 export function isDebugLoggingEnabled(channelId: LogChannelId = 'ark'): boolean {
