@@ -335,20 +335,6 @@
         margin-top: 8px;
     }
 
-    .checkbox-group {
-        display: flex;
-        flex-direction: column;
-        gap: 6px;
-    }
-
-    .checkbox-group label {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-weight: normal;
-        cursor: pointer;
-    }
-
     .filter-actions {
         display: flex;
         gap: 8px;

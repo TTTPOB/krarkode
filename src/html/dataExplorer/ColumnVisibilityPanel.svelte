@@ -334,8 +334,7 @@
         font-size: 0.9em;
     }
 
-    .filter-section input,
-    .filter-section select {
+    .filter-section input {
         width: 100%;
         padding: 6px 8px;
         background: var(--vscode-dropdown-background);

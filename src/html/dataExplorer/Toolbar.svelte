@@ -109,15 +109,6 @@
         background: var(--vscode-button-hoverBackground);
     }
 
-    .toolbar .action.secondary {
-        background: var(--vscode-button-secondaryBackground);
-        color: var(--vscode-button-secondaryForeground);
-    }
-
-    .toolbar .action.secondary:hover {
-        background: var(--vscode-button-secondaryHoverBackground);
-    }
-
     .dropdown {
         position: relative;
         display: inline-block;
