@@ -55,6 +55,7 @@ export class ArkLanguageService implements vscode.Disposable {
     private sidecarProcess: cp.ChildProcessWithoutNullStreams | undefined;
     private connectionDir: string | undefined;
     private connectionFile: string | undefined;
+    private lspPort: number | undefined;
     private isIntentionallyRestarting: boolean = false;
 
     constructor() {
@@ -80,13 +81,13 @@ export class ArkLanguageService implements vscode.Disposable {
     }
 
     public async restart(): Promise<void> {
-        this.outputChannel.appendLine('Restarting Ark LSP...');
+        this.outputChannel.appendLine(this.formatLogMessage('Restarting Ark LSP...', 'lsp'));
         this.isIntentionallyRestarting = true;
         await this.stopLanguageService();
         this.client = undefined;
         this.isIntentionallyRestarting = false;
         await this.startLanguageService();
-        this.outputChannel.appendLine('Ark LSP restarted.');
+        this.outputChannel.appendLine(this.formatLogMessage('Ark LSP restarted.', 'lsp'));
     }
 
     dispose(): void {
@@ -108,11 +109,12 @@ export class ArkLanguageService implements vscode.Disposable {
         try {
             await this.startArkKernel(cwd);
             const port = await this.openArkLspComm();
+            this.lspPort = port;
             this.client = await this.createClient(port, documentSelector, workspaceFolder);
             this.updateLspTrace();
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
-            this.outputChannel.appendLine(`Ark LSP failed to start: ${message}`);
+            this.outputChannel.appendLine(this.formatLogMessage(`Ark LSP failed to start: ${message}`, 'lsp'));
             void vscode.window.showErrorMessage(`Ark LSP failed to start: ${message}`);
             this.outputChannel.show();
             await this.stopLanguageService();
@@ -130,11 +132,21 @@ export class ArkLanguageService implements vscode.Disposable {
             const alive = await this.checkConnectionFile(activeSession.connectionFilePath);
             if (alive) {
                 this.connectionFile = activeSession.connectionFilePath;
-                this.outputChannel.appendLine(`Using Ark session connection file ${activeSession.connectionFilePath}`);
+                this.outputChannel.appendLine(
+                    this.formatLogMessage(
+                        `Using Ark session connection file ${activeSession.connectionFilePath}`,
+                        'lsp'
+                    )
+                );
                 return;
             }
 
-            this.outputChannel.appendLine(`Ark session connection file is stale: ${activeSession.connectionFilePath}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(
+                    `Ark session connection file is stale: ${activeSession.connectionFilePath}`,
+                    'lsp'
+                )
+            );
             sessionRegistry.setActiveSessionName(undefined);
         }
 
@@ -151,24 +163,39 @@ export class ArkLanguageService implements vscode.Disposable {
         const rustLog = formatArkRustLog(arkLogLevel);
         if (rustLog) {
             env.RUST_LOG = rustLog;
-            this.outputChannel.appendLine(`Ark backend log level set to ${arkLogLevel}.`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Ark backend log level set to ${arkLogLevel}.`, 'lsp')
+            );
         }
         const rHome = await this.resolveRHome();
         if (rHome) {
             env.R_HOME = rHome;
-            this.outputChannel.appendLine(`Resolved R_HOME for Ark: ${rHome}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Resolved R_HOME for Ark: ${rHome}`, 'lsp')
+            );
         }
 
-        this.outputChannel.appendLine(`Starting Ark kernel with connection file ${connectionFile}`);
+        this.outputChannel.appendLine(
+            this.formatLogMessage(`Starting Ark kernel with connection file ${connectionFile}`, 'lsp')
+        );
         this.arkProcess = util.spawn(arkPath, ['--connection_file', connectionFile, '--session-mode', sessionMode], { cwd, env });
         this.arkProcess.stdout?.on('data', (chunk: Buffer) => {
-            this.kernelOutputChannel.appendLine(chunk.toString().trim());
+            this.kernelOutputChannel.appendLine(
+                this.formatLogMessage(chunk.toString().trim(), 'kernel')
+            );
         });
         this.arkProcess.stderr?.on('data', (chunk: Buffer) => {
-            this.kernelOutputChannel.appendLine(chunk.toString().trim());
+            this.kernelOutputChannel.appendLine(
+                this.formatLogMessage(chunk.toString().trim(), 'kernel')
+            );
         });
         this.arkProcess.on('exit', (code, signal) => {
-            this.kernelOutputChannel.appendLine(`Ark kernel exited ${signal ? `from signal ${signal}` : `with exit code ${code ?? 'null'}`}`);
+            this.kernelOutputChannel.appendLine(
+                this.formatLogMessage(
+                    `Ark kernel exited ${signal ? `from signal ${signal}` : `with exit code ${code ?? 'null'}`}`,
+                    'kernel'
+                )
+            );
         });
     }
 
@@ -200,11 +227,11 @@ export class ArkLanguageService implements vscode.Disposable {
         const sidecarPath = util.resolveSidecarPath();
         const args = ['--connection-file', this.connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)];
 
-        this.outputChannel.appendLine(`Starting Ark sidecar: ${sidecarPath}`);
+        this.outputChannel.appendLine(this.formatLogMessage(`Starting Ark sidecar: ${sidecarPath}`, 'sidecar'));
         const sidecar = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'], env: this.buildSidecarEnv() });
         this.sidecarProcess = sidecar;
         sidecar.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(`[sidecar] ${chunk.toString().trim()}`);
+            this.outputChannel.appendLine(this.formatLogMessage(chunk.toString().trim(), 'sidecar'));
         });
 
         return await this.waitForSidecarPort(sidecar, timeoutMs);
@@ -217,7 +244,9 @@ export class ArkLanguageService implements vscode.Disposable {
         const result = await util.spawnAsync(sidecarPath, args, { env: process.env });
         if (result.error || result.status !== 0) {
             const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';
-            this.outputChannel.appendLine(`Ark connection check failed: ${message}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Ark connection check failed: ${message}`, 'lsp')
+            );
             return false;
         }
         return true;
@@ -246,7 +275,7 @@ export class ArkLanguageService implements vscode.Disposable {
                 try {
                     msg = JSON.parse(line) as SidecarMessage;
                 } catch {
-                    this.outputChannel.appendLine(`[sidecar] ${line}`);
+                    this.outputChannel.appendLine(this.formatLogMessage(line, 'sidecar'));
                     return;
                 }
 
@@ -394,7 +423,7 @@ export class ArkLanguageService implements vscode.Disposable {
         const traceLevel = setting === 'debug' ? Trace.Verbose : Trace.Off;
         void this.client.setTrace(traceLevel);
         if (traceLevel === Trace.Verbose) {
-            getLogger().debug('lsp', 'logging', 'Ark LSP trace logging enabled.');
+            getLogger().debug('lsp', 'logging', this.formatLogMessage('Ark LSP trace logging enabled.', 'lsp'));
         }
     }
 
@@ -424,8 +453,31 @@ export class ArkLanguageService implements vscode.Disposable {
             this.connectionDir = undefined;
         }
         this.connectionFile = undefined;
+        this.lspPort = undefined;
 
         await Promise.allSettled(promises);
+    }
+
+    private formatLogMessage(message: string, source: 'lsp' | 'kernel' | 'sidecar'): string {
+        const segments: string[] = [];
+        const sessionName = sessionRegistry.getActiveSessionName();
+        if (sessionName) {
+            segments.push(`session=${sessionName}`);
+        }
+        if (this.connectionFile) {
+            segments.push(`conn=${path.basename(this.connectionFile)}`);
+        }
+        if (source === 'lsp' && this.lspPort) {
+            segments.push(`port=${this.lspPort}`);
+        }
+        const pid = source === 'kernel' ? this.arkProcess?.pid : source === 'sidecar' ? this.sidecarProcess?.pid : undefined;
+        if (pid) {
+            segments.push(`pid=${pid}`);
+        }
+        if (segments.length === 0) {
+            return message;
+        }
+        return `[${segments.join(' ')}] ${message}`;
     }
 
     private buildSidecarEnv(): NodeJS.ProcessEnv {
@@ -435,7 +487,11 @@ export class ArkLanguageService implements vscode.Disposable {
         if (sidecarLogLevel) {
             env.ARK_SIDECAR_LOG = sidecarLogLevel;
             env.RUST_LOG = sidecarLogLevel;
-            getLogger().debug('lsp', 'logging', `LSP sidecar log level set to ${sidecarLogLevel}.`);
+            getLogger().debug(
+                'lsp',
+                'logging',
+                this.formatLogMessage(`LSP sidecar log level set to ${sidecarLogLevel}.`, 'sidecar')
+            );
         }
         return env;
     }
@@ -447,9 +503,11 @@ export class ArkLanguageService implements vscode.Disposable {
         const message = { command: SIDECAR_LOG_RELOAD_COMMAND };
         try {
             this.sidecarProcess.stdin.write(JSON.stringify(message) + '\n');
-            getLogger().debug('lsp', 'logging', 'Sent log reload command to LSP sidecar.');
+            getLogger().debug('lsp', 'logging', this.formatLogMessage('Sent log reload command to LSP sidecar.', 'sidecar'));
         } catch (error) {
-            this.outputChannel.appendLine(`Failed to reload LSP sidecar log level: ${error}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Failed to reload LSP sidecar log level: ${error}`, 'sidecar')
+            );
         }
     }
 }

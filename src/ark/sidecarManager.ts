@@ -1,11 +1,13 @@
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
+import * as path from 'path';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
 import { getLogger } from '../logging/logger';
 import { formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
+import * as sessionRegistry from './sessionRegistry';
 
 interface SidecarEvent {
     event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help' | 'variables_comm_open' | 'data_explorer_comm_open' | 'kernel_status';
@@ -120,7 +122,9 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(`Failed to send comm message: ${error}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Failed to send comm message: ${error}`)
+            );
         }
     }
 
@@ -132,7 +136,9 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(`Failed to send comm_open message: ${error}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Failed to send comm_open message: ${error}`)
+            );
         }
     }
 
@@ -144,7 +150,9 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(`Failed to send comm_close message: ${error}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Failed to send comm_close message: ${error}`)
+            );
         }
     }
 
@@ -195,17 +203,21 @@ export class ArkSidecarManager implements vscode.Disposable {
         this.proc = proc;
 
         proc.on('error', (err) => {
-            this.outputChannel.appendLine(`Failed to spawn sidecar: ${err.message}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Failed to spawn sidecar: ${err.message}`)
+            );
         });
 
         if (proc.pid) {
             this._onDidStart.fire();
         } else {
-            this.outputChannel.appendLine(`Sidecar spawn failed (no PID)`);
+            this.outputChannel.appendLine(this.formatLogMessage('Sidecar spawn failed (no PID)'));
         }
 
         proc.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(`stderr: ${chunk.toString().trim()}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`stderr: ${chunk.toString().trim()}`)
+            );
         });
 
         const rl = readline.createInterface({ input: proc.stdout });
@@ -216,11 +228,33 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         proc.on('exit', (code, signal) => {
             if (signal) {
-                this.outputChannel.appendLine(`Sidecar exited with signal ${signal}.`);
+                this.outputChannel.appendLine(
+                    this.formatLogMessage(`Sidecar exited with signal ${signal}.`)
+                );
             } else {
-                this.outputChannel.appendLine(`Sidecar exited with code ${code ?? 'null'}.`);
+                this.outputChannel.appendLine(
+                    this.formatLogMessage(`Sidecar exited with code ${code ?? 'null'}.`)
+                );
             }
         });
+    }
+
+    private formatLogMessage(message: string): string {
+        const segments: string[] = [];
+        const sessionName = sessionRegistry.getActiveSessionName();
+        if (sessionName) {
+            segments.push(`session=${sessionName}`);
+        }
+        if (this.connectionFile) {
+            segments.push(`conn=${path.basename(this.connectionFile)}`);
+        }
+        if (this.proc?.pid) {
+            segments.push(`pid=${this.proc.pid}`);
+        }
+        if (segments.length === 0) {
+            return message;
+        }
+        return `[${segments.join(' ')}] ${message}`;
     }
 
     private buildSidecarEnv(): NodeJS.ProcessEnv {
@@ -230,7 +264,11 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (sidecarLogLevel) {
             env.ARK_SIDECAR_LOG = sidecarLogLevel;
             env.RUST_LOG = sidecarLogLevel;
-            getLogger().debug('sidecar', 'logging', `Sidecar log level set to ${sidecarLogLevel}.`);
+            getLogger().debug(
+                'sidecar',
+                'logging',
+                this.formatLogMessage(`Sidecar log level set to ${sidecarLogLevel}.`)
+            );
         }
         return env;
     }
@@ -242,9 +280,11 @@ export class ArkSidecarManager implements vscode.Disposable {
         const msg = { command: SIDECAR_LOG_RELOAD_COMMAND };
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
-            getLogger().debug('sidecar', 'logging', 'Sent log reload command to sidecar.');
+            getLogger().debug('sidecar', 'logging', this.formatLogMessage('Sent log reload command to sidecar.'));
         } catch (error) {
-            this.outputChannel.appendLine(`Failed to reload sidecar log level: ${error}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Failed to reload sidecar log level: ${error}`)
+            );
         }
     }
 
@@ -258,12 +298,14 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             msg = JSON.parse(trimmed) as SidecarEvent;
         } catch {
-            this.outputChannel.appendLine(trimmed);
+            this.outputChannel.appendLine(this.formatLogMessage(trimmed));
             return;
         }
 
         if (msg.event === 'error') {
-            this.outputChannel.appendLine(`Sidecar error: ${msg.message ?? 'unknown error'}`);
+            this.outputChannel.appendLine(
+                this.formatLogMessage(`Sidecar error: ${msg.message ?? 'unknown error'}`)
+            );
             return;
         }
 
@@ -274,7 +316,7 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         if (msg.event === 'kernel_status') {
             const status = typeof msg.status === 'string' ? msg.status : 'unknown';
-            this.outputChannel.appendLine(`Kernel status update: ${status}`);
+            this.outputChannel.appendLine(this.formatLogMessage(`Kernel status update: ${status}`));
             this._onDidChangeKernelStatus.fire(status);
             return;
         }
@@ -319,7 +361,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         if (msg.event === 'comm_msg') {
             this.outputChannel.appendLine(
-                `Received comm_msg ${msg.comm_id ?? 'unknown'}: ${JSON.stringify(msg.data)}`
+                this.formatLogMessage(
+                    `Received comm_msg ${msg.comm_id ?? 'unknown'}: ${JSON.stringify(msg.data)}`
+                )
             );
             if (msg.comm_id) {
                 this._onDidReceiveCommMessage.fire({ commId: msg.comm_id, data: msg.data });
@@ -386,7 +430,9 @@ export class ArkSidecarManager implements vscode.Disposable {
                 const content = await fs.promises.readFile(filePath);
                 return content.toString('base64');
             } catch (err) {
-                this.outputChannel.appendLine(`Failed to read plot file: ${filePath}`);
+                this.outputChannel.appendLine(
+                    this.formatLogMessage(`Failed to read plot file: ${filePath}`)
+                );
                 return undefined;
             }
         }
