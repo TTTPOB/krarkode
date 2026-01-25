@@ -27,6 +27,7 @@ let helpManager: HelpManager | undefined;
 let variablesService: VariablesService | undefined;
 let variablesManager: VariablesManager | undefined;
 let dataExplorerManager: DataExplorerManager | undefined;
+let activeSessionConnectionFile: string | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
@@ -79,16 +80,24 @@ export function activate(context: vscode.ExtensionContext): void {
     
     // When active session changes, attach sidecar to connection file
     sessionManager.setActiveSessionHandler((entry: ArkSessionEntry | undefined) => {
-        sessionManager?.setKernelStatus(undefined);
-        variablesService?.disconnect(entry ? 'session changed' : 'session cleared');
+        const nextConnectionFile = entry?.connectionFilePath;
+        const connectionChanged = activeSessionConnectionFile !== nextConnectionFile;
+        activeSessionConnectionFile = nextConnectionFile;
+        if (connectionChanged) {
+            sessionManager?.setKernelStatus(undefined);
+            variablesService?.disconnect(entry ? 'session changed' : 'session cleared');
+        }
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);
+            if (!connectionChanged && variablesService && !variablesService.isConnected()) {
+                variablesService.refresh();
+            }
         } else if (sidecarManager) {
             sidecarManager.stop();
         }
 
         // Restart LSP to pick up the new session (or fall back to background kernel)
-        if (languageService) {
+        if (languageService && connectionChanged) {
             void languageService.restart();
         }
     });
