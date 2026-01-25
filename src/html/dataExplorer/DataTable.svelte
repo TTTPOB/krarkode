@@ -218,3 +218,196 @@
         </div>
     </div>
 </div>
+
+<style>
+    .table-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .table-header {
+        overflow: hidden;
+        border-bottom: 1px solid var(--vscode-editorWidget-border);
+        background: var(--vscode-sideBarSectionHeader-background);
+    }
+
+    .table-header-bar {
+        padding: 4px 8px;
+        font-size: 0.75em;
+        font-weight: 600;
+        color: var(--vscode-descriptionForeground);
+        border-bottom: 1px solid var(--vscode-editorWidget-border);
+    }
+
+    .table-body {
+        flex: 1;
+        overflow: auto;
+        background: var(--vscode-editor-background);
+    }
+
+    .table-body-inner {
+        position: relative;
+    }
+
+    .table-row {
+        position: absolute;
+        display: grid;
+        align-items: center;
+        min-height: 24px;
+        border-bottom: 1px solid var(--vscode-editorWidget-border);
+        background: var(--vscode-editor-background);
+    }
+
+    .table-row.header-row {
+        position: relative;
+        border-bottom: none;
+        font-weight: 600;
+        background: var(--vscode-sideBarSectionHeader-background);
+    }
+
+    .table-cell {
+        padding: 2px 8px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border-right: 1px solid var(--vscode-editorWidget-border);
+    }
+
+    .table-cell.header-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        position: relative;
+        overflow: visible;
+    }
+
+    .header-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    .header-label-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+    }
+
+    .header-label {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        margin-top: 2px;
+        padding-top: 2px;
+        border-top: 1px solid var(--vscode-editorWidget-border);
+    }
+
+    .header-action {
+        background: transparent;
+        color: var(--vscode-descriptionForeground);
+        border: none;
+        padding: 1px 4px;
+        border-radius: 2px;
+        cursor: pointer;
+        font-size: 0.7em;
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+    }
+
+    .header-action:hover {
+        background: var(--vscode-list-hoverBackground);
+        color: var(--vscode-editor-foreground);
+    }
+
+    .header-action:disabled {
+        cursor: default;
+        color: var(--vscode-disabledForeground);
+        background: transparent;
+    }
+
+    .header-action .codicon {
+        font-size: 0.65em;
+    }
+
+    .header-action-separator {
+        color: var(--vscode-descriptionForeground);
+        opacity: 0.6;
+        padding: 0 1px;
+        font-size: 0.7em;
+    }
+
+    .column-resizer {
+        position: absolute;
+        top: 0;
+        right: -4px;
+        width: 8px;
+        height: 100%;
+        cursor: col-resize;
+        z-index: 2;
+        background: none;
+        border: none;
+        padding: 0;
+        appearance: none;
+    }
+
+    .column-resizer::after {
+        content: '';
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 3px;
+        width: 2px;
+        background: var(--vscode-editorWidget-border);
+        opacity: 0.6;
+    }
+
+    :global(body.column-resizing) {
+        cursor: col-resize;
+        user-select: none;
+    }
+
+    .table-cell.header-cell.sortable {
+        cursor: pointer;
+    }
+
+    .table-cell.header-cell.sortable:hover {
+        background: var(--vscode-list-hoverBackground);
+    }
+
+    .table-cell.header-cell.sorted-asc,
+    .table-cell.header-cell.sorted-desc {
+        background: var(--vscode-list-activeSelectionBackground);
+        color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .sort-indicator {
+        font-size: 0.85em;
+        opacity: 0.85;
+    }
+
+    .table-cell:last-child {
+        border-right: none;
+    }
+
+    .table-cell.row-label {
+        text-align: right;
+        color: var(--vscode-descriptionForeground);
+        font-family: var(--vscode-editor-font-family);
+    }
+
+    .cell-special {
+        color: var(--vscode-debugConsole-warningForeground);
+    }
+</style>

@@ -1600,3 +1600,65 @@
     on:scroll={handleDataTableScroll}
     on:startColumnResize={(e) => startColumnResize(e.detail.event, e.detail.columnIndex)}
 />
+
+<style>
+    :global(body) {
+        margin: 0;
+        padding: 0;
+        font-family: var(--vscode-font-family);
+        font-size: var(--vscode-font-size);
+        color: var(--vscode-editor-foreground);
+        background-color: var(--vscode-editor-background);
+        --side-panel-width: 300px;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+
+    :global(#svelte-root) {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+
+    :global(body.panel-resizing) {
+        cursor: ew-resize;
+        user-select: none;
+    }
+
+    .context-menu {
+        position: fixed;
+        min-width: 160px;
+        background: var(--vscode-dropdown-background);
+        border: 1px solid var(--vscode-dropdown-border);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        border-radius: 3px;
+        display: none;
+        z-index: 2000;
+    }
+
+    .context-menu.open {
+        display: block;
+    }
+
+    .context-menu-item {
+        width: 100%;
+        text-align: left;
+        padding: 8px 12px;
+        background: none;
+        border: none;
+        color: var(--vscode-dropdown-foreground);
+        cursor: pointer;
+    }
+
+    .context-menu-item:hover {
+        background: var(--vscode-list-hoverBackground);
+    }
+
+    .context-menu-item:disabled {
+        color: var(--vscode-disabledForeground);
+        cursor: default;
+        background: none;
+    }
+</style>

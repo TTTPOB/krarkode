@@ -69,3 +69,87 @@
         </button>
     </div>
 </div>
+
+<style>
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--vscode-editorWidget-border);
+        background: var(--vscode-sideBar-background);
+    }
+
+    .toolbar .title {
+        font-weight: 600;
+    }
+
+    .toolbar .meta {
+        opacity: 0.7;
+        font-size: 0.9em;
+    }
+
+    .toolbar-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+    }
+
+    .toolbar .action {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: none;
+        padding: 4px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.9em;
+    }
+
+    .toolbar .action:hover {
+        background: var(--vscode-button-hoverBackground);
+    }
+
+    .toolbar .action.secondary {
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+    }
+
+    .toolbar .action.secondary:hover {
+        background: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    .dropdown {
+        position: relative;
+        display: inline-block;
+    }
+
+    .dropdown-content {
+        display: none;
+        position: absolute;
+        right: 0;
+        background-color: var(--vscode-dropdown-background);
+        border: 1px solid var(--vscode-dropdown-border);
+        min-width: 160px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        border-radius: 3px;
+    }
+
+    .dropdown:hover .dropdown-content {
+        display: block;
+    }
+
+    .dropdown-content button {
+        width: 100%;
+        text-align: left;
+        padding: 8px 12px;
+        background: none;
+        border: none;
+        color: var(--vscode-dropdown-foreground);
+        cursor: pointer;
+    }
+
+    .dropdown-content button:hover {
+        background: var(--vscode-list-hoverBackground);
+    }
+</style>

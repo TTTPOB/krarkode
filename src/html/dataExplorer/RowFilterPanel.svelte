@@ -183,3 +183,204 @@
         </div>
     </div>
 </div>
+
+<style>
+    .side-panel {
+        position: fixed;
+        top: 0;
+        right: calc(-1 * var(--side-panel-width) - 20px);
+        width: var(--side-panel-width);
+        min-width: 280px;
+        max-width: 600px;
+        height: 100%;
+        background: var(--vscode-sideBar-background);
+        border-left: 1px solid var(--vscode-editorWidget-border);
+        z-index: 500;
+        transition: right 0.2s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .side-panel.open {
+        right: 0;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        border-bottom: 1px solid var(--vscode-editorWidget-border);
+        font-weight: 600;
+    }
+
+    .panel-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .panel-pin {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--vscode-descriptionForeground);
+        padding: 0;
+        line-height: 1;
+    }
+
+    .panel-pin:hover {
+        color: var(--vscode-editor-foreground);
+    }
+
+    .panel-pin[aria-pressed='true'] {
+        color: var(--vscode-button-background);
+    }
+
+    .panel-pin .codicon {
+        font-size: 14px;
+    }
+
+    .panel-resizer {
+        position: absolute;
+        left: -4px;
+        top: 0;
+        width: 8px;
+        height: 100%;
+        cursor: ew-resize;
+        z-index: 10;
+        background: none;
+        border: none;
+        padding: 0;
+        appearance: none;
+    }
+
+    .panel-resizer::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 2px;
+        transform: translateY(-50%);
+        width: 4px;
+        height: 40px;
+        border-radius: 2px;
+        background: var(--vscode-scrollbarSlider-background);
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .panel-resizer:hover::after,
+    :global(body.panel-resizing) .panel-resizer::after {
+        opacity: 0.9;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.4em;
+        cursor: pointer;
+        color: var(--vscode-descriptionForeground);
+        padding: 0;
+        line-height: 1;
+    }
+
+    .close-btn:hover {
+        color: var(--vscode-editor-foreground);
+    }
+
+    .panel-content {
+        padding: 12px;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .filter-section {
+        margin-bottom: 16px;
+    }
+
+    .filter-section label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        font-size: 0.9em;
+    }
+
+    .filter-section input,
+    .filter-section select {
+        width: 100%;
+        padding: 6px 8px;
+        background: var(--vscode-dropdown-background);
+        border: 1px solid var(--vscode-dropdown-border);
+        color: var(--vscode-dropdown-foreground);
+        border-radius: 3px;
+        box-sizing: border-box;
+    }
+
+    .row-filter-inline {
+        display: flex;
+        gap: 8px;
+    }
+
+    .row-filter-inline input,
+    .row-filter-inline select {
+        flex: 1;
+    }
+
+    .checkbox-inline {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: normal;
+        font-size: 0.85em;
+        margin-top: 8px;
+    }
+
+    .checkbox-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .checkbox-group label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: normal;
+        cursor: pointer;
+    }
+
+    .filter-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+    }
+
+    .filter-status {
+        margin-top: 12px;
+        font-size: 0.85em;
+        color: var(--vscode-descriptionForeground);
+    }
+
+    .action {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: none;
+        padding: 4px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.9em;
+    }
+
+    .action:hover {
+        background: var(--vscode-button-hoverBackground);
+    }
+
+    .action.secondary {
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+    }
+
+    .action.secondary:hover {
+        background: var(--vscode-button-secondaryHoverBackground);
+    }
+</style>

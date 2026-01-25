@@ -97,3 +97,79 @@
         </button>
     </div>
 {/if}
+
+<style>
+    .row-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-bottom: 1px solid var(--vscode-editorWidget-border);
+        background: var(--vscode-sideBarSectionHeader-background);
+        flex-wrap: wrap;
+    }
+
+    .row-filter-label {
+        font-weight: 600;
+        font-size: 0.85em;
+        color: var(--vscode-descriptionForeground);
+    }
+
+    .row-filter-chips {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        flex: 1;
+    }
+
+    .row-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        border-radius: 12px;
+        background: var(--vscode-badge-background);
+        color: var(--vscode-badge-foreground);
+        font-size: 0.85em;
+    }
+
+    .row-filter-chip button {
+        background: none;
+        border: none;
+        color: inherit;
+        cursor: pointer;
+        padding: 0;
+        font-size: 1em;
+    }
+
+    .row-filter-chip button:hover {
+        color: var(--vscode-editor-foreground);
+    }
+
+    .action {
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
+        border: none;
+        padding: 4px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.9em;
+    }
+
+    .action:hover {
+        background: var(--vscode-button-hoverBackground);
+    }
+
+    .action.secondary {
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+    }
+
+    .action.secondary:hover {
+        background: var(--vscode-button-secondaryHoverBackground);
+    }
+
+    .row-filter-bar .action.secondary {
+        padding: 3px 8px;
+    }
+</style>
