@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
-import { getLogger, type LogLevel } from '../logging/logger';
+import { getLogger, isDebugLoggingEnabled, type LogLevel } from '../logging/logger';
 import { formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
 import * as sessionRegistry from './sessionRegistry';
 
@@ -369,11 +369,14 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         if (msg.event === 'comm_msg') {
-            this.outputChannel.appendLine(
-                this.formatLogMessage(
-                    `Received comm_msg ${msg.comm_id ?? 'unknown'}: ${JSON.stringify(msg.data)}`
-                )
-            );
+            if (isDebugLoggingEnabled('sidecar')) {
+                const payload = JSON.stringify(msg.data);
+                getLogger().debug(
+                    'sidecar',
+                    'comm',
+                    this.formatLogMessage(`Received comm_msg ${msg.comm_id ?? 'unknown'}: ${payload}`)
+                );
+            }
             if (msg.comm_id) {
                 this._onDidReceiveCommMessage.fire({ commId: msg.comm_id, data: msg.data });
             }
