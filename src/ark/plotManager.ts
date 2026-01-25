@@ -255,14 +255,10 @@ export class PlotManager implements vscode.Disposable {
                     return;
                 }
                 const renderSize = this.lastRenderSize ?? { width: 800, height: 600, dpr: 1 };
-                const scale = this.fitToWindow ? 1 : this.currentZoom / 100;
-                const pixelRatio = Math.max(0.1, renderSize.dpr * scale);
+                const { size, pixelRatio } = this.buildRenderRequest(renderSize, targetFormat);
                 const result = await this.renderSource.renderPlot(
                     plot.id,
-                    {
-                        width: Math.max(1, Math.round(renderSize.width)),
-                        height: Math.max(1, Math.round(renderSize.height)),
-                    },
+                    size,
                     pixelRatio,
                     targetFormat
                 );
@@ -633,18 +629,14 @@ export class PlotManager implements vscode.Disposable {
         }
 
         const renderSize = this.lastRenderSize ?? { width: 800, height: 600, dpr: 1 };
-        const scale = this.fitToWindow ? 1 : this.currentZoom / 100;
-        const pixelRatio = Math.max(0.1, renderSize.dpr * scale);
         const format = plot.renderFormat ?? (plot.mimeType === 'image/svg+xml' ? 'svg' : 'png');
+        const { size, pixelRatio } = this.buildRenderRequest(renderSize, format);
         const plotId = plot.id;
 
         try {
             const result = await this.renderSource.renderPlot(
                 plotId,
-                {
-                    width: Math.max(1, Math.round(renderSize.width)),
-                    height: Math.max(1, Math.round(renderSize.height)),
-                },
+                size,
                 pixelRatio,
                 format
             );
@@ -663,6 +655,22 @@ export class PlotManager implements vscode.Disposable {
         } catch (err) {
             this.outputChannel.appendLine(`Failed to render plot ${plotId}: ${String(err)}`);
         }
+    }
+
+    private buildRenderRequest(
+        renderSize: { width: number; height: number; dpr: number },
+        format: 'png' | 'svg' | 'pdf'
+    ): { size: { width: number; height: number }; pixelRatio: number } {
+        const zoomScale = this.fitToWindow ? 1 : this.currentZoom / 100;
+        const width = Math.max(1, Math.round(renderSize.width * zoomScale));
+        const height = Math.max(1, Math.round(renderSize.height * zoomScale));
+        const pixelRatio = format === 'png'
+            ? Math.max(0.1, renderSize.dpr)
+            : 1;
+        return {
+            size: { width, height },
+            pixelRatio,
+        };
     }
 
     private updateWebviewState(): void {
