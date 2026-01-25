@@ -15,10 +15,13 @@ use crate::connection::{
     create_shell_connection, send_comm_open, send_data_explorer_comm_open, send_help_comm_open,
     send_ui_comm_open, send_variables_comm_open, wait_for_comm_port, wait_for_iopub_idle,
 };
+use crate::logging::LogReloadHandle;
 use crate::types::{
     DATA_EXPLORER_COMM_TARGET, HELP_COMM_TARGET, PLOT_COMM_TARGET, UI_COMM_TARGET,
     VARIABLES_COMM_TARGET,
 };
+
+const LOG_RELOAD_COMMAND: &str = "reload_log_level";
 
 pub(crate) async fn run_lsp(
     connection: &runtimelib::ConnectionInfo,
@@ -83,6 +86,7 @@ pub(crate) async fn run_execute_request(
 pub(crate) async fn run_plot_watcher(
     connection: &runtimelib::ConnectionInfo,
     session_id: &str,
+    log_handle: LogReloadHandle,
 ) -> Result<()> {
     info!(mode = "watch_plot", "Sidecar: starting mode");
     let mut iopub = create_client_iopub_connection(connection, "", session_id)
@@ -158,7 +162,10 @@ pub(crate) async fn run_plot_watcher(
                     Ok(Some(line)) => {
                         if let Ok(json) = serde_json::from_str::<Value>(&line) {
                             if let Some(command) = json.get("command").and_then(|c| c.as_str()) {
-                                if command == "comm_msg" {
+                                if command == LOG_RELOAD_COMMAND {
+                                    debug!(command = %command, "Sidecar: reloading log filter");
+                                    log_handle.reload_from_env();
+                                } else if command == "comm_msg" {
                                     if let (Some(comm_id), Some(data)) = (
                                         json.get("comm_id").and_then(|s| s.as_str()),
                                         json.get("data").and_then(|d| d.as_object()),

@@ -17,8 +17,8 @@ use crate::logging::init_logging;
 use crate::types::{Mode, SUPPORTED_SIGNATURE_SCHEME};
 
 fn main() {
-    init_logging();
-    if let Err(err) = run() {
+    let log_handle = init_logging();
+    if let Err(err) = run(log_handle) {
         error!(error = ?err, "Ark sidecar error");
         let payload = json!({
             "event": "error",
@@ -29,7 +29,7 @@ fn main() {
     }
 }
 
-fn run() -> Result<()> {
+fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
     let args = parse_args()?;
     let connection = read_connection(&args.connection_file)?;
 
@@ -68,7 +68,7 @@ fn run() -> Result<()> {
                 .await?;
             }
             Mode::WatchPlot => {
-                run_plot_watcher(&connection, &session_id).await?;
+                run_plot_watcher(&connection, &session_id, log_handle.clone()).await?;
             }
             Mode::Check => {
                 run_check(&connection, &session_id, args.timeout_ms).await?;
