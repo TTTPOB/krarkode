@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
-import { getLogger } from '../logging/logger';
+import { getLogger, type LogLevel } from '../logging/logger';
 import { formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
 import * as sessionRegistry from './sessionRegistry';
 
@@ -21,6 +21,7 @@ interface SidecarEvent {
 
 const VARIABLES_COMM_TARGET = 'positron.variables';
 const SIDECAR_LOG_RELOAD_COMMAND = 'reload_log_level';
+const SIDECAR_LOG_LEVEL_RE = /\b(TRACE|DEBUG|INFO|WARN|ERROR)\b/;
 
 export interface ShowHtmlFileParams {
     path: string;
@@ -215,9 +216,14 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         proc.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(
-                this.formatLogMessage(`stderr: ${chunk.toString().trim()}`)
-            );
+            const lines = chunk
+                .toString()
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line.length > 0);
+            for (const line of lines) {
+                this.logSidecarStderr(line);
+            }
         });
 
         const rl = readline.createInterface({ input: proc.stdout });
@@ -303,7 +309,10 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         if (msg.event === 'error') {
-            this.outputChannel.appendLine(
+            getLogger().log(
+                'sidecar',
+                'event',
+                'error',
                 this.formatLogMessage(`Sidecar error: ${msg.message ?? 'unknown error'}`)
             );
             return;
@@ -438,5 +447,29 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         return payload.replace(/\s+/g, '');
+    }
+
+    private logSidecarStderr(message: string): void {
+        const level = this.parseSidecarLogLevel(message);
+        getLogger().log('sidecar', 'stderr', level, this.formatLogMessage(message));
+    }
+
+    private parseSidecarLogLevel(message: string): LogLevel {
+        const match = SIDECAR_LOG_LEVEL_RE.exec(message);
+        if (!match) {
+            return 'info';
+        }
+        switch (match[1].toLowerCase()) {
+            case 'trace':
+                return 'trace';
+            case 'debug':
+                return 'debug';
+            case 'warn':
+                return 'warn';
+            case 'error':
+                return 'error';
+            default:
+                return 'info';
+        }
     }
 }
