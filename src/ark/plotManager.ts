@@ -20,7 +20,7 @@ type PreviewLayout = 'multirow' | 'scroll' | 'hidden';
 export interface DynamicPlotSource {
     readonly onDidOpenPlot: vscode.Event<{ plotId: string; preRender?: PlotRenderResult }>;
     readonly onDidClosePlot: vscode.Event<{ plotId: string }>;
-    renderPlot(id: string, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg'): Promise<PlotRenderResult>;
+    renderPlot(id: string, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg' | 'pdf'): Promise<PlotRenderResult>;
 }
 
 export class PlotManager implements vscode.Disposable {
@@ -113,14 +113,22 @@ export class PlotManager implements vscode.Disposable {
             return;
         }
 
-        const mimeType = preRender?.mimeType ?? 'image/png';
+        const hasRenderablePreRender = preRender?.format === 'png' || preRender?.format === 'svg';
+        const preRenderFormat = preRender?.format === 'svg'
+            ? 'svg'
+            : preRender?.format === 'png'
+                ? 'png'
+                : undefined;
+        const mimeType = hasRenderablePreRender
+            ? preRender?.mimeType ?? 'image/png'
+            : 'image/png';
         const entry: PlotEntry = {
             id: plotId,
             timestamp: Date.now(),
-            base64Data: preRender?.data ?? '',
+            base64Data: hasRenderablePreRender ? preRender?.data ?? '' : '',
             mimeType,
             renderable: true,
-            renderFormat: preRender?.format ?? (mimeType === 'image/svg+xml' ? 'svg' : 'png'),
+            renderFormat: preRenderFormat ?? (mimeType === 'image/svg+xml' ? 'svg' : 'png'),
         };
 
         this.plots.push(entry);
@@ -198,13 +206,40 @@ export class PlotManager implements vscode.Disposable {
         }
 
         const plot = this.plots[this.currentIndex];
-        const ext = plot.mimeType === 'image/svg+xml' ? 'svg' : 'png';
+        type PlotSaveFormat = 'png' | 'svg' | 'pdf';
 
+        const currentFormat: PlotSaveFormat = plot.mimeType === 'image/svg+xml' ? 'svg' : 'png';
+        const isRenderable = !!this.renderSource && !!plot.renderable;
+        const formatOptions: PlotSaveFormat[] = isRenderable
+            ? ['png', 'svg', 'pdf']
+            : [currentFormat];
+        const orderedFormats = [currentFormat, ...formatOptions.filter(format => format !== currentFormat)];
+
+        let targetFormat: PlotSaveFormat = currentFormat;
+        if (orderedFormats.length > 1) {
+            const formatItems: Array<vscode.QuickPickItem & { format: PlotSaveFormat }> = orderedFormats.map((format) => {
+                const label = format === 'png' ? 'PNG Image' : format === 'svg' ? 'SVG Image' : 'PDF Document';
+                const description = format === currentFormat ? 'Current render' : 'Render from Ark';
+                return {
+                    label,
+                    description,
+                    format,
+                };
+            });
+            const picked = await vscode.window.showQuickPick(formatItems, {
+                placeHolder: 'Select plot export format',
+            });
+            if (!picked) {
+                return;
+            }
+            targetFormat = picked.format;
+        }
+
+        const filterLabel = targetFormat === 'png' ? 'PNG Image' : targetFormat === 'svg' ? 'SVG Image' : 'PDF Document';
         const uri = await vscode.window.showSaveDialog({
-            defaultUri: vscode.Uri.file(`plot-${this.currentIndex + 1}.${ext}`),
+            defaultUri: vscode.Uri.file(`plot-${this.currentIndex + 1}.${targetFormat}`),
             filters: {
-                'PNG Image': ['png'],
-                'SVG Image': ['svg'],
+                [filterLabel]: [targetFormat],
             },
         });
 
@@ -213,7 +248,34 @@ export class PlotManager implements vscode.Disposable {
         }
 
         try {
-            const buffer = Buffer.from(plot.base64Data, 'base64');
+            let data = plot.base64Data;
+            if (!data || targetFormat !== currentFormat) {
+                if (!isRenderable || !this.renderSource) {
+                    void vscode.window.showWarningMessage('Plot data is not ready for the requested format');
+                    return;
+                }
+                const renderSize = this.lastRenderSize ?? { width: 800, height: 600, dpr: 1 };
+                const scale = this.fitToWindow ? 1 : this.currentZoom / 100;
+                const pixelRatio = Math.max(0.1, renderSize.dpr * scale);
+                const result = await this.renderSource.renderPlot(
+                    plot.id,
+                    {
+                        width: Math.max(1, Math.round(renderSize.width)),
+                        height: Math.max(1, Math.round(renderSize.height)),
+                    },
+                    pixelRatio,
+                    targetFormat
+                );
+                data = result.data;
+            }
+
+            if (!data) {
+                void vscode.window.showWarningMessage('Plot data is not ready to save');
+                return;
+            }
+
+            this.outputChannel.appendLine(`Saving plot ${plot.id} as ${targetFormat} to ${uri.fsPath}`);
+            const buffer = Buffer.from(data, 'base64');
             await fs.promises.writeFile(uri.fsPath, buffer);
             void vscode.window.showInformationMessage(`Plot saved to ${uri.fsPath}`);
         } catch (err) {
@@ -592,7 +654,7 @@ export class PlotManager implements vscode.Disposable {
             }
             updated.base64Data = result.data;
             updated.mimeType = result.mimeType;
-            updated.renderFormat = result.format;
+            updated.renderFormat = result.format === 'svg' ? 'svg' : 'png';
             this.postWebviewMessage({
                 message: 'updatePlot',
                 plotId,

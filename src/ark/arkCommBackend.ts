@@ -27,7 +27,7 @@ export interface PlotRenderer {
 export interface PlotRenderResult {
     data: string;
     mimeType: string;
-    format: 'png' | 'svg';
+    format: 'png' | 'svg' | 'pdf';
 }
 
 /**
@@ -56,7 +56,7 @@ interface ArkRenderRequest {
             height: number;
         };
         pixel_ratio: number;
-        format: 'png' | 'svg';
+        format: 'png' | 'svg' | 'pdf';
     };
     id?: string;
 }
@@ -154,7 +154,7 @@ export class ArkCommBackend implements IPlotBackend {
         return `<img src="data:${result.mimeType};base64,${result.data}" style="max-width: 100%; max-height: 100%;" />`;
     }
 
-    public async renderPlot(id: PlotId, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg'): Promise<PlotRenderResult> {
+    public async renderPlot(id: PlotId, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg' | 'pdf'): Promise<PlotRenderResult> {
         return new Promise<{ data: string; mime_type: string }>((resolve, reject) => {
             const pending = this.pendingRenders.get(id);
             if (pending) {
@@ -175,10 +175,15 @@ export class ArkCommBackend implements IPlotBackend {
 
             this.sidecarManager.sendCommMessage(id, request);
         }).then(({ data, mime_type }) => {
+            const format = mime_type === 'image/svg+xml'
+                ? 'svg'
+                : mime_type === 'application/pdf'
+                    ? 'pdf'
+                    : 'png';
             return {
                 data,
                 mimeType: mime_type,
-                format: mime_type === 'image/svg+xml' ? 'svg' : 'png',
+                format,
             };
         });
     }
@@ -189,6 +194,11 @@ export class ArkCommBackend implements IPlotBackend {
             name: 'SVG Image',
             descr: 'Scalable Vector Graphics',
             ext: '.svg'
+        }, {
+            id: 'pdf',
+            name: 'PDF Document',
+            descr: 'Portable Document Format',
+            ext: '.pdf'
         }, {
             id: 'png',
             name: 'PNG Image',
@@ -209,9 +219,11 @@ export class ArkCommBackend implements IPlotBackend {
     public async savePlot(id: PlotId, renderer: string, outFile: string): Promise<void> {
         const format = renderer === 'svg' || renderer === 'svgp'
             ? 'svg'
-            : renderer === 'png'
-                ? 'png'
-                : undefined;
+            : renderer === 'pdf'
+                ? 'pdf'
+                : renderer === 'png'
+                    ? 'png'
+                    : undefined;
         if (!format) {
             throw new Error(`Unsupported plot renderer: ${renderer}`);
         }
@@ -234,10 +246,15 @@ export class ArkCommBackend implements IPlotBackend {
         const preRenderData = payload?.pre_render as Record<string, unknown> | undefined;
         let preRender: PlotRenderResult | undefined;
         if (preRenderData && typeof preRenderData.data === 'string' && typeof preRenderData.mime_type === 'string') {
+            const format = preRenderData.mime_type === 'image/svg+xml'
+                ? 'svg'
+                : preRenderData.mime_type === 'application/pdf'
+                    ? 'pdf'
+                    : 'png';
             preRender = {
                 data: preRenderData.data,
                 mimeType: preRenderData.mime_type,
-                format: preRenderData.mime_type === 'image/svg+xml' ? 'svg' : 'png',
+                format,
             };
         }
 
