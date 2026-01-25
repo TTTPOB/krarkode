@@ -3,6 +3,7 @@
   "displayName": "krarkode",
   "description": "Ark-focused VS Code extension",
   "version": "0.0.1",
+  "license": "MIT",
   "author": "TTTPOB",
   "publisher": "tttpob",
   "icon": "resources/ark-icon.svg",
