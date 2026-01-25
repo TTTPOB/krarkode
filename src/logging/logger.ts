@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 export type LogChannelId = 'ark' | 'ark-kernel' | 'lsp' | 'sidecar';
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 export type LogChannelSetting = 'none' | 'error' | 'debug';
 
 type WriteOptions = {
@@ -19,6 +19,7 @@ const CHANNELS: Record<LogChannelId, { name: string; configKey: string }> = {
 
 const DEFAULT_CHANNEL_SETTING: LogChannelSetting = 'error';
 const LOG_LEVEL_RANK: Record<LogLevel, number> = {
+    trace: 5,
     debug: 10,
     info: 20,
     warn: 30,
@@ -53,6 +54,7 @@ function inferMessageLogLevel(message: string): LogLevel {
     }
     switch (match[1].toLowerCase()) {
         case 'trace':
+            return 'trace';
         case 'debug':
             return 'debug';
         case 'warn':
@@ -127,7 +129,7 @@ class LoggerOutputChannel implements vscode.OutputChannel {
 }
 
 export class LoggerService implements vscode.Disposable {
-    private readonly channels = new Map<LogChannelId, vscode.OutputChannel>();
+    private readonly channels = new Map<LogChannelId, vscode.LogOutputChannel>();
     private readonly disposables: vscode.Disposable[] = [];
 
     constructor() {
@@ -208,12 +210,7 @@ export class LoggerService implements vscode.Disposable {
             return;
         }
         const output = this.getOrCreateChannel(channelId);
-        const formatted = this.formatMessage(message, options.category, level);
-        if (options.newLine === false) {
-            output.append(formatted);
-        } else {
-            output.appendLine(formatted);
-        }
+        this.writeToChannel(output, message, level, options.category, options.newLine);
     }
 
     getChannelName(channelId: LogChannelId): string {
@@ -228,12 +225,12 @@ export class LoggerService implements vscode.Disposable {
         return isLevelAllowed(getChannelSetting(channelId), level);
     }
 
-    private getOrCreateChannel(channelId: LogChannelId): vscode.OutputChannel {
+    private getOrCreateChannel(channelId: LogChannelId): vscode.LogOutputChannel {
         const existing = this.channels.get(channelId);
         if (existing) {
             return existing;
         }
-        const channel = vscode.window.createOutputChannel(CHANNELS[channelId].name);
+        const channel = vscode.window.createOutputChannel(CHANNELS[channelId].name, { log: true });
         this.channels.set(channelId, channel);
         this.debug('ark', 'logging', `Created output channel ${CHANNELS[channelId].name}.`);
         return channel;
@@ -251,6 +248,37 @@ export class LoggerService implements vscode.Disposable {
             return message;
         }
         return `${segments.join('')} ${message}`;
+    }
+
+    private writeToChannel(
+        output: vscode.LogOutputChannel,
+        message: string,
+        level: LogLevel,
+        category: string | undefined,
+        newLine: boolean | undefined
+    ): void {
+        const formatted = this.formatMessage(message, category, level);
+        if (newLine === false && level === 'info') {
+            output.append(formatted);
+            return;
+        }
+        switch (level) {
+            case 'trace':
+                output.trace(formatted);
+                break;
+            case 'debug':
+                output.debug(formatted);
+                break;
+            case 'warn':
+                output.warn(formatted);
+                break;
+            case 'error':
+                output.error(formatted);
+                break;
+            default:
+                output.info(formatted);
+                break;
+        }
     }
 
     private syncChannels(): void {
