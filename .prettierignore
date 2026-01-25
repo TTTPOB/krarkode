@@ -1,0 +1,5 @@
+dist
+node_modules
+repo_ref
+ark-sidecar/target
+pnpm-lock.yaml
