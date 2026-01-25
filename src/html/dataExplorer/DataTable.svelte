@@ -317,10 +317,10 @@
         background: transparent;
         color: var(--vscode-descriptionForeground);
         border: none;
-        padding: 1px 4px;
+        padding: 2px 8px;
         border-radius: 2px;
         cursor: pointer;
-        font-size: 0.7em;
+        font-size: 1.4em;
         display: inline-flex;
         align-items: center;
         gap: 0;
@@ -338,14 +338,14 @@
     }
 
     .header-action .codicon {
-        font-size: 0.65em;
+        font-size: 1.3em;
     }
 
     .header-action-separator {
         color: var(--vscode-descriptionForeground);
         opacity: 0.6;
-        padding: 0 1px;
-        font-size: 0.7em;
+        padding: 0 4px;
+        font-size: 1.4em;
     }
 
     .column-resizer {
