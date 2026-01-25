@@ -2,12 +2,13 @@ import * as vscode from 'vscode';
 import { HELP_VIEW_TITLE, COMMAND_HELP_GO_BACK, COMMAND_HELP_GO_FORWARD, COMMAND_HELP_GO_HOME, COMMAND_HELP_FIND } from './helpIds';
 import { HelpService } from './helpService';
 import * as util from '../util';
+import { getLogger } from '../logging/logger';
 
 export class HelpManager implements vscode.Disposable {
     private panel?: vscode.WebviewPanel;
     private readonly disposables: vscode.Disposable[] = [];
     private isFirstLoad = true;
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark Help');
+    private readonly outputChannel = getLogger().createChannel('ark', 'help');
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -450,7 +451,7 @@ export class HelpManager implements vscode.Disposable {
                 }
                 const base = typeof message.message === 'string' ? message.message : 'Help webview log.';
                 const detail = typeof message.detail === 'string' ? ` ${message.detail}` : '';
-                this.outputChannel.appendLine(`[help:webview] ${base}${detail}`);
+                getLogger().debug('ark', 'help', `webview: ${base}${detail}`);
                 break;
             }
         }

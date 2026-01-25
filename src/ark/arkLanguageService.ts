@@ -17,6 +17,7 @@ import {
 import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
+import { getLogger } from '../logging/logger';
 
 interface ConnectionInfo {
     shell_port: number;
@@ -52,7 +53,7 @@ export class ArkLanguageService implements vscode.Disposable {
     private isIntentionallyRestarting: boolean = false;
 
     constructor() {
-        this.outputChannel = vscode.window.createOutputChannel('Ark LSP');
+        this.outputChannel = getLogger().createChannel('lsp');
         this.client = undefined;
         this.config = vscode.workspace.getConfiguration('krarkode.ark');
         void this.startLanguageService();

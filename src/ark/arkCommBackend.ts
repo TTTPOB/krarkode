@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from './sidecarManager';
+import { getLogger } from '../logging/logger';
 
 /**
  * PlotId is a string identifier for a plot (matches comm_id).
@@ -93,7 +94,7 @@ export class ArkCommBackend implements IPlotBackend {
     private readonly plots = new Map<PlotId, PlotValidation>();
     private readonly pendingRenders = new Map<PlotId, { resolve: (result: { data: string; mime_type: string }) => void; reject: (err: unknown) => void }>();
     
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark Plot Comm');
+    private readonly outputChannel = getLogger().createChannel('ark', 'plot-comm');
 
     private uiCommId: string | undefined;
 

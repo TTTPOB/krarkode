@@ -14,6 +14,7 @@ import { VariablesManager } from './variables/variablesManager';
 import { DataExplorerManager } from './dataExplorer/dataExplorerManager';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
+import { getLogger } from './logging/logger';
 
 let sessionManager: ArkSessionManager | undefined;
 let languageService: ArkLanguageService | undefined;
@@ -31,6 +32,7 @@ let activeSessionConnectionFile: string | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
+    context.subscriptions.push(getLogger());
     
     // Create sidecar manager for plot/comm watching
     sidecarManager = new ArkSidecarManager(

@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { ConnectionParams, InspectResult, RefreshParams, UpdateParams, VariablesEvent } from './protocol';
+import { getLogger } from '../logging/logger';
 
 type VariablesMessage = {
     jsonrpc?: string;
@@ -15,7 +16,7 @@ type VariablesMessage = {
 export class VariablesService {
     private commId: string | undefined;
     private connected = false;
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark Variables');
+    private readonly outputChannel = getLogger().createChannel('ark', 'variables');
     private readonly pendingInspectPaths: string[][] = [];
     private readonly _onDidReceiveUpdate = new vscode.EventEmitter<VariablesEvent>();
     public readonly onDidReceiveUpdate = this._onDidReceiveUpdate.event;

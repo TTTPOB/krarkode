@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { getExtensionContext } from '../context';
 import type { PlotRenderResult } from './arkCommBackend';
 import * as util from '../util';
+import { getLogger } from '../logging/logger';
 
 interface PlotEntry {
     id: string;
@@ -36,7 +37,7 @@ export class PlotManager implements vscode.Disposable {
     private lastRenderSize: { width: number; height: number; dpr: number } | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     private readonly maxHistory: number;
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark Plot Manager');
+    private readonly outputChannel = getLogger().createChannel('ark', 'plot');
 
     constructor(renderSource?: DynamicPlotSource) {
         this.maxHistory = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;

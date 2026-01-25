@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import type { ArkSessionEntry } from './sessionRegistry';
+import { getLogger } from '../logging/logger';
 
 /**
  * Get selected text or word under cursor.
@@ -94,7 +95,7 @@ export async function saveDocument(doc: vscode.TextDocument): Promise<boolean> {
  * It sends code to the active terminal where the Ark/Jupyter console is running.
  */
 export class CodeExecutor implements vscode.Disposable {
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark Code Execution');
+    private readonly outputChannel = getLogger().createChannel('ark', 'exec');
 
     constructor() {}
 

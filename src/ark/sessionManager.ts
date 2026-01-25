@@ -6,6 +6,7 @@ import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import type { ArkConsoleDriver, ArkSessionEntry } from './sessionRegistry';
 import { getRBinaryPath } from '../util';
+import { getLogger } from '../logging/logger';
 
 type ArkSessionMode = 'console' | 'notebook' | 'background';
 type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'unknown';
@@ -62,7 +63,7 @@ function renderShellTemplate(template: string, values: Record<string, string>): 
 }
 
 export class ArkSessionManager {
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark');
+    private readonly outputChannel = getLogger().createChannel('ark', 'session');
     private readonly statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     private onActiveSessionChanged?: (entry: ArkSessionEntry | undefined) => void;
     private kernelStatus: ArkKernelStatus | undefined;

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as util from '../util';
 import type { ShowHtmlFileParams } from './sidecarManager';
+import { getLogger } from '../logging/logger';
 
 /**
  * HtmlViewer handles ShowHtmlFile events from Ark.
@@ -10,7 +11,7 @@ import type { ShowHtmlFileParams } from './sidecarManager';
  */
 export class HtmlViewer implements vscode.Disposable {
     private readonly panels = new Map<string, vscode.WebviewPanel>();
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark HTML Viewer');
+    private readonly outputChannel = getLogger().createChannel('ark', 'html');
 
     public async showHtmlFile(params: ShowHtmlFileParams): Promise<void> {
         const { path: filePath, title, destination, height } = params;

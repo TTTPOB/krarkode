@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
+import { getLogger } from '../logging/logger';
 
 interface SidecarEvent {
     event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help' | 'variables_comm_open' | 'data_explorer_comm_open' | 'kernel_status';
@@ -34,7 +35,7 @@ export class ArkSidecarManager implements vscode.Disposable {
     private proc: cp.ChildProcessWithoutNullStreams | undefined;
     private rl: readline.Interface | undefined;
     private connectionFile: string | undefined;
-    private readonly outputChannel = vscode.window.createOutputChannel('Ark Sidecar');
+    private readonly outputChannel = getLogger().createChannel('sidecar');
     private variablesCommId: string | undefined;
 
     private readonly _onDidOpenPlotComm = new vscode.EventEmitter<{ commId: string; data: unknown }>();
@@ -191,7 +192,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         proc.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(`[sidecar] ${chunk.toString().trim()}`);
+            this.outputChannel.appendLine(`stderr: ${chunk.toString().trim()}`);
         });
 
         const rl = readline.createInterface({ input: proc.stdout });
@@ -219,7 +220,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             msg = JSON.parse(trimmed) as SidecarEvent;
         } catch {
-            this.outputChannel.appendLine(`[sidecar] ${trimmed}`);
+            this.outputChannel.appendLine(trimmed);
             return;
         }
 

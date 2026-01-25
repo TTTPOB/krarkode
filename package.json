@@ -71,6 +71,29 @@
         }
       ]
     },
+    "configuration": {
+      "title": "Krarkode",
+      "properties": {
+        "krarkode.logging.channels.ark": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Show the main Ark output channel for session, plot, data explorer, variables, and help logs."
+        },
+        "krarkode.logging.channels.lsp": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Show the Ark LSP output channel."
+        },
+        "krarkode.logging.channels.sidecar": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Show the Ark Sidecar output channel."
+        }
+      }
+    },
     "commands": [
       {
         "command": "krarkode.createArkSession",

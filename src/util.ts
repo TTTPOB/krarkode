@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import { getExtensionContext } from './context';
+import { getLogger } from './logging/logger';
 
 export interface SpawnResult {
     status: number | null;
@@ -17,21 +18,10 @@ export function config(): vscode.WorkspaceConfiguration {
     return vscode.workspace.getConfiguration();
 }
 
-let debugChannel: vscode.OutputChannel | undefined;
-
-export function isDebugLoggingEnabled(): boolean {
-    const value = process.env.KRARKODE_DEBUG;
-    return value === '1' || value === 'true';
-}
+export { isDebugLoggingEnabled } from './logging/logger';
 
 export function logDebug(message: string): void {
-    if (!isDebugLoggingEnabled()) {
-        return;
-    }
-    if (!debugChannel) {
-        debugChannel = vscode.window.createOutputChannel('Ark Debug');
-    }
-    debugChannel.appendLine(message);
+    getLogger().debug('ark', 'core', message);
 }
 
 function substituteVariable(str: string, key: string, getValue: () => string | undefined) {
