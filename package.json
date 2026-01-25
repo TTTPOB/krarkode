@@ -253,8 +253,11 @@
     ]
   },
   "scripts": {
+    "clean": "pnpm exec rimraf dist",
+    "build": "pnpm run compile",
     "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && node scripts/build-data-explorer.mjs && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
     "compile:dev": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife --sourcemap=inline && node scripts/build-data-explorer.mjs --dev && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "typecheck": "pnpm exec tsc --noEmit",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
     "watch:data-explorer": "node scripts/build-data-explorer.mjs --watch",
     "watch:variables": "esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife --sourcemap=inline --watch",
@@ -262,6 +265,7 @@
     "analyze:data-explorer": "node scripts/build-data-explorer.mjs --analyze",
     "lint": "pnpm exec eslint . --ext .ts,.svelte",
     "format": "pnpm exec prettier --write .",
+    "package": "pnpm exec vsce package --no-dependencies",
     "vscode:prepublish": "pnpm run compile"
   },
   "devDependencies": {
@@ -270,12 +274,14 @@
     "@typescript-eslint/parser": "^7.18.0",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3.2.0",
     "esbuild": "^0.25.9",
     "esbuild-svelte": "^0.9.3",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-svelte": "^2.41.0",
     "prettier": "^3.3.3",
+    "rimraf": "^5.0.5",
     "svelte-eslint-parser": "^0.41.0",
     "svelte-preprocess": "^5.0.4",
     "typescript": "^5.4.0"
