@@ -204,36 +204,48 @@
           "default": "error",
           "enum": ["none", "error", "debug"],
           "enumDescriptions": [
-            "Disable the Ark output channel.",
-            "Show standard logs (info/warn/error).",
+            "Disable the Krarkode output channel.",
+            "Show warnings and errors.",
             "Show verbose logs (debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the main Ark output channel (session, plot, data explorer, variables, help)."
+          "markdownDescription": "Log level for the main Krarkode output channel (session, plot, data explorer, variables, help)."
+        },
+        "krarkode.logging.channels.arkKernel": {
+          "type": "string",
+          "default": "none",
+          "enum": ["none", "error", "debug"],
+          "enumDescriptions": [
+            "Disable the Ark Kernel output channel.",
+            "Show warnings and errors.",
+            "Show verbose logs (debug/info/warn/error)."
+          ],
+          "scope": "window",
+          "markdownDescription": "Log level for the Ark Kernel stdout/stderr output channel."
         },
         "krarkode.logging.channels.lsp": {
           "type": "string",
           "default": "error",
           "enum": ["none", "error", "debug"],
           "enumDescriptions": [
-            "Disable the Ark LSP output channel.",
-            "Show standard logs (info/warn/error).",
+            "Disable the Krarkode LSP output channel.",
+            "Show warnings and errors.",
             "Show verbose logs (debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Ark LSP output channel."
+          "markdownDescription": "Log level for the Krarkode LSP output channel."
         },
         "krarkode.logging.channels.sidecar": {
           "type": "string",
           "default": "error",
           "enum": ["none", "error", "debug"],
           "enumDescriptions": [
-            "Disable the Ark Sidecar output channel.",
-            "Show standard logs (info/warn/error).",
+            "Disable the Krarkode Sidecar output channel.",
+            "Show warnings and errors.",
             "Show verbose logs (debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Ark Sidecar output channel."
+          "markdownDescription": "Log level for the Krarkode Sidecar output channel."
         }
       }
     },

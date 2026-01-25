@@ -13,11 +13,12 @@ import {
     LanguageClientOptions,
     RevealOutputChannelOn,
     StreamInfo,
+    Trace,
 } from 'vscode-languageclient/node';
 import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
-import { getLogger } from '../logging/logger';
+import { getLogChannelSetting, getLogger, type LogChannelId } from '../logging/logger';
 import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
 
 interface ConnectionInfo {
@@ -47,6 +48,8 @@ export class ArkLanguageService implements vscode.Disposable {
     private client: LanguageClient | undefined;
     private readonly config: vscode.WorkspaceConfiguration;
     private readonly outputChannel: vscode.OutputChannel;
+    private readonly kernelOutputChannel: vscode.OutputChannel;
+    private readonly disposables: vscode.Disposable[] = [];
     private arkProcess: util.DisposableProcess | undefined;
     private sidecarProcess: cp.ChildProcessWithoutNullStreams | undefined;
     private connectionDir: string | undefined;
@@ -55,8 +58,16 @@ export class ArkLanguageService implements vscode.Disposable {
 
     constructor() {
         this.outputChannel = getLogger().createChannel('lsp');
+        this.kernelOutputChannel = getLogger().createChannel('ark-kernel');
         this.client = undefined;
         this.config = vscode.workspace.getConfiguration('krarkode.ark');
+        this.disposables.push(
+            vscode.workspace.onDidChangeConfiguration((event) => {
+                if (event.affectsConfiguration('krarkode.logging.channels.lsp')) {
+                    this.updateLspTrace();
+                }
+            })
+        );
         void this.startLanguageService();
     }
 
@@ -77,6 +88,9 @@ export class ArkLanguageService implements vscode.Disposable {
     dispose(): void {
         void this.stopLanguageService();
         this.outputChannel.dispose();
+        this.kernelOutputChannel.dispose();
+        this.disposables.forEach((disposable) => disposable.dispose());
+        this.disposables.length = 0;
     }
 
     private async startLanguageService(): Promise<void> {
@@ -91,6 +105,7 @@ export class ArkLanguageService implements vscode.Disposable {
             await this.startArkKernel(cwd);
             const port = await this.openArkLspComm();
             this.client = await this.createClient(port, documentSelector, workspaceFolder);
+            this.updateLspTrace();
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
             this.outputChannel.appendLine(`Ark LSP failed to start: ${message}`);
@@ -143,13 +158,13 @@ export class ArkLanguageService implements vscode.Disposable {
         this.outputChannel.appendLine(`Starting Ark kernel with connection file ${connectionFile}`);
         this.arkProcess = util.spawn(arkPath, ['--connection_file', connectionFile, '--session-mode', sessionMode], { cwd, env });
         this.arkProcess.stdout?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(chunk.toString().trim());
+            this.kernelOutputChannel.appendLine(chunk.toString().trim());
         });
         this.arkProcess.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(chunk.toString().trim());
+            this.kernelOutputChannel.appendLine(chunk.toString().trim());
         });
         this.arkProcess.on('exit', (code, signal) => {
-            this.outputChannel.appendLine(`Ark kernel exited ${signal ? `from signal ${signal}` : `with exit code ${code ?? 'null'}`}`);
+            this.kernelOutputChannel.appendLine(`Ark kernel exited ${signal ? `from signal ${signal}` : `with exit code ${code ?? 'null'}`}`);
         });
     }
 
@@ -334,6 +349,7 @@ export class ArkLanguageService implements vscode.Disposable {
             documentSelector: selector,
             workspaceFolder: workspaceFolder,
             outputChannel: this.outputChannel,
+            traceOutputChannel: this.outputChannel,
             synchronize: {
                 configurationSection: 'krarkode.ark.lsp',
                 fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{R,r}'),
@@ -364,6 +380,18 @@ export class ArkLanguageService implements vscode.Disposable {
         const client = new LanguageClient('ark', 'Ark Language Server', tcpServerOptions, clientOptions);
         await client.start();
         return client;
+    }
+
+    private updateLspTrace(): void {
+        if (!this.client) {
+            return;
+        }
+        const setting = getLogChannelSetting('lsp');
+        const traceLevel = setting === 'debug' ? Trace.Verbose : Trace.Off;
+        void this.client.setTrace(traceLevel);
+        if (traceLevel === Trace.Verbose) {
+            getLogger().debug('lsp', 'logging', 'Ark LSP trace logging enabled.');
+        }
     }
 
     private async stopLanguageService(): Promise<void> {

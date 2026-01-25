@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export type LogChannelId = 'ark' | 'lsp' | 'sidecar';
+export type LogChannelId = 'ark' | 'ark-kernel' | 'lsp' | 'sidecar';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 export type LogChannelSetting = 'none' | 'error' | 'debug';
 
@@ -11,12 +11,21 @@ type WriteOptions = {
 };
 
 const CHANNELS: Record<LogChannelId, { name: string; configKey: string }> = {
-    ark: { name: 'Ark', configKey: 'channels.ark' },
-    lsp: { name: 'Ark LSP', configKey: 'channels.lsp' },
-    sidecar: { name: 'Ark Sidecar', configKey: 'channels.sidecar' },
+    ark: { name: 'Krarkode', configKey: 'channels.ark' },
+    'ark-kernel': { name: 'Krarkode Ark Kernel', configKey: 'channels.arkKernel' },
+    lsp: { name: 'Krarkode LSP', configKey: 'channels.lsp' },
+    sidecar: { name: 'Krarkode Sidecar', configKey: 'channels.sidecar' },
 };
 
 const DEFAULT_CHANNEL_SETTING: LogChannelSetting = 'error';
+const LOG_LEVEL_RANK: Record<LogLevel, number> = {
+    debug: 10,
+    info: 20,
+    warn: 30,
+    error: 40,
+};
+
+const MESSAGE_LEVEL_RE = /^\[(Trace|Debug|Info|Warn|Error)\b/i;
 
 function normalizeChannelSetting(value: unknown): LogChannelSetting {
     if (value === 'none' || value === 'error' || value === 'debug') {
@@ -31,6 +40,38 @@ function normalizeChannelSetting(value: unknown): LogChannelSetting {
 function getChannelSetting(channelId: LogChannelId): LogChannelSetting {
     const config = vscode.workspace.getConfiguration('krarkode.logging');
     return normalizeChannelSetting(config.get(CHANNELS[channelId].configKey));
+}
+
+export function getLogChannelSetting(channelId: LogChannelId): LogChannelSetting {
+    return getChannelSetting(channelId);
+}
+
+function inferMessageLogLevel(message: string): LogLevel {
+    const match = MESSAGE_LEVEL_RE.exec(message);
+    if (!match) {
+        return 'info';
+    }
+    switch (match[1].toLowerCase()) {
+        case 'trace':
+        case 'debug':
+            return 'debug';
+        case 'warn':
+            return 'warn';
+        case 'error':
+            return 'error';
+        default:
+            return 'info';
+    }
+}
+
+function isLevelAllowed(setting: LogChannelSetting, level: LogLevel): boolean {
+    if (setting === 'none') {
+        return false;
+    }
+    if (setting === 'debug') {
+        return true;
+    }
+    return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK.warn;
 }
 
 export function isDebugLoggingEnabled(channelId: LogChannelId = 'ark'): boolean {
@@ -134,7 +175,7 @@ export class LoggerService implements vscode.Disposable {
     }
 
     replace(channelId: LogChannelId, message: string, options: { category?: string } = {}): void {
-        if (!this.isChannelEnabled(channelId)) {
+        if (!this.isChannelEnabled(channelId) || !this.isLevelEnabled(channelId, 'info')) {
             return;
         }
         const channel = this.getOrCreateChannel(channelId);
@@ -155,8 +196,12 @@ export class LoggerService implements vscode.Disposable {
     }
 
     write(channelId: LogChannelId, message: string, options: WriteOptions): void {
-        const level = options.level ?? 'info';
-        if (level === 'debug' && !isDebugLoggingEnabled(channelId)) {
+        const level = options.level ?? inferMessageLogLevel(message);
+        if (level === 'debug') {
+            if (!isDebugLoggingEnabled(channelId)) {
+                return;
+            }
+        } else if (!this.isLevelEnabled(channelId, level)) {
             return;
         }
         if (!this.isChannelEnabled(channelId)) {
@@ -177,6 +222,10 @@ export class LoggerService implements vscode.Disposable {
 
     private isChannelEnabled(channelId: LogChannelId): boolean {
         return getChannelSetting(channelId) !== 'none';
+    }
+
+    private isLevelEnabled(channelId: LogChannelId, level: LogLevel): boolean {
+        return isLevelAllowed(getChannelSetting(channelId), level);
     }
 
     private getOrCreateChannel(channelId: LogChannelId): vscode.OutputChannel {
