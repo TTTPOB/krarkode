@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "TTTPOB",
   "publisher": "tttpob",
-  "icon": "resources/ark-icon.svg",
+  "icon": "resources/ark-icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/TTTPOB/krarkode"

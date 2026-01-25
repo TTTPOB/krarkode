@@ -1,4 +1,70 @@
+# Source files (compiled to dist/)
+src/**
+html/**
+
+# Development and build tools
+.github/**
+.claude/**
+.vscode/**
+dev-docs/**
+scripts/**
+
+# TypeScript config
+tsconfig*.json
+eslint.config.mjs
+.eslintcache
+.prettierrc
+.prettierignore
+.editorconfig
+
+# Package manager files
+pnpm-lock.yaml
+.npmrc
+
+# Pixi (R environment)
+.pixi/**
+pixi.lock
+pixi.toml
+
+# Rust sidecar source (binary is in dist/)
+ark-sidecar/**
+
+# Git and version control
+.git/**
+.gitignore
+.gitattributes
+
+# Beads issue tracker
 .beads/**
-ark-sidecar/target/**
-node_modules/**
+
+# Reference repos
 repo_ref/**
+
+# Node modules (vsce bundles dependencies)
+node_modules/**
+
+# Test files
+**/*.test.ts
+**/*.test.js
+**/test/**
+
+# Build artifacts and caches
+*.tsbuildinfo
+.ruff_cache/**
+.vscode-test/**
+
+# Source maps and analysis files (not needed in production)
+**/*.map
+**/bundle-analysis.json
+
+# SVG icon (replaced by PNG for marketplace compatibility)
+resources/ark-icon.svg
+
+# Documentation (optional, can include if wanted)
+AGENTS.md
+
+# Misc
+*.log
+*.map
+.DS_Store
+Thumbs.db
