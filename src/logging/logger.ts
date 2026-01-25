@@ -26,7 +26,7 @@ const LOG_LEVEL_RANK: Record<LogLevel, number> = {
     error: 40,
 };
 
-const MESSAGE_LEVEL_RE = /^\[(Trace|Debug|Info|Warn|Error)\b/i;
+const MESSAGE_LEVEL_RE = /^\[(Trace|Debug|Info|Warn|Error|LSP)\b/i;
 
 function normalizeChannelSetting(value: unknown): LogChannelSetting {
     if (value === 'none' || value === 'error' || value === 'warn' || value === 'info' || value === 'debug') {
@@ -48,12 +48,14 @@ export function getLogChannelSetting(channelId: LogChannelId): LogChannelSetting
 }
 
 function inferMessageLogLevel(message: string): LogLevel {
-    const match = MESSAGE_LEVEL_RE.exec(message);
+    const match = MESSAGE_LEVEL_RE.exec(message) ?? MESSAGE_LEVEL_RE.exec(stripContextPrefix(message));
     if (!match) {
         return 'info';
     }
     switch (match[1].toLowerCase()) {
         case 'trace':
+            return 'trace';
+        case 'lsp':
             return 'trace';
         case 'debug':
             return 'debug';
@@ -64,6 +66,10 @@ function inferMessageLogLevel(message: string): LogLevel {
         default:
             return 'info';
     }
+}
+
+function stripContextPrefix(message: string): string {
+    return message.replace(/^\[[^\]]+\]\s*/, '');
 }
 
 function isLevelAllowed(setting: LogChannelSetting, level: LogLevel): boolean {
