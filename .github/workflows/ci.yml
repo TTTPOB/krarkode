@@ -1,0 +1,129 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+
+env:
+  NODE_VERSION: 22
+  PNPM_VERSION: 9
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run tests
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: pnpm test
+
+  package:
+    runs-on: ${{ matrix.os }}
+    needs: [lint, typecheck, build, test]
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            rust_target: x86_64-unknown-linux-musl
+          - os: ubuntu-22.04-arm64
+            target: linux-arm64
+            rust_target: aarch64-unknown-linux-gnu
+          - os: macos-13
+            target: darwin-x64
+            rust_target: x86_64-apple-darwin
+          - os: macos-latest
+            target: darwin-arm64
+            rust_target: aarch64-apple-darwin
+          - os: windows-latest
+            target: win32-x64
+            rust_target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+      - name: Install musl tools
+        if: matrix.target == 'linux-x64'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build sidecar
+        run: cargo build --release --target ${{ matrix.rust_target }}
+        working-directory: ark-sidecar
+      - name: Stage sidecar binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="vscode-r-ark-sidecar"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            exe="${exe}.exe"
+          fi
+          mkdir -p "sidecar/${{ matrix.target }}"
+          cp "ark-sidecar/target/${{ matrix.rust_target }}/release/${exe}" "sidecar/${{ matrix.target }}/${exe}"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Package VSIX
+        run: pnpm exec vsce package --no-dependencies --target ${{ matrix.target }} --out krarkode-${{ matrix.target }}.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: krarkode-${{ matrix.target }}.vsix
+          path: krarkode-${{ matrix.target }}.vsix

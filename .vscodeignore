@@ -1,0 +1,4 @@
+.beads/**
+ark-sidecar/target/**
+node_modules/**
+repo_ref/**

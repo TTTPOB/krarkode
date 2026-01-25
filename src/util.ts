@@ -168,26 +168,67 @@ export function spawnAsync(command: string, args: string[], options: cp.SpawnOpt
     });
 }
 
+function getSidecarTarget(): string | undefined {
+    const platform = process.platform;
+    const arch = process.arch;
+
+    if (platform === 'win32' && arch === 'x64') {
+        return 'win32-x64';
+    }
+    if (platform === 'linux' && arch === 'x64') {
+        return 'linux-x64';
+    }
+    if (platform === 'linux' && arch === 'arm64') {
+        return 'linux-arm64';
+    }
+    if (platform === 'darwin' && arch === 'x64') {
+        return 'darwin-x64';
+    }
+    if (platform === 'darwin' && arch === 'arm64') {
+        return 'darwin-arm64';
+    }
+
+    return undefined;
+}
+
 export function resolveSidecarPath(): string {
     const config = vscode.workspace.getConfiguration('krarkode.ark');
     const configured = config.get<string>('sidecarPath')?.trim();
     if (configured) {
+        logDebug(`Using configured sidecar path: ${configured}`);
         return configured;
     }
 
     const exeName = process.platform === 'win32' ? 'vscode-r-ark-sidecar.exe' : 'vscode-r-ark-sidecar';
     const context = getExtensionContext();
-    
+
+    const packagedTarget = getSidecarTarget();
+    if (packagedTarget) {
+        const packagedPath = context.asAbsolutePath(path.join('sidecar', packagedTarget, exeName));
+        logDebug(`Checking packaged sidecar path: ${packagedPath}`);
+        if (fs.existsSync(packagedPath)) {
+            logDebug(`Using packaged sidecar path: ${packagedPath}`);
+            return packagedPath;
+        }
+    } else {
+        logDebug(`Unsupported sidecar platform: ${process.platform}-${process.arch}`);
+    }
+
     const releasePath = context.asAbsolutePath(path.join('ark-sidecar', 'target', 'release', exeName));
+    logDebug(`Checking release sidecar path: ${releasePath}`);
     if (fs.existsSync(releasePath)) {
+        logDebug(`Using release sidecar path: ${releasePath}`);
         return releasePath;
     }
 
     const debugPath = context.asAbsolutePath(path.join('ark-sidecar', 'target', 'debug', exeName));
+    logDebug(`Checking debug sidecar path: ${debugPath}`);
     if (fs.existsSync(debugPath)) {
+        logDebug(`Using debug sidecar path: ${debugPath}`);
         return debugPath;
     }
 
+    logDebug(`Falling back to sidecar name: ${exeName}`);
     return exeName;
 }
 
