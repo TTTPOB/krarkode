@@ -9,7 +9,7 @@ export type VirtualRow = {
     index: number;
     start: number;
     size: number;
-    key: number | string;
+    key: number | string | bigint;
 };
 
 type VirtualizerOptions = {

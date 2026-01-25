@@ -15,6 +15,7 @@ import {
     ExportFormat,
     ReturnColumnProfilesParams,
     RowFilter,
+    TableSelectionKind,
     TableSchema,
 } from './protocol';
 
@@ -437,7 +438,9 @@ class DataExplorerPanel implements vscode.Disposable {
         }
         this.log(`Getting column profiles for column ${columnIndex}: ${resolvedProfileTypes.join(', ')}`);
         if (histogramParams || frequencyParams) {
-            this.log('Column profile params', { histogramParams, frequencyParams });
+            this.log(
+                `Column profile params histogram=${JSON.stringify(histogramParams ?? {})} frequency=${JSON.stringify(frequencyParams ?? {})}`
+            );
         }
         const callbackId = crypto.randomUUID();
         const profiles: ColumnProfileRequest[] = [{
@@ -553,7 +556,7 @@ class DataExplorerPanel implements vscode.Disposable {
         this.exportInFlight = true;
         try {
             const selection = {
-                kind: 'row_range' as const,
+                kind: TableSelectionKind.RowRange,
                 selection: {
                     first_index: 0,
                     last_index: this.state.table_shape.num_rows - 1,

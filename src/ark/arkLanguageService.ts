@@ -174,7 +174,7 @@ export class ArkLanguageService implements vscode.Disposable {
         const args = ['--connection-file', this.connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)];
 
         this.outputChannel.appendLine(`Starting Ark sidecar: ${sidecarPath}`);
-        const sidecar = cp.spawn(sidecarPath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        const sidecar = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
         this.sidecarProcess = sidecar;
         sidecar.stderr?.on('data', (chunk: Buffer) => {
             this.outputChannel.appendLine(`[sidecar] ${chunk.toString().trim()}`);

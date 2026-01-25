@@ -12,15 +12,43 @@ type VscodeMessageHandlers = {
     onSuggestCodeSyntaxResult: (syntax: string) => void;
 };
 
+const isInitMessage = (message: unknown): message is InitMessage => {
+    if (!message || typeof message !== 'object') {
+        return false;
+    }
+    const candidate = message as { state?: unknown; schema?: unknown };
+    return typeof candidate.state === 'object'
+        && candidate.state !== null
+        && Array.isArray(candidate.schema);
+};
+
+const isRowsMessage = (message: unknown): message is RowsMessage => {
+    if (!message || typeof message !== 'object') {
+        return false;
+    }
+    const candidate = message as { startIndex?: unknown; endIndex?: unknown; columns?: unknown };
+    return typeof candidate.startIndex === 'number'
+        && typeof candidate.endIndex === 'number'
+        && Array.isArray(candidate.columns);
+};
+
 export function useVscodeMessages(handlers: VscodeMessageHandlers): void {
     const handleMessage = (event: MessageEvent): void => {
         const message = event.data as { type?: string; [key: string]: unknown };
         switch (message.type) {
             case 'init':
-                handlers.onInit(message as InitMessage);
+                if (isInitMessage(message)) {
+                    handlers.onInit(message);
+                } else {
+                    handlers.onError('Invalid init message.');
+                }
                 break;
             case 'rows':
-                handlers.onRows(message as RowsMessage);
+                if (isRowsMessage(message)) {
+                    handlers.onRows(message);
+                } else {
+                    handlers.onError('Invalid rows message.');
+                }
                 break;
             case 'error':
                 handlers.onError(typeof message.message === 'string' ? message.message : 'Unknown error');

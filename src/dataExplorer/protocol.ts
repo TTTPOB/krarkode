@@ -250,6 +250,8 @@ export interface RowFilter {
 
 export type RowFilterParams = FilterBetween | FilterComparison | FilterTextSearch | FilterSetMembership;
 
+export type ColumnFilterParams = FilterTextSearch | FilterMatchDataTypes;
+
 export interface ColumnFilter {
     filter_type: ColumnFilterType;
     params: ColumnFilterParams;

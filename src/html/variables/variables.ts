@@ -47,7 +47,7 @@ const expandedPaths = new Set<string>();
 const loadingPaths = new Set<string>();
 
 // Handle messages from extension
-window.addEventListener('message', event => {
+window.addEventListener('message', (event: MessageEvent) => {
     const message = event.data;
     switch (message.type) {
         case 'update':
@@ -210,7 +210,7 @@ function renderVariable(variable: Variable, path: string[], depth: number) {
         viewBtn.className = 'action-btn';
         viewBtn.textContent = '◫';
         viewBtn.title = 'View Data';
-        viewBtn.onclick = (e) => {
+        viewBtn.onclick = (e: MouseEvent) => {
             e.stopPropagation();
             vscode.postMessage({ type: 'view', path });
         };
