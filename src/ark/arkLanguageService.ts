@@ -18,7 +18,7 @@ import {
 import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
-import { getLogChannelSetting, getLogger, type LogChannelId } from '../logging/logger';
+import { getLogChannelSetting, getLogger, type LogChannelId, type LogLevel } from '../logging/logger';
 import { formatArkRustLog, formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
 
 interface ConnectionInfo {
@@ -44,6 +44,7 @@ const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
 const DEFAULT_SESSION_MODE = 'notebook';
 const DEFAULT_SIDECAR_TIMEOUT_MS = 15000;
 const SIDECAR_LOG_RELOAD_COMMAND = 'reload_log_level';
+const KERNEL_LOG_LEVEL_RE = /\b(TRACE|DEBUG|INFO|WARN|ERROR)\b/;
 
 export class ArkLanguageService implements vscode.Disposable {
     private client: LanguageClient | undefined;
@@ -180,14 +181,10 @@ export class ArkLanguageService implements vscode.Disposable {
         );
         this.arkProcess = util.spawn(arkPath, ['--connection_file', connectionFile, '--session-mode', sessionMode], { cwd, env });
         this.arkProcess.stdout?.on('data', (chunk: Buffer) => {
-            this.kernelOutputChannel.appendLine(
-                this.formatLogMessage(chunk.toString().trim(), 'kernel')
-            );
+            this.logKernelOutput('stdout', chunk);
         });
         this.arkProcess.stderr?.on('data', (chunk: Buffer) => {
-            this.kernelOutputChannel.appendLine(
-                this.formatLogMessage(chunk.toString().trim(), 'kernel')
-            );
+            this.logKernelOutput('stderr', chunk);
         });
         this.arkProcess.on('exit', (code, signal) => {
             this.kernelOutputChannel.appendLine(
@@ -478,6 +475,38 @@ export class ArkLanguageService implements vscode.Disposable {
             return message;
         }
         return `[${segments.join(' ')}] ${message}`;
+    }
+
+    private logKernelOutput(source: 'stdout' | 'stderr', chunk: Buffer): void {
+        const lines = chunk
+            .toString()
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0);
+        const fallback: LogLevel = source === 'stderr' ? 'warn' : 'info';
+        for (const line of lines) {
+            const level = this.parseKernelLogLevel(line, fallback);
+            getLogger().log('ark-kernel', source, level, this.formatLogMessage(line, 'kernel'));
+        }
+    }
+
+    private parseKernelLogLevel(message: string, fallback: LogLevel): LogLevel {
+        const match = KERNEL_LOG_LEVEL_RE.exec(message);
+        if (!match) {
+            return fallback;
+        }
+        switch (match[1].toLowerCase()) {
+            case 'trace':
+                return 'trace';
+            case 'debug':
+                return 'debug';
+            case 'warn':
+                return 'warn';
+            case 'error':
+                return 'error';
+            default:
+                return 'info';
+        }
     }
 
     private buildSidecarEnv(): NodeJS.ProcessEnv {
