@@ -132,9 +132,17 @@ pub(crate) async fn wait_for_iopub_idle(
         if remaining.is_zero() {
             return Err(anyhow!("Timed out waiting for iopub idle"));
         }
-        let message = tokio::time::timeout(remaining, iopub.read())
-            .await
-            .map_err(|_| anyhow!("Timed out waiting for iopub idle"))??;
+        let message = match tokio::time::timeout(remaining, iopub.read()).await {
+            Ok(Ok(message)) => message,
+            Ok(Err(err)) => {
+                if is_comm_close_missing_data(&err) {
+                    debug!(error = ?err, "Ignoring comm_close without data");
+                    continue;
+                }
+                return Err(err).context("Failed to read iopub message");
+            }
+            Err(_) => return Err(anyhow!("Timed out waiting for iopub idle")),
+        };
         if message.parent_header.as_ref().map(|h| h.msg_id.as_str()) != Some(msg_id) {
             continue;
         }
@@ -160,9 +168,17 @@ pub(crate) async fn wait_for_comm_port(
         if remaining.is_zero() {
             return Err(anyhow!("Timed out waiting for Ark LSP comm response"));
         }
-        let message = tokio::time::timeout(remaining, iopub.read())
-            .await
-            .map_err(|_| anyhow!("Timed out waiting for Ark LSP comm response"))??;
+        let message = match tokio::time::timeout(remaining, iopub.read()).await {
+            Ok(Ok(message)) => message,
+            Ok(Err(err)) => {
+                if is_comm_close_missing_data(&err) {
+                    debug!(error = ?err, "Ignoring comm_close without data");
+                    continue;
+                }
+                return Err(err).context("Failed to read iopub message");
+            }
+            Err(_) => return Err(anyhow!("Timed out waiting for Ark LSP comm response")),
+        };
         let JupyterMessage { content, .. } = message;
         debug!(
             message_type = %content.message_type(),
@@ -234,6 +250,11 @@ fn parse_port_value(value: Option<&Value>) -> Option<u16> {
         Value::String(text) => text.parse::<u16>().ok(),
         _ => None,
     }
+}
+
+fn is_comm_close_missing_data<E: std::fmt::Debug>(err: &E) -> bool {
+    let text = format!("{err:?}");
+    text.contains("comm_close") && text.contains("missing field `data`")
 }
 
 #[cfg(test)]
