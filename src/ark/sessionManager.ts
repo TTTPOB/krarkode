@@ -7,6 +7,7 @@ import * as sessionRegistry from './sessionRegistry';
 import type { ArkConsoleDriver, ArkSessionEntry } from './sessionRegistry';
 import { getRBinaryPath } from '../util';
 import { getLogger } from '../logging/logger';
+import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
 
 type ArkSessionMode = 'console' | 'notebook' | 'background';
 type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'unknown';
@@ -931,6 +932,13 @@ export class ArkSessionManager {
         const envParts: string[] = [
             `ARK_CONNECTION_FILE=${shellEscape(connectionFile)}`,
         ];
+
+        const arkLogLevel = getArkLogLevel();
+        const rustLog = formatArkRustLog(arkLogLevel);
+        if (rustLog) {
+            envParts.push(`RUST_LOG=${shellEscape(rustLog)}`);
+            this.outputChannel.appendLine(`Ark backend log level set to ${arkLogLevel}.`);
+        }
 
         const rHome = await this.resolveRHome();
         if (rHome) {

@@ -86,6 +86,13 @@
           "scope": "window",
           "markdownDescription": "Ark executable path."
         },
+        "krarkode.ark.logLevel": {
+          "type": "string",
+          "default": "inherit",
+          "enum": ["inherit", "error", "warn", "info", "debug", "trace"],
+          "scope": "window",
+          "markdownDescription": "Log level for the Ark backend (sets RUST_LOG=ark=<level>). Use inherit to keep the current RUST_LOG."
+        },
         "krarkode.ark.sessionMode": {
           "type": "string",
           "default": "console",
@@ -193,22 +200,40 @@
           "markdownDescription": "Echo code when sourcing files."
         },
         "krarkode.logging.channels.ark": {
-          "type": "boolean",
-          "default": true,
+          "type": "string",
+          "default": "error",
+          "enum": ["none", "error", "debug"],
+          "enumDescriptions": [
+            "Disable the Ark output channel.",
+            "Show standard logs (info/warn/error).",
+            "Show verbose logs (debug/info/warn/error)."
+          ],
           "scope": "window",
-          "markdownDescription": "Show the main Ark output channel for session, plot, data explorer, variables, and help logs."
+          "markdownDescription": "Log level for the main Ark output channel (session, plot, data explorer, variables, help)."
         },
         "krarkode.logging.channels.lsp": {
-          "type": "boolean",
-          "default": true,
+          "type": "string",
+          "default": "error",
+          "enum": ["none", "error", "debug"],
+          "enumDescriptions": [
+            "Disable the Ark LSP output channel.",
+            "Show standard logs (info/warn/error).",
+            "Show verbose logs (debug/info/warn/error)."
+          ],
           "scope": "window",
-          "markdownDescription": "Show the Ark LSP output channel."
+          "markdownDescription": "Log level for the Ark LSP output channel."
         },
         "krarkode.logging.channels.sidecar": {
-          "type": "boolean",
-          "default": true,
+          "type": "string",
+          "default": "error",
+          "enum": ["none", "error", "debug"],
+          "enumDescriptions": [
+            "Disable the Ark Sidecar output channel.",
+            "Show standard logs (info/warn/error).",
+            "Show verbose logs (debug/info/warn/error)."
+          ],
           "scope": "window",
-          "markdownDescription": "Show the Ark Sidecar output channel."
+          "markdownDescription": "Log level for the Ark Sidecar output channel."
         }
       }
     },

@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 
 export type LogChannelId = 'ark' | 'lsp' | 'sidecar';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogChannelSetting = 'none' | 'error' | 'debug';
 
 type WriteOptions = {
     category?: string;
@@ -15,7 +16,31 @@ const CHANNELS: Record<LogChannelId, { name: string; configKey: string }> = {
     sidecar: { name: 'Ark Sidecar', configKey: 'channels.sidecar' },
 };
 
-export function isDebugLoggingEnabled(): boolean {
+const DEFAULT_CHANNEL_SETTING: LogChannelSetting = 'error';
+
+function normalizeChannelSetting(value: unknown): LogChannelSetting {
+    if (value === 'none' || value === 'error' || value === 'debug') {
+        return value;
+    }
+    if (value === false) {
+        return 'none';
+    }
+    return DEFAULT_CHANNEL_SETTING;
+}
+
+function getChannelSetting(channelId: LogChannelId): LogChannelSetting {
+    const config = vscode.workspace.getConfiguration('krarkode.logging');
+    return normalizeChannelSetting(config.get(CHANNELS[channelId].configKey));
+}
+
+export function isDebugLoggingEnabled(channelId: LogChannelId = 'ark'): boolean {
+    const setting = getChannelSetting(channelId);
+    if (setting === 'none') {
+        return false;
+    }
+    if (setting === 'debug') {
+        return true;
+    }
     const value = process.env.KRARKODE_DEBUG;
     return value === '1' || value === 'true';
 }
@@ -131,7 +156,7 @@ export class LoggerService implements vscode.Disposable {
 
     write(channelId: LogChannelId, message: string, options: WriteOptions): void {
         const level = options.level ?? 'info';
-        if (level === 'debug' && !isDebugLoggingEnabled()) {
+        if (level === 'debug' && !isDebugLoggingEnabled(channelId)) {
             return;
         }
         if (!this.isChannelEnabled(channelId)) {
@@ -151,8 +176,7 @@ export class LoggerService implements vscode.Disposable {
     }
 
     private isChannelEnabled(channelId: LogChannelId): boolean {
-        const config = vscode.workspace.getConfiguration('krarkode.logging');
-        return config.get<boolean>(CHANNELS[channelId].configKey) ?? true;
+        return getChannelSetting(channelId) !== 'none';
     }
 
     private getOrCreateChannel(channelId: LogChannelId): vscode.OutputChannel {

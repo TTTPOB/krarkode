@@ -18,6 +18,7 @@ import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import { getLogger } from '../logging/logger';
+import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
 
 interface ConnectionInfo {
     shell_port: number;
@@ -127,6 +128,12 @@ export class ArkLanguageService implements vscode.Disposable {
         const env = Object.assign({}, process.env, {
             ARK_CONNECTION_FILE: connectionFile,
         });
+        const arkLogLevel = getArkLogLevel(this.config);
+        const rustLog = formatArkRustLog(arkLogLevel);
+        if (rustLog) {
+            env.RUST_LOG = rustLog;
+            this.outputChannel.appendLine(`Ark backend log level set to ${arkLogLevel}.`);
+        }
         const rHome = await this.resolveRHome();
         if (rHome) {
             env.R_HOME = rHome;
