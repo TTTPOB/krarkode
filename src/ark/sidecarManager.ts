@@ -5,6 +5,7 @@ import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
 import { getLogger } from '../logging/logger';
+import { formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
 
 interface SidecarEvent {
     event: 'display_data' | 'update_display_data' | 'error' | 'httpgd_url' | 'comm_open' | 'comm_msg' | 'comm_close' | 'ui_comm_open' | 'show_html_file' | 'help_comm_open' | 'show_help' | 'variables_comm_open' | 'data_explorer_comm_open' | 'kernel_status';
@@ -17,6 +18,7 @@ interface SidecarEvent {
 }
 
 const VARIABLES_COMM_TARGET = 'positron.variables';
+const SIDECAR_LOG_RELOAD_COMMAND = 'reload_log_level';
 
 export interface ShowHtmlFileParams {
     path: string;
@@ -36,6 +38,7 @@ export class ArkSidecarManager implements vscode.Disposable {
     private rl: readline.Interface | undefined;
     private connectionFile: string | undefined;
     private readonly outputChannel = getLogger().createChannel('sidecar');
+    private readonly disposables: vscode.Disposable[] = [];
     private variablesCommId: string | undefined;
 
     private readonly _onDidOpenPlotComm = new vscode.EventEmitter<{ commId: string; data: unknown }>();
@@ -77,7 +80,15 @@ export class ArkSidecarManager implements vscode.Disposable {
     constructor(
         private readonly resolveSidecarPath: () => string,
         private readonly getTimeoutMs: () => number
-    ) {}
+    ) {
+        this.disposables.push(
+            vscode.workspace.onDidChangeConfiguration((event) => {
+                if (event.affectsConfiguration('krarkode.ark.logLevel')) {
+                    this.sendLogReload();
+                }
+            })
+        );
+    }
 
     public attach(connectionFile: string): void {
         if (this.connectionFile === connectionFile && this.proc) {
@@ -160,6 +171,8 @@ export class ArkSidecarManager implements vscode.Disposable {
     dispose(): void {
         this.stop();
         this.outputChannel.dispose();
+        this.disposables.forEach((disposable) => disposable.dispose());
+        this.disposables.length = 0;
         this._onDidOpenPlotComm.dispose();
         this._onDidReceiveCommMessage.dispose();
         this._onDidClosePlotComm.dispose();
@@ -178,7 +191,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         const sidecarPath = this.resolveSidecarPath();
         const timeoutMs = this.getTimeoutMs();
         const args = ['--watch-plot', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
-        const proc = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+        const proc = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'], env: this.buildSidecarEnv() });
         this.proc = proc;
 
         proc.on('error', (err) => {
@@ -208,6 +221,31 @@ export class ArkSidecarManager implements vscode.Disposable {
                 this.outputChannel.appendLine(`Sidecar exited with code ${code ?? 'null'}.`);
             }
         });
+    }
+
+    private buildSidecarEnv(): NodeJS.ProcessEnv {
+        const env = { ...process.env };
+        const logLevel = getArkLogLevel(vscode.workspace.getConfiguration('krarkode.ark'));
+        const sidecarLogLevel = formatSidecarLogLevel(logLevel);
+        if (sidecarLogLevel) {
+            env.ARK_SIDECAR_LOG = sidecarLogLevel;
+            env.RUST_LOG = sidecarLogLevel;
+            getLogger().debug('sidecar', 'logging', `Sidecar log level set to ${sidecarLogLevel}.`);
+        }
+        return env;
+    }
+
+    private sendLogReload(): void {
+        if (!this.proc) {
+            return;
+        }
+        const msg = { command: SIDECAR_LOG_RELOAD_COMMAND };
+        try {
+            this.proc.stdin.write(JSON.stringify(msg) + '\n');
+            getLogger().debug('sidecar', 'logging', 'Sent log reload command to sidecar.');
+        } catch (error) {
+            this.outputChannel.appendLine(`Failed to reload sidecar log level: ${error}`);
+        }
     }
 
     private async handleLine(line: string): Promise<void> {

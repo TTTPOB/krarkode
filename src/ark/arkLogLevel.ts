@@ -18,3 +18,10 @@ export function formatArkRustLog(level: ArkLogLevelSetting): string | undefined 
     }
     return `ark=${level}`;
 }
+
+export function formatSidecarLogLevel(level: ArkLogLevelSetting): string | undefined {
+    if (level === 'inherit') {
+        return undefined;
+    }
+    return level;
+}

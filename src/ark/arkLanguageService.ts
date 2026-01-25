@@ -19,7 +19,7 @@ import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import { getLogChannelSetting, getLogger, type LogChannelId } from '../logging/logger';
-import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
+import { formatArkRustLog, formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
 
 interface ConnectionInfo {
     shell_port: number;
@@ -43,6 +43,7 @@ const DEFAULT_IP_ADDRESS = '127.0.0.1';
 const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
 const DEFAULT_SESSION_MODE = 'notebook';
 const DEFAULT_SIDECAR_TIMEOUT_MS = 15000;
+const SIDECAR_LOG_RELOAD_COMMAND = 'reload_log_level';
 
 export class ArkLanguageService implements vscode.Disposable {
     private client: LanguageClient | undefined;
@@ -65,6 +66,9 @@ export class ArkLanguageService implements vscode.Disposable {
             vscode.workspace.onDidChangeConfiguration((event) => {
                 if (event.affectsConfiguration('krarkode.logging.channels.lsp')) {
                     this.updateLspTrace();
+                }
+                if (event.affectsConfiguration('krarkode.ark.logLevel')) {
+                    this.reloadSidecarLogLevel();
                 }
             })
         );
@@ -197,7 +201,7 @@ export class ArkLanguageService implements vscode.Disposable {
         const args = ['--connection-file', this.connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)];
 
         this.outputChannel.appendLine(`Starting Ark sidecar: ${sidecarPath}`);
-        const sidecar = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+        const sidecar = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'], env: this.buildSidecarEnv() });
         this.sidecarProcess = sidecar;
         sidecar.stderr?.on('data', (chunk: Buffer) => {
             this.outputChannel.appendLine(`[sidecar] ${chunk.toString().trim()}`);
@@ -422,5 +426,30 @@ export class ArkLanguageService implements vscode.Disposable {
         this.connectionFile = undefined;
 
         await Promise.allSettled(promises);
+    }
+
+    private buildSidecarEnv(): NodeJS.ProcessEnv {
+        const env = { ...process.env };
+        const logLevel = getArkLogLevel(this.config);
+        const sidecarLogLevel = formatSidecarLogLevel(logLevel);
+        if (sidecarLogLevel) {
+            env.ARK_SIDECAR_LOG = sidecarLogLevel;
+            env.RUST_LOG = sidecarLogLevel;
+            getLogger().debug('lsp', 'logging', `LSP sidecar log level set to ${sidecarLogLevel}.`);
+        }
+        return env;
+    }
+
+    private reloadSidecarLogLevel(): void {
+        if (!this.sidecarProcess || this.sidecarProcess.killed) {
+            return;
+        }
+        const message = { command: SIDECAR_LOG_RELOAD_COMMAND };
+        try {
+            this.sidecarProcess.stdin.write(JSON.stringify(message) + '\n');
+            getLogger().debug('lsp', 'logging', 'Sent log reload command to LSP sidecar.');
+        } catch (error) {
+            this.outputChannel.appendLine(`Failed to reload LSP sidecar log level: ${error}`);
+        }
     }
 }
