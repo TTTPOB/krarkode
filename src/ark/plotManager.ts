@@ -322,7 +322,9 @@ export class PlotManager implements vscode.Disposable {
                 {
                     enableScripts: true,
                     retainContextWhenHidden: true,
-                    localResourceRoots: [vscode.Uri.joinPath(getExtensionContext().extensionUri, 'html', 'plotViewer')],
+                    localResourceRoots: [
+                        vscode.Uri.joinPath(getExtensionContext().extensionUri, 'dist', 'html', 'plotViewer'),
+                    ],
                 },
             );
 
@@ -445,10 +447,10 @@ export class PlotManager implements vscode.Disposable {
         }
 
         const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'html', 'plotViewer', 'dist', 'index.js'),
+            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'dist', 'html', 'plotViewer', 'index.js'),
         );
         const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'html', 'plotViewer', 'style.css'),
+            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'dist', 'html', 'plotViewer', 'style.css'),
         );
 
         const plotsHtml = this.plots

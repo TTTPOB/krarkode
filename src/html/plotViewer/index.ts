@@ -275,9 +275,7 @@ function applyLayout(layout: string): void {
 }
 
 function updateState(state: UpdateStateMessage): void {
-    navInfo.textContent = state.totalPlots > 0
-        ? `${state.currentIndex + 1} / ${state.totalPlots}`
-        : '0 / 0';
+    navInfo.textContent = state.totalPlots > 0 ? `${state.currentIndex + 1} / ${state.totalPlots}` : '0 / 0';
 
     zoomInfo.textContent = state.fit ? 'Fit' : `${state.zoom}%`;
 

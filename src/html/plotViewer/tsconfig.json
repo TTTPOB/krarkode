@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "ES2015",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": ["ES2019", "DOM", "DOM.Iterable"],
+    "outDir": "../../../dist/html/plotViewer",
+    "types": []
+  },
+  "include": ["index.ts"]
+}

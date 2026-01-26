@@ -59,12 +59,12 @@ export class VariablesManager implements vscode.WebviewViewProvider {
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {
-        // Use 'dist' as outDir per tsconfig.json
+        // Load webview assets from dist
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'dist', 'html', 'variables', 'variables.js'),
         );
         const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'src', 'html', 'variables', 'variables.css'),
+            vscode.Uri.joinPath(this._extensionUri, 'dist', 'html', 'variables', 'variables.css'),
         );
 
         const nonce = getNonce();

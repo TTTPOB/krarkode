@@ -2,7 +2,9 @@
 html {
     box-sizing: border-box;
 }
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     box-sizing: inherit;
 }
 
@@ -41,11 +43,13 @@ body.fullWindow #largePlot {
     height: 100vh !important;
 }
 
-#largePlot img, #largePlot svg {
+#largePlot img,
+#largePlot svg {
     max-width: 100%;
     user-select: none;
 }
-#largePlot.fit-to-window img, #largePlot.fit-to-window svg {
+#largePlot.fit-to-window img,
+#largePlot.fit-to-window svg {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
@@ -58,10 +62,11 @@ body.fullWindow #largePlot {
     cursor: ns-resize;
     flex-shrink: 0;
 }
-#handler:hover, #handler.dragging {
+#handler:hover,
+#handler.dragging {
     background-color: var(--vscode-focusBorder);
-    transition: background-color .1s ease-out;
-    transition-delay: .2s;
+    transition: background-color 0.1s ease-out;
+    transition-delay: 0.2s;
 }
 body.fullWindow #handler {
     display: none;

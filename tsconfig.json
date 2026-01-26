@@ -3,22 +3,12 @@
     "module": "commonjs",
     "target": "ES2021",
     "outDir": "dist",
-    "lib": [
-      "ES2021",
-      "DOM"
-    ],
+    "lib": ["ES2021", "DOM"],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true
   },
-  "include": [
-    "src"
-  ],
-  "exclude": [
-    "dist",
-    "node_modules",
-    ".vscode-test",
-    "repo_ref"
-  ]
+  "include": ["src"],
+  "exclude": ["dist", "node_modules", ".vscode-test", "repo_ref", "src/html"]
 }

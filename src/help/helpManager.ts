@@ -51,7 +51,7 @@ export class HelpManager implements vscode.Disposable {
                     retainContextWhenHidden: true,
                     enableFindWidget: true,
                     localResourceRoots: [
-                        vscode.Uri.joinPath(this.extensionUri, 'html', 'help'),
+                        vscode.Uri.joinPath(this.extensionUri, 'dist', 'html', 'help'),
                         vscode.Uri.joinPath(this.extensionUri, 'resources'),
                     ],
                 },
