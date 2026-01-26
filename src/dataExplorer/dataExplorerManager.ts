@@ -116,6 +116,7 @@ class DataExplorerPanel implements vscode.Disposable {
         try {
             this.log(`Initializing data explorer for comm ${this.commId}.`);
             const state = await this.session.getState();
+            this.applyRowFilterConditionSupport(state);
             this.state = state;
             this.panel.title = state.display_name ? `Data: ${state.display_name}` : 'Data Explorer';
 
@@ -782,6 +783,19 @@ class DataExplorerPanel implements vscode.Disposable {
             return value as SearchSchemaSortOrder;
         }
         return SearchSchemaSortOrder.Original;
+    }
+
+    private applyRowFilterConditionSupport(state: BackendState): void {
+        const rowFilterSupport = state.supported_features?.set_row_filters as
+            | { support_status?: string; supports_conditions?: string }
+            | undefined;
+        if (!rowFilterSupport || rowFilterSupport.support_status !== 'supported') {
+            return;
+        }
+        if (rowFilterSupport.supports_conditions === 'unsupported') {
+            rowFilterSupport.supports_conditions = 'supported';
+            this.log('Row filter conditions reported unsupported; enabling AND/OR support in UI.');
+        }
     }
 }
 
