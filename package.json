@@ -246,7 +246,7 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the main Krarkode output channel (session, plot, data explorer, variables, help)."
+          "markdownDescription": "Log level for the main Krarkode output channel (session, plot, data explorer, variables, help). Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
         },
         "krarkode.logging.channels.arkKernel": {
           "type": "string",
@@ -268,7 +268,7 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Ark Kernel stdout/stderr output channel."
+          "markdownDescription": "Log level for the Ark Kernel stdout/stderr output channel. Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
         },
         "krarkode.logging.channels.lsp": {
           "type": "string",
@@ -290,7 +290,7 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Krarkode LSP output channel."
+          "markdownDescription": "Log level for the Krarkode LSP output channel. Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
         },
         "krarkode.logging.channels.sidecar": {
           "type": "string",
@@ -312,7 +312,7 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Krarkode Sidecar output channel."
+          "markdownDescription": "Log level for the Krarkode Sidecar output channel. Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
         }
       }
     },
