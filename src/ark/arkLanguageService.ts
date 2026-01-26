@@ -28,6 +28,7 @@ import {
     type LogLevel,
 } from '../logging/logger';
 import { formatArkRustLog, formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
+import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 
 interface ConnectionInfo {
     shell_port: number;
@@ -51,7 +52,6 @@ const DEFAULT_IP_ADDRESS = '127.0.0.1';
 const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
 const DEFAULT_SESSION_MODE = 'notebook';
 const DEFAULT_SIDECAR_TIMEOUT_MS = 15000;
-const SIDECAR_LOG_RELOAD_COMMAND = 'reload_log_level';
 const KERNEL_LOG_LEVEL_PARSER = new RegexLogLevelParser(/\b(TRACE|DEBUG|INFO|WARN|ERROR)\b/i);
 
 export class ArkLanguageService implements vscode.Disposable {

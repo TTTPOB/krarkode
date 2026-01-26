@@ -14,6 +14,7 @@ import {
     type LogLevel,
 } from '../logging/logger';
 import { formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
+import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 import * as sessionRegistry from './sessionRegistry';
 
 interface SidecarEvent {
@@ -41,7 +42,6 @@ interface SidecarEvent {
 }
 
 const VARIABLES_COMM_TARGET = 'positron.variables';
-const SIDECAR_LOG_RELOAD_COMMAND = 'reload_log_level';
 const SIDECAR_LOG_LEVEL_PARSER = new RegexLogLevelParser(/\b(TRACE|DEBUG|INFO|WARN|ERROR)\b/i);
 
 export interface ShowHtmlFileParams {
