@@ -11,6 +11,9 @@
     import { useTableInteractionController } from './hooks/useTableInteractionController';
     import { useWindowEventsController } from './hooks/useWindowEventsController';
     import { useTableSetupController } from './hooks/useTableSetupController';
+    import { useInitController } from './hooks/useInitController';
+    import { usePanelToggleController } from './hooks/usePanelToggleController';
+    import { useExportController } from './hooks/useExportController';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -67,7 +70,6 @@
     } from './stores';
     import {
         type ColumnSchema,
-        type InitMessage,
         type RowFilterDraft,
         ROW_HEIGHT,
         ROW_BLOCK_SIZE,
@@ -303,6 +305,33 @@
         dispose: disposeStatsController,
     } = statsController;
 
+    const rowDataController = useRowDataController({
+        log,
+        postMessage: (message) => vscode.postMessage(message),
+        getBackendState: () => $backendState,
+        visibleSchema,
+        rowCache,
+        rowLabelCache,
+        rowCacheVersion,
+        loadedBlocks,
+        loadingBlocks,
+        rowBlockSize: ROW_BLOCK_SIZE,
+        prefetchBlocks: ROW_PREFETCH_BLOCKS,
+        requestDebounceMs: ROW_REQUEST_DEBOUNCE_MS,
+        getVirtualItems: () => virtualizer.getVirtualItems(),
+        measureVirtualizer: () => virtualizer.measure(),
+    });
+
+    const {
+        requestInitialBlock,
+        scheduleVisibleBlocksRequest,
+        handleRows,
+        applyPendingRows,
+        getCellValue,
+        getRowLabel,
+        dispose: disposeRowDataController,
+    } = rowDataController;
+
     const tableSetupController = useTableSetupController({
         log,
         getBackendState: () => $backendState,
@@ -460,32 +489,67 @@
         handleWindowMouseUp,
     } = windowEventsController;
 
-    const rowDataController = useRowDataController({
+    const initController = useInitController({
         log,
+        initializeDataStore,
+        setColumnVisibilityStatus: (value) => {
+            columnVisibilityStatus = value;
+        },
+        setColumnVisibilitySearchTerm: (value) => {
+            columnVisibilitySearchTerm = value;
+        },
+        getActiveStatsColumnIndex: () => activeStatsColumnIndex,
+        setStatsMessage,
+        clearStatsContent,
+        setCodePreview: (value) => {
+            codePreview = value;
+        },
+        applySchemaUpdate,
+        getVisibleSchema: () => $visibleSchema,
+        applyPendingRows,
+        scheduleTableLayoutDiagnostics,
+    });
+
+    const { handleInit } = initController;
+
+    const panelToggleController = usePanelToggleController({
         postMessage: (message) => vscode.postMessage(message),
-        getBackendState: () => $backendState,
-        visibleSchema,
-        rowCache,
-        rowLabelCache,
-        rowCacheVersion,
-        loadedBlocks,
-        loadingBlocks,
-        rowBlockSize: ROW_BLOCK_SIZE,
-        prefetchBlocks: ROW_PREFETCH_BLOCKS,
-        requestDebounceMs: ROW_REQUEST_DEBOUNCE_MS,
-        getVirtualItems: () => virtualizer.getVirtualItems(),
-        measureVirtualizer: () => virtualizer.measure(),
+        getCodeModalOpen: () => $codeModalOpenStore,
+        getColumnVisibilityOpen: () => $columnVisibilityOpenStore,
+        setCodeModalOpen: (value) => {
+            $codeModalOpenStore = value;
+        },
+        setColumnVisibilityOpen: (value) => {
+            $columnVisibilityOpenStore = value;
+        },
+        setStatsPanelOpen: (value) => {
+            $statsPanelOpenStore = value;
+        },
+        setRowFilterPanelOpen: (value) => {
+            $rowFilterPanelOpenStore = value;
+        },
+    });
+
+    const { openColumnVisibilityPanel, openCodeModal } = panelToggleController;
+
+    const exportController = useExportController({
+        postMessage: (message) => vscode.postMessage(message),
+        getCodeSyntax: () => codeSyntax,
+        setCodePreview: (value) => {
+            codePreview = value;
+        },
+        setCodeSyntax: (value) => {
+            codeSyntax = value;
+        },
     });
 
     const {
-        requestInitialBlock,
-        scheduleVisibleBlocksRequest,
-        handleRows,
-        applyPendingRows,
-        getCellValue,
-        getRowLabel,
-        dispose: disposeRowDataController,
-    } = rowDataController;
+        handleExportResult,
+        handleConvertToCodeResult,
+        handleSuggestCodeSyntaxResult,
+        handleCodeConvert,
+        handleExport,
+    } = exportController;
 
     useVscodeMessages({
         onInit: handleInit,
@@ -530,72 +594,8 @@
         return checkSortSupported($backendState);
     }
 
-    function handleExportResult(data: string, format: string): void {
-        const blob = new Blob([data], { type: format === 'html' ? 'text/html' : 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `export.${format === 'csv' ? 'csv' : format === 'tsv' ? 'tsv' : 'html'}`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    function handleConvertToCodeResult(code: string): void {
-        codePreview = code || '(No code generated)';
-    }
-
-    function handleSuggestCodeSyntaxResult(syntax: string): void {
-        codeSyntax = syntax;
-    }
-
-    function openColumnVisibilityPanel(): void {
-        $columnVisibilityOpenStore = !$columnVisibilityOpenStore;
-        $statsPanelOpenStore = false;
-        $codeModalOpenStore = false;
-        $rowFilterPanelOpenStore = false;
-    }
-
-    function openCodeModal(): void {
-        const shouldOpen = !$codeModalOpenStore;
-        if (shouldOpen) {
-            vscode.postMessage({ type: 'suggestCodeSyntax' });
-        }
-        $codeModalOpenStore = shouldOpen;
-        $columnVisibilityOpenStore = false;
-        $statsPanelOpenStore = false;
-        $rowFilterPanelOpenStore = false;
-    }
-
     function updateVirtualizer(): void {
         virtualizer.update();
-    }
-
-    function handleInit(message: InitMessage): void {
-        initializeDataStore(message.state, message.schema ?? []);
-        columnVisibilityStatus = '';
-        columnVisibilitySearchTerm = '';
-        if (activeStatsColumnIndex === null) {
-            setStatsMessage('Select a column to view statistics.', 'empty');
-        } else {
-            setStatsMessage('Loading statistics...', 'loading');
-        }
-        clearStatsContent();
-        codePreview = '';
-        applySchemaUpdate($visibleSchema);
-        applyPendingRows();
-        log('Data explorer initialized', {
-            rows: message.state.table_shape.num_rows,
-            columns: $visibleSchema.length,
-        });
-        scheduleTableLayoutDiagnostics('init');
-    }
-
-    function handleCodeConvert(): void {
-        vscode.postMessage({ type: 'convertToCode', syntax: codeSyntax });
-    }
-
-    function handleExport(format: 'csv' | 'tsv' | 'html'): void {
-        vscode.postMessage({ type: 'exportData', format });
     }
 
     onMount(() => {
