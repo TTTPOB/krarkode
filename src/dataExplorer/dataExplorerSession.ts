@@ -10,17 +10,26 @@ import {
     ColumnProfileRequest,
     ConvertedCode,
     CodeSyntaxName,
+    ConvertToCodeParams,
     DatasetImportOptions,
     ExportDataSelectionParams,
     ExportFormat,
     FilterResult,
     FormatOptions,
+    GetColumnProfilesParams,
+    GetDataValuesParams,
+    GetRowLabelsParams,
+    GetSchemaParams,
     OpenDatasetParams,
     OpenDatasetResult,
     RowFilter,
     SearchSchemaParams,
     SearchSchemaResult,
+    SetColumnFiltersParams,
+    SetDatasetImportOptionsParams,
     SetDatasetImportOptionsResult,
+    SetRowFiltersParams,
+    SetSortColumnsParams,
     TableData,
     TableRowLabels,
     TableSchema,
@@ -41,22 +50,101 @@ export type DataExplorerFrontendEvent =
     | { method: 'data_update' }
     | { method: 'return_column_profiles'; params: unknown };
 
-const REPLY_METHODS = {
-    getState: 'GetStateReply',
-    getSchema: 'GetSchemaReply',
-    getDataValues: 'GetDataValuesReply',
-    getRowLabels: 'GetRowLabelsReply',
-    setSortColumns: 'SetSortColumnsReply',
-    searchSchema: 'SearchSchemaReply',
-    setColumnFilters: 'SetColumnFiltersReply',
-    setRowFilters: 'SetRowFiltersReply',
-    getColumnProfiles: 'GetColumnProfilesReply',
-    exportDataSelection: 'ExportDataSelectionReply',
-    convertToCode: 'ConvertToCodeReply',
-    suggestCodeSyntax: 'SuggestCodeSyntaxReply',
-    openDataset: 'OpenDatasetReply',
-    setDatasetImportOptions: 'SetDatasetImportOptionsReply',
+const RPC_DEFINITIONS = {
+    get_state: { replyMethod: 'GetStateReply' },
+    get_schema: { replyMethod: 'GetSchemaReply' },
+    get_data_values: { replyMethod: 'GetDataValuesReply' },
+    get_row_labels: { replyMethod: 'GetRowLabelsReply' },
+    set_sort_columns: { replyMethod: 'SetSortColumnsReply' },
+    search_schema: { replyMethod: 'SearchSchemaReply' },
+    set_column_filters: { replyMethod: 'SetColumnFiltersReply' },
+    set_row_filters: { replyMethod: 'SetRowFiltersReply' },
+    get_column_profiles: { replyMethod: 'GetColumnProfilesReply' },
+    export_data_selection: { replyMethod: 'ExportDataSelectionReply' },
+    convert_to_code: { replyMethod: 'ConvertToCodeReply' },
+    suggest_code_syntax: { replyMethod: 'SuggestCodeSyntaxReply' },
+    open_dataset: { replyMethod: 'OpenDatasetReply' },
+    set_dataset_import_options: { replyMethod: 'SetDatasetImportOptionsReply' },
+} as const;
+
+type DataExplorerRpcMap = {
+    get_state: {
+        params?: undefined;
+        result: BackendState;
+        replyMethod: typeof RPC_DEFINITIONS.get_state.replyMethod;
+    };
+    get_schema: {
+        params: GetSchemaParams;
+        result: TableSchema;
+        replyMethod: typeof RPC_DEFINITIONS.get_schema.replyMethod;
+    };
+    get_data_values: {
+        params: GetDataValuesParams;
+        result: TableData;
+        replyMethod: typeof RPC_DEFINITIONS.get_data_values.replyMethod;
+    };
+    get_row_labels: {
+        params: GetRowLabelsParams;
+        result: TableRowLabels;
+        replyMethod: typeof RPC_DEFINITIONS.get_row_labels.replyMethod;
+    };
+    set_sort_columns: {
+        params: SetSortColumnsParams;
+        result: void;
+        replyMethod: typeof RPC_DEFINITIONS.set_sort_columns.replyMethod;
+    };
+    search_schema: {
+        params: SearchSchemaParams;
+        result: SearchSchemaResult;
+        replyMethod: typeof RPC_DEFINITIONS.search_schema.replyMethod;
+    };
+    set_column_filters: {
+        params: SetColumnFiltersParams;
+        result: void;
+        replyMethod: typeof RPC_DEFINITIONS.set_column_filters.replyMethod;
+    };
+    set_row_filters: {
+        params: SetRowFiltersParams;
+        result: FilterResult;
+        replyMethod: typeof RPC_DEFINITIONS.set_row_filters.replyMethod;
+    };
+    get_column_profiles: {
+        params: GetColumnProfilesParams;
+        result: void;
+        replyMethod: typeof RPC_DEFINITIONS.get_column_profiles.replyMethod;
+    };
+    export_data_selection: {
+        params: ExportDataSelectionParams;
+        result: { data: string; format: ExportFormat };
+        replyMethod: typeof RPC_DEFINITIONS.export_data_selection.replyMethod;
+    };
+    convert_to_code: {
+        params: ConvertToCodeParams;
+        result: ConvertedCode;
+        replyMethod: typeof RPC_DEFINITIONS.convert_to_code.replyMethod;
+    };
+    suggest_code_syntax: {
+        params?: undefined;
+        result: CodeSyntaxName;
+        replyMethod: typeof RPC_DEFINITIONS.suggest_code_syntax.replyMethod;
+    };
+    open_dataset: {
+        params: OpenDatasetParams;
+        result: OpenDatasetResult;
+        replyMethod: typeof RPC_DEFINITIONS.open_dataset.replyMethod;
+    };
+    set_dataset_import_options: {
+        params: SetDatasetImportOptionsParams;
+        result: SetDatasetImportOptionsResult;
+        replyMethod: typeof RPC_DEFINITIONS.set_dataset_import_options.replyMethod;
+    };
 };
+
+type RpcMethodsWithParams = {
+    [Key in keyof DataExplorerRpcMap]: DataExplorerRpcMap[Key]['params'] extends undefined ? never : Key;
+}[keyof DataExplorerRpcMap];
+
+type RpcMethodsWithoutParams = Exclude<keyof DataExplorerRpcMap, RpcMethodsWithParams>;
 
 export const DEFAULT_FORMAT_OPTIONS: FormatOptions = {
     large_num_digits: 2,
@@ -101,52 +189,38 @@ export class DataExplorerSession implements vscode.Disposable {
     }
 
     async getState(): Promise<BackendState> {
-        return this.sendRpc<BackendState>('get_state', REPLY_METHODS.getState);
+        return this.sendRpc('get_state');
     }
 
     async getSchema(columnIndices: number[]): Promise<TableSchema> {
-        return this.sendRpc<TableSchema>('get_schema', REPLY_METHODS.getSchema, {
-            column_indices: columnIndices,
-        });
+        return this.sendRpc('get_schema', { column_indices: columnIndices });
     }
 
     async getDataValues(columns: ColumnSelection[], formatOptions: FormatOptions): Promise<TableData> {
-        return this.sendRpc<TableData>('get_data_values', REPLY_METHODS.getDataValues, {
-            columns,
-            format_options: formatOptions,
-        });
+        return this.sendRpc('get_data_values', { columns, format_options: formatOptions });
     }
 
     async getRowLabels(selection: ArraySelection, formatOptions: FormatOptions): Promise<TableRowLabels> {
-        return this.sendRpc<TableRowLabels>('get_row_labels', REPLY_METHODS.getRowLabels, {
-            selection,
-            format_options: formatOptions,
-        });
+        return this.sendRpc('get_row_labels', { selection, format_options: formatOptions });
     }
 
     async setSortColumns(sortKeys: ColumnSortKey[]): Promise<void> {
-        await this.sendRpc<void>('set_sort_columns', REPLY_METHODS.setSortColumns, {
-            sort_keys: sortKeys,
-        });
+        await this.sendRpc('set_sort_columns', { sort_keys: sortKeys });
     }
 
-    async searchSchema(filters: ColumnFilter[], sortOrder: string): Promise<SearchSchemaResult> {
-        return this.sendRpc<SearchSchemaResult>('search_schema', REPLY_METHODS.searchSchema, {
-            filters,
-            sort_order: sortOrder,
-        });
+    async searchSchema(
+        filters: ColumnFilter[],
+        sortOrder: SearchSchemaParams['sort_order'],
+    ): Promise<SearchSchemaResult> {
+        return this.sendRpc('search_schema', { filters, sort_order: sortOrder });
     }
 
     async setColumnFilters(filters: ColumnFilter[]): Promise<void> {
-        await this.sendRpc<void>('set_column_filters', REPLY_METHODS.setColumnFilters, {
-            filters,
-        });
+        await this.sendRpc('set_column_filters', { filters });
     }
 
     async setRowFilters(filters: RowFilter[]): Promise<FilterResult> {
-        return this.sendRpc<FilterResult>('set_row_filters', REPLY_METHODS.setRowFilters, {
-            filters,
-        });
+        return this.sendRpc('set_row_filters', { filters });
     }
 
     async getColumnProfiles(
@@ -154,7 +228,7 @@ export class DataExplorerSession implements vscode.Disposable {
         profiles: ColumnProfileRequest[],
         formatOptions: FormatOptions,
     ): Promise<void> {
-        await this.sendRpc<void>('get_column_profiles', REPLY_METHODS.getColumnProfiles, {
+        await this.sendRpc('get_column_profiles', {
             callback_id: callbackId,
             profiles,
             format_options: formatOptions,
@@ -165,23 +239,16 @@ export class DataExplorerSession implements vscode.Disposable {
         selection: TableSelection,
         format: ExportFormat,
     ): Promise<{ data: string; format: ExportFormat }> {
-        return this.sendRpc<{ data: string; format: ExportFormat }>(
-            'export_data_selection',
-            REPLY_METHODS.exportDataSelection,
-            {
-                selection,
-                format,
-            },
-        );
+        return this.sendRpc('export_data_selection', { selection, format });
     }
 
     async convertToCode(
         columnFilters: ColumnFilter[],
         rowFilters: RowFilter[],
         sortKeys: ColumnSortKey[],
-        codeSyntaxName: CodeSyntaxName,
+        codeSyntaxName: string,
     ): Promise<ConvertedCode> {
-        return this.sendRpc<ConvertedCode>('convert_to_code', REPLY_METHODS.convertToCode, {
+        return this.sendRpc('convert_to_code', {
             column_filters: columnFilters,
             row_filters: rowFilters,
             sort_keys: sortKeys,
@@ -190,26 +257,26 @@ export class DataExplorerSession implements vscode.Disposable {
     }
 
     async suggestCodeSyntax(): Promise<CodeSyntaxName> {
-        return this.sendRpc<CodeSyntaxName>('suggest_code_syntax', REPLY_METHODS.suggestCodeSyntax);
+        return this.sendRpc('suggest_code_syntax');
     }
 
     async openDataset(uri: string): Promise<OpenDatasetResult> {
-        return this.sendRpc<OpenDatasetResult>('open_dataset', REPLY_METHODS.openDataset, {
-            uri,
-        });
+        return this.sendRpc('open_dataset', { uri });
     }
 
     async setDatasetImportOptions(options: DatasetImportOptions): Promise<SetDatasetImportOptionsResult> {
-        return this.sendRpc<SetDatasetImportOptionsResult>(
-            'set_dataset_import_options',
-            REPLY_METHODS.setDatasetImportOptions,
-            {
-                options,
-            },
-        );
+        return this.sendRpc('set_dataset_import_options', { options });
     }
 
-    private sendRpc<T>(method: string, replyMethod: string, params?: Record<string, unknown>): Promise<T> {
+    private sendRpc<K extends RpcMethodsWithoutParams>(method: K): Promise<DataExplorerRpcMap[K]['result']>;
+    private sendRpc<K extends RpcMethodsWithParams>(
+        method: K,
+        params: DataExplorerRpcMap[K]['params'],
+    ): Promise<DataExplorerRpcMap[K]['result']>;
+    private sendRpc<K extends keyof DataExplorerRpcMap>(
+        method: K,
+        params?: DataExplorerRpcMap[K]['params'],
+    ): Promise<DataExplorerRpcMap[K]['result']> {
         const id = crypto.randomUUID();
         const payload: DataExplorerMessage = {
             jsonrpc: '2.0',
@@ -224,7 +291,9 @@ export class DataExplorerSession implements vscode.Disposable {
         this.log(`Sending RPC '${method}' on comm ${this.commId}.`);
         this.sidecarManager.sendCommMessage(this.commId, payload);
 
-        return new Promise<T>((resolve, reject) => {
+        const replyMethod = RPC_DEFINITIONS[method].replyMethod;
+
+        return new Promise<DataExplorerRpcMap[K]['result']>((resolve, reject) => {
             const pending: PendingRequest<unknown> = {
                 id,
                 replyMethod,

@@ -16,6 +16,7 @@ import {
     ExportFormat,
     ReturnColumnProfilesParams,
     RowFilter,
+    SearchSchemaSortOrder,
     TableSelectionKind,
     TableSchema,
 } from './protocol';
@@ -185,7 +186,7 @@ class DataExplorerPanel implements vscode.Disposable {
                     return;
                 }
                 const filters = message.filters as ColumnFilter[];
-                const sortOrder = typeof message.sortOrder === 'string' ? message.sortOrder : 'original';
+                const sortOrder = this.resolveSearchSchemaSortOrder(message.sortOrder);
                 void this.searchSchema(filters, sortOrder);
                 return;
             }
@@ -348,7 +349,7 @@ class DataExplorerPanel implements vscode.Disposable {
         });
     }
 
-    private async searchSchema(filters: ColumnFilter[], sortOrder: string): Promise<void> {
+    private async searchSchema(filters: ColumnFilter[], sortOrder: SearchSchemaSortOrder): Promise<void> {
         if (!this.state) {
             return;
         }
@@ -356,10 +357,9 @@ class DataExplorerPanel implements vscode.Disposable {
             this.log('Search schema ignored; backend does not support search_schema.');
             return;
         }
-        const resolvedSortOrder = sortOrder || 'original';
-        this.log(`Searching schema with ${filters.length} filters, sort: ${resolvedSortOrder}`);
+        this.log(`Searching schema with ${filters.length} filters, sort: ${sortOrder}`);
         try {
-            const result = await this.session.searchSchema(filters, resolvedSortOrder);
+            const result = await this.session.searchSchema(filters, sortOrder);
             void this.panel.webview.postMessage({
                 type: 'searchSchemaResult',
                 matches: result.matches,
@@ -622,9 +622,7 @@ class DataExplorerPanel implements vscode.Disposable {
             const columnFilters = this.state.column_filters ?? [];
             const rowFilters = this.state.row_filters ?? [];
             const sortKeys = this.state.sort_keys ?? [];
-            const result = await this.session.convertToCode(columnFilters, rowFilters, sortKeys, {
-                code_syntax_name: syntax,
-            });
+            const result = await this.session.convertToCode(columnFilters, rowFilters, sortKeys, syntax);
             const code = result.converted_code.join('\n');
             this.log(`Converted to ${syntax}, ${code.length} characters.`);
             void this.panel.webview.postMessage({
@@ -754,6 +752,17 @@ class DataExplorerPanel implements vscode.Disposable {
 
     private log(message: string): void {
         this.outputChannel.appendLine(message);
+    }
+
+    private resolveSearchSchemaSortOrder(value: unknown): SearchSchemaSortOrder {
+        if (typeof value !== 'string') {
+            return SearchSchemaSortOrder.Original;
+        }
+        const allowed = Object.values(SearchSchemaSortOrder);
+        if (allowed.includes(value as SearchSchemaSortOrder)) {
+            return value as SearchSchemaSortOrder;
+        }
+        return SearchSchemaSortOrder.Original;
     }
 }
 
