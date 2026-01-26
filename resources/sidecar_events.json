@@ -1,0 +1,259 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SidecarEvent",
+  "description": "Sidecar event envelope emitted over stdout.",
+  "oneOf": [
+    {
+      "title": "LspPortEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "port"],
+      "properties": {
+        "event": {
+          "const": "lsp_port"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        }
+      }
+    },
+    {
+      "title": "ErrorEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "message"],
+      "properties": {
+        "event": {
+          "const": "error"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "title": "KernelStatusEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "status"],
+      "properties": {
+        "event": {
+          "const": "kernel_status"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["idle", "busy", "starting", "unknown"]
+        }
+      }
+    },
+    {
+      "title": "CommOpenEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "target_name", "data"],
+      "properties": {
+        "event": {
+          "const": "comm_open"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "target_name": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "UiCommOpenEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "target_name"],
+      "properties": {
+        "event": {
+          "const": "ui_comm_open"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "target_name": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "HelpCommOpenEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "target_name"],
+      "properties": {
+        "event": {
+          "const": "help_comm_open"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "target_name": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "VariablesCommOpenEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "target_name"],
+      "properties": {
+        "event": {
+          "const": "variables_comm_open"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "target_name": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "DataExplorerCommOpenEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "target_name"],
+      "properties": {
+        "event": {
+          "const": "data_explorer_comm_open"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "target_name": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "CommMsgEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "data"],
+      "properties": {
+        "event": {
+          "const": "comm_msg"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "CommCloseEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id"],
+      "properties": {
+        "event": {
+          "const": "comm_close"
+        },
+        "comm_id": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "title": "ShowHtmlFileEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "data"],
+      "properties": {
+        "event": {
+          "const": "show_html_file"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "ShowHelpEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "comm_id", "data"],
+      "properties": {
+        "event": {
+          "const": "show_help"
+        },
+        "comm_id": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    {
+      "title": "DisplayDataEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "data"],
+      "properties": {
+        "event": {
+          "const": "display_data"
+        },
+        "data": {
+          "type": "string"
+        },
+        "display_id": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    {
+      "title": "UpdateDisplayDataEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event", "data"],
+      "properties": {
+        "event": {
+          "const": "update_display_data"
+        },
+        "data": {
+          "type": "string"
+        },
+        "display_id": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  ]
+}

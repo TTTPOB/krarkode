@@ -15,30 +15,9 @@ import {
     type LogLevel,
 } from '../logging/logger';
 import { formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
+import type { SidecarEvent } from './sidecarProtocol.generated';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 import * as sessionRegistry from './sessionRegistry';
-
-interface SidecarEvent {
-    event:
-        | 'display_data'
-        | 'update_display_data'
-        | 'error'
-        | 'comm_open'
-        | 'comm_msg'
-        | 'comm_close'
-        | 'ui_comm_open'
-        | 'show_html_file'
-        | 'help_comm_open'
-        | 'show_help'
-        | 'variables_comm_open'
-        | 'data_explorer_comm_open'
-        | 'kernel_status';
-    data?: unknown;
-    display_id?: string | null;
-    message?: string;
-    comm_id?: string;
-    status?: string;
-}
 
 const VARIABLES_COMM_TARGET = 'positron.variables';
 const SIDECAR_LOG_LEVEL_PARSER = new RegexLogLevelParser(/\b(TRACE|DEBUG|INFO|WARN|ERROR)\b/i);
@@ -449,11 +428,11 @@ export class ArkSidecarManager implements vscode.Disposable {
             return;
         }
 
-        if (!msg.data) {
+        if (msg.event !== 'display_data' && msg.event !== 'update_display_data') {
             return;
         }
 
-        const base64 = await this.normalizePngData(msg.data as string);
+        const base64 = await this.normalizePngData(msg.data);
         if (!base64) {
             return;
         }
@@ -508,6 +487,7 @@ const SIDECAR_EVENTS = new Set<SidecarEvent['event']>([
     'display_data',
     'update_display_data',
     'error',
+    'lsp_port',
     'comm_open',
     'comm_msg',
     'comm_close',
