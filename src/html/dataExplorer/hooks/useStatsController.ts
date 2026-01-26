@@ -62,6 +62,7 @@ type StatsControllerOptions = {
     setColumnVisibilityOpen: (value: boolean) => void;
     setRowFilterPanelOpen: (value: boolean) => void;
     setCodeModalOpen: (value: boolean) => void;
+    isPanelPinned: (panelId: string) => boolean;
     stores: StatsStores;
 };
 
@@ -81,6 +82,7 @@ export function useStatsController(options: StatsControllerOptions) {
         setColumnVisibilityOpen,
         setRowFilterPanelOpen,
         setCodeModalOpen,
+        isPanelPinned,
         stores,
     } = options;
 
@@ -373,9 +375,20 @@ export function useStatsController(options: StatsControllerOptions) {
     const openStatsPanel = (options: { columnIndex?: number; toggle?: boolean } = {}): void => {
         const { columnIndex, toggle = false } = options;
         const shouldOpen = toggle ? !getStatsPanelOpen() : true;
-        setColumnVisibilityOpen(false);
-        setCodeModalOpen(false);
-        setRowFilterPanelOpen(false);
+        const isPinned = isPanelPinned('stats-panel');
+
+        if (!isPinned) {
+            // Close other non-pinned panels when opening stats panel
+            if (!isPanelPinned('column-visibility-panel')) {
+                setColumnVisibilityOpen(false);
+            }
+            if (!isPanelPinned('row-filter-panel')) {
+                setRowFilterPanelOpen(false);
+            }
+            // Code modal is never pinned
+            setCodeModalOpen(false);
+        }
+
         if (!shouldOpen) {
             setStatsPanelOpen(false);
             return;

@@ -205,6 +205,17 @@
         right: 0;
     }
 
+    /* Pinned panels become flex items within .table-area */
+    .side-panel.is-pinned {
+        position: relative;
+        top: auto;
+        right: auto;
+        height: auto;
+        flex: 0 0 var(--side-panel-width);
+        z-index: auto;
+        transition: none;
+    }
+
     .panel-header {
         display: flex;
         justify-content: space-between;
