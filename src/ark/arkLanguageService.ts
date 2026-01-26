@@ -29,6 +29,7 @@ import {
     type LogLevel,
 } from '../logging/logger';
 import { formatArkRustLog, formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
+import { parseSidecarJsonLog } from './sidecarLogParser';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 
 interface ConnectionInfo {
@@ -248,7 +249,29 @@ export class ArkLanguageService implements vscode.Disposable {
         const sidecar = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'], env: this.buildSidecarEnv() });
         this.sidecarProcess = sidecar;
         sidecar.stderr?.on('data', (chunk: Buffer) => {
-            this.outputChannel.appendLine(this.formatLogMessage(chunk.toString().trim(), 'sidecar'));
+            const lines = chunk
+                .toString()
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter((line) => line.length > 0);
+            for (const line of lines) {
+                const parsed = parseSidecarJsonLog(line);
+                if (!parsed) {
+                    getLogger().debug(
+                        'lsp',
+                        LogCategory.Logging,
+                        this.formatLogMessage(`Failed to parse sidecar JSON log: ${line}`, 'sidecar'),
+                    );
+                    getLogger().log('lsp', LogCategory.Stderr, 'info', this.formatLogMessage(line, 'sidecar'));
+                    continue;
+                }
+                getLogger().log(
+                    'lsp',
+                    LogCategory.Stderr,
+                    parsed.level,
+                    this.formatLogMessage(parsed.message, 'sidecar'),
+                );
+            }
         });
 
         return await this.waitForSidecarPort(sidecar, timeoutMs);

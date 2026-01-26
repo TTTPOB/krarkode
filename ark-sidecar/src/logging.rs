@@ -15,9 +15,11 @@ pub(crate) fn init_logging() -> LogReloadHandle {
     let filter = build_env_filter();
     let show_target = matches!(filter.max_level_hint(), Some(level) if level >= LevelFilter::DEBUG);
     let (reload_layer, handle) = reload::Layer::new(filter);
-    let subscriber = tracing_subscriber::registry()
-        .with(reload_layer)
-        .with(tracing_subscriber::fmt::layer().with_target(show_target));
+    let subscriber = tracing_subscriber::registry().with(reload_layer).with(
+        tracing_subscriber::fmt::layer()
+            .json()
+            .with_target(show_target),
+    );
     let _ = subscriber.try_init();
     LogReloadHandle { handle }
 }

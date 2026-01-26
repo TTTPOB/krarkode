@@ -5,23 +5,14 @@ import * as path from 'path';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
-import {
-    formatLogMessage,
-    getLogger,
-    isDebugLoggingEnabled,
-    LogCategory,
-    RegexLogLevelParser,
-    type LogContext,
-    type LogLevel,
-} from '../logging/logger';
+import { formatLogMessage, getLogger, isDebugLoggingEnabled, LogCategory, type LogContext } from '../logging/logger';
 import { formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
+import { parseSidecarJsonLog } from './sidecarLogParser';
 import type { SidecarEvent } from './sidecarProtocol.generated';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 import * as sessionRegistry from './sessionRegistry';
 
 const VARIABLES_COMM_TARGET = 'positron.variables';
-const SIDECAR_LOG_LEVEL_PARSER = new RegexLogLevelParser(/\b(TRACE|DEBUG|INFO|WARN|ERROR)\b/i);
-
 export interface ShowHtmlFileParams {
     path: string;
     title: string;
@@ -474,12 +465,17 @@ export class ArkSidecarManager implements vscode.Disposable {
     }
 
     private logSidecarStderr(message: string): void {
-        const level = this.parseSidecarLogLevel(message);
-        getLogger().log('sidecar', LogCategory.Stderr, level, this.formatLogMessage(message));
-    }
-
-    private parseSidecarLogLevel(message: string): LogLevel {
-        return SIDECAR_LOG_LEVEL_PARSER.parse(message, 'info');
+        const parsed = parseSidecarJsonLog(message);
+        if (!parsed) {
+            getLogger().debug(
+                'sidecar',
+                LogCategory.Logging,
+                this.formatLogMessage(`Failed to parse sidecar JSON log: ${message}`),
+            );
+            getLogger().log('sidecar', LogCategory.Stderr, 'info', this.formatLogMessage(message));
+            return;
+        }
+        getLogger().log('sidecar', LogCategory.Stderr, parsed.level, this.formatLogMessage(parsed.message));
     }
 }
 
