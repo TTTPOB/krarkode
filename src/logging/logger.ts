@@ -101,16 +101,20 @@ function isLevelAllowed(setting: LogChannelSetting, level: LogLevel): boolean {
     return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK[minLevel];
 }
 
+function isDebugOverrideEnabled(): boolean {
+    const value = process.env.KRARKODE_DEBUG;
+    return value === '1' || value === 'true';
+}
+
 export function isDebugLoggingEnabled(channelId: LogChannelId = 'ark'): boolean {
     const setting = getChannelSetting(channelId);
     if (setting === 'none') {
         return false;
     }
-    if (setting === 'debug' || setting === 'trace') {
+    if (isLevelAllowed(setting, 'debug')) {
         return true;
     }
-    const value = process.env.KRARKODE_DEBUG;
-    return value === '1' || value === 'true';
+    return isDebugOverrideEnabled();
 }
 
 class LoggerOutputChannel implements vscode.OutputChannel {
@@ -226,11 +230,7 @@ export class LoggerService implements vscode.Disposable {
     write(channelId: LogChannelId, message: string, options: WriteOptions): void {
         const level = options.level ?? inferMessageLogLevel(message);
         const cleanedMessage = stripMessageLevelPrefix(message);
-        if (level === 'debug') {
-            if (!isDebugLoggingEnabled(channelId)) {
-                return;
-            }
-        } else if (!this.isLevelEnabled(channelId, level)) {
+        if (!this.isLevelEnabled(channelId, level)) {
             return;
         }
         if (!this.isChannelEnabled(channelId)) {
@@ -249,7 +249,11 @@ export class LoggerService implements vscode.Disposable {
     }
 
     private isLevelEnabled(channelId: LogChannelId, level: LogLevel): boolean {
-        return isLevelAllowed(getChannelSetting(channelId), level);
+        const setting = getChannelSetting(channelId);
+        if (level === 'debug' || level === 'trace') {
+            return isLevelAllowed(setting, level) || isDebugOverrideEnabled();
+        }
+        return isLevelAllowed(setting, level);
     }
 
     private getOrCreateChannel(channelId: LogChannelId): vscode.LogOutputChannel {
