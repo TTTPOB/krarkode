@@ -237,11 +237,11 @@ pub(crate) async fn run_plot_watcher(
                                         }
                                     }
                                 } else {
-                                    info!("Sidecar: stdin message missing command");
+                                    warn!("Sidecar: stdin message missing command");
                                 }
                             }
                             Err(err) => {
-                                info!(error = %err, "Sidecar: ignored invalid stdin JSON");
+                                warn!(error = %err, "Sidecar: ignored invalid stdin JSON");
                             }
                         }
                     }
