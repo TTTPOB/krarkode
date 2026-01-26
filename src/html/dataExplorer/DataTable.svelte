@@ -13,9 +13,15 @@
         MIN_COLUMN_WIDTH,
     } from './types';
 
+    type RenderColumn = {
+        column: ColumnSchema;
+        schemaIndex: number;
+    };
+
     // Props
     export let state: BackendState | null = null;
     export let schema: ColumnSchema[] = [];
+    export let renderColumns: RenderColumn[] = [];
     export let columnWidths: Map<number, number> = new Map();
     export let activeSort: SortState | null = null;
     export let sortSupported: boolean = true;
@@ -24,6 +30,8 @@
     export let virtualizerTotalHeight: number = 0;
     export let rowCacheVersion: number = 0;
     export let headerScrollLeft: number = 0;
+    export let leftSpacerWidth: number = 0;
+    export let rightSpacerWidth: number = 0;
     export let getCellValue: (rowIndex: number, columnIndex: number, version?: number) => string;
     export let getRowLabel: (rowIndex: number, version?: number) => string;
     export let getColumnLabel: (column: ColumnSchema) => string;
@@ -48,9 +56,8 @@
 
     // Computed
     $: resolvedColumnWidths = schema.map((column) => resolveColumnWidth(columnWidths.get(column.column_index)));
-    $: columnTemplate = resolvedColumnWidths.length > 0
-        ? `${ROW_LABEL_WIDTH}px ${resolvedColumnWidths.map((width) => `${width}px`).join(' ')}`
-        : `${ROW_LABEL_WIDTH}px`;
+    $: renderColumnWidths = renderColumns.map((entry) => resolvedColumnWidths[entry.schemaIndex] ?? COLUMN_WIDTH);
+    $: columnTemplate = buildColumnTemplate(renderColumnWidths, leftSpacerWidth, rightSpacerWidth);
     $: totalWidth = ROW_LABEL_WIDTH + resolvedColumnWidths.reduce((sum, width) => sum + width, 0);
 
     function resolveColumnWidth(width: number | undefined): number {
@@ -65,6 +72,20 @@
             return '';
         }
         return activeSort.direction === 'asc' ? '^' : 'v';
+    }
+
+    function buildColumnTemplate(widths: number[], leftSpacer: number, rightSpacer: number): string {
+        const segments = [`${ROW_LABEL_WIDTH}px`];
+        if (leftSpacer > 0) {
+            segments.push(`${Math.round(leftSpacer)}px`);
+        }
+        if (widths.length > 0) {
+            segments.push(...widths.map((width) => `${width}px`));
+        }
+        if (rightSpacer > 0) {
+            segments.push(`${Math.round(rightSpacer)}px`);
+        }
+        return segments.join(' ');
     }
 
     function isSpecialValue(value: string): boolean {
@@ -117,7 +138,11 @@
             <div class="table-cell row-label" role="columnheader" aria-label="Row label">
                 {state?.has_row_labels ? '#' : 'Row'}
             </div>
-            {#each schema as column, columnIndex}
+            {#if leftSpacerWidth > 0}
+                <div class="table-cell column-spacer" role="presentation" aria-hidden="true"></div>
+            {/if}
+            {#each renderColumns as entry}
+                {@const column = entry.column}
                 <div
                     class="table-cell header-cell"
                     class:sortable={sortSupported}
@@ -178,7 +203,7 @@
                             </button>
                         </div>
                     </div>
-                    {#if columnIndex < schema.length - 1}
+                    {#if entry.schemaIndex < schema.length - 1}
                         <button
                             type="button"
                             class="column-resizer"
@@ -209,8 +234,11 @@
                     <div class="table-cell row-label" role="rowheader">
                         {getRowLabel(virtualRow.index, rowCacheVersion)}
                     </div>
-                    {#each schema as column, columnIndex}
-                        {@const value = getCellValue(virtualRow.index, columnIndex, rowCacheVersion)}
+                    {#if leftSpacerWidth > 0}
+                        <div class="table-cell column-spacer" role="presentation" aria-hidden="true"></div>
+                    {/if}
+                    {#each renderColumns as entry}
+                        {@const value = getCellValue(virtualRow.index, entry.schemaIndex, rowCacheVersion)}
                         <div class="table-cell" role="cell" class:cell-special={isSpecialValue(value)}>{value}</div>
                     {/each}
                 </div>
@@ -273,6 +301,11 @@
         text-overflow: ellipsis;
         white-space: nowrap;
         border-right: 1px solid var(--vscode-editorWidget-border);
+    }
+
+    .table-cell.column-spacer {
+        pointer-events: none;
+        background: transparent;
     }
 
     .table-cell.header-cell {

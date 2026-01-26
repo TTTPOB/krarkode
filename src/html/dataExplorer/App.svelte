@@ -128,6 +128,8 @@
     const debugEnabled = typeof window !== 'undefined'
         && (window as { __krarkodeDebug?: boolean }).__krarkodeDebug === true;
 
+    const COLUMN_VIRTUALIZATION_THRESHOLD = 80;
+
     let pendingRows: RowsMessage[] = [];
     let editingRowFilterIndex: number | null = null;
 
@@ -174,6 +176,12 @@
     let headerScrollLeft = 0;
     let lastScrollLeft = 0;
     let tableLayoutLogSequence = 0;
+    let tableViewportWidth = 0;
+    let tableBodyResizeObserver: ResizeObserver | null = null;
+    let renderColumns: Array<{ column: ColumnSchema; schemaIndex: number }> = [];
+    let leftSpacerWidth = 0;
+    let rightSpacerWidth = 0;
+    let lastColumnWindowKey = '';
 
     // TanStack Table state
     interface RowData {
@@ -202,6 +210,8 @@
     // Compute displayed columns reactively based on search matches and full schema
     $: columnVisibilityDisplayedColumns = computeDisplayedColumns($fullSchema, $columnFilterMatches, columnVisibilitySearchTerm);
     $: tableMetaText = buildTableMetaText();
+    $: attachTableBodyObserver(tableBodyEl);
+    $: updateRenderColumns($visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
 
     function log(message: string, payload?: unknown): void {
         if (!debugEnabled) {
@@ -1038,6 +1048,123 @@
         virtualizer.update();
     }
 
+    function updateRenderColumns(
+        schema: ColumnSchema[],
+        widths: number[],
+        scrollLeft: number,
+        viewportWidth: number,
+    ): void {
+        const columnCount = schema.length;
+        if (columnCount === 0) {
+            renderColumns = [];
+            leftSpacerWidth = 0;
+            rightSpacerWidth = 0;
+            return;
+        }
+
+        if (columnCount < COLUMN_VIRTUALIZATION_THRESHOLD || viewportWidth <= 0) {
+            renderColumns = schema.map((column, index) => ({ column, schemaIndex: index }));
+            leftSpacerWidth = 0;
+            rightSpacerWidth = 0;
+            return;
+        }
+
+        const offsets = buildColumnOffsets(widths);
+        const totalColumnsWidth = offsets.length > 0
+            ? offsets[offsets.length - 1] + widths[widths.length - 1]
+            : 0;
+        const overscanPx = Math.max(ROW_LABEL_WIDTH, Math.floor(viewportWidth * 0.5));
+        const labelOverlap = Math.max(0, ROW_LABEL_WIDTH - scrollLeft);
+        const columnViewportWidth = Math.max(0, viewportWidth - labelOverlap);
+        const columnScrollLeft = Math.max(0, scrollLeft - ROW_LABEL_WIDTH);
+        const leftEdge = Math.max(0, columnScrollLeft - overscanPx);
+        const rightEdge = columnScrollLeft + columnViewportWidth + overscanPx;
+
+        const startIndex = findColumnStartIndex(offsets, widths, leftEdge);
+        const endIndex = findColumnEndIndex(offsets, widths, rightEdge);
+
+        renderColumns = schema
+            .slice(startIndex, endIndex + 1)
+            .map((column, index) => ({ column, schemaIndex: startIndex + index }));
+
+        leftSpacerWidth = offsets[startIndex] ?? 0;
+        const endOffset = (offsets[endIndex] ?? 0) + (widths[endIndex] ?? 0);
+        rightSpacerWidth = Math.max(0, totalColumnsWidth - endOffset);
+
+        const windowKey = `${startIndex}-${endIndex}-${leftSpacerWidth}-${rightSpacerWidth}`;
+        if (windowKey !== lastColumnWindowKey) {
+            lastColumnWindowKey = windowKey;
+            log('Column window updated', {
+                startIndex,
+                endIndex,
+                leftSpacerWidth,
+                rightSpacerWidth,
+                viewportWidth,
+                scrollLeft,
+            });
+        }
+    }
+
+    function buildColumnOffsets(widths: number[]): number[] {
+        const offsets: number[] = [];
+        let running = 0;
+        for (const width of widths) {
+            offsets.push(running);
+            running += width;
+        }
+        return offsets;
+    }
+
+    function findColumnStartIndex(offsets: number[], widths: number[], leftEdge: number): number {
+        let low = 0;
+        let high = Math.max(0, widths.length - 1);
+        let result = 0;
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const end = offsets[mid] + widths[mid];
+            if (end >= leftEdge) {
+                result = mid;
+                high = mid - 1;
+            } else {
+                low = mid + 1;
+            }
+        }
+        return result;
+    }
+
+    function findColumnEndIndex(offsets: number[], widths: number[], rightEdge: number): number {
+        let low = 0;
+        let high = Math.max(0, widths.length - 1);
+        let result = high;
+        while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            const start = offsets[mid];
+            if (start <= rightEdge) {
+                result = mid;
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return result;
+    }
+
+    function attachTableBodyObserver(target: HTMLDivElement | undefined): void {
+        if (!target || tableBodyResizeObserver) {
+            return;
+        }
+        tableBodyResizeObserver = new ResizeObserver(() => {
+            const width = target?.clientWidth ?? 0;
+            if (width !== tableViewportWidth) {
+                tableViewportWidth = width;
+                log('Table viewport resized', { width });
+            }
+        });
+        tableBodyResizeObserver.observe(target);
+        tableViewportWidth = target.clientWidth;
+        log('Table viewport observer attached', { width: tableViewportWidth });
+    }
+
     function buildColumnDefs(): ColumnDef<RowData>[] {
         const columns: ColumnDef<RowData>[] = [];
 
@@ -1509,6 +1636,10 @@
         if (rowRequestDebounceId !== undefined) {
             window.clearTimeout(rowRequestDebounceId);
         }
+        if (tableBodyResizeObserver) {
+            tableBodyResizeObserver.disconnect();
+            tableBodyResizeObserver = null;
+        }
         virtualizer.dispose();
         statsCharts.dispose();
     });
@@ -1642,6 +1773,7 @@
     bind:this={dataTableComponent}
     state={$backendState}
     schema={$visibleSchema}
+    {renderColumns}
     columnWidths={$columnWidths}
     activeSort={$activeSort}
     {sortSupported}
@@ -1650,6 +1782,8 @@
     {virtualizerTotalHeight}
     rowCacheVersion={$rowCacheVersion}
     {headerScrollLeft}
+    {leftSpacerWidth}
+    {rightSpacerWidth}
     {getCellValue}
     {getRowLabel}
     {getColumnLabel}
