@@ -20,6 +20,13 @@ interface RefreshParams {
     version: number;
 }
 
+interface UpdateParams {
+    assigned: Variable[];
+    unevaluated: Variable[];
+    removed: string[];
+    version: number;
+}
+
 interface InspectResult {
     path: string[];
     children: Variable[];
@@ -32,7 +39,7 @@ interface ConnectionParams {
 
 interface VariablesEvent {
     method: 'refresh' | 'update' | 'inspect' | 'connection';
-    params: RefreshParams | InspectResult | ConnectionParams | any; // UpdateParams is complex, using any for now
+    params: RefreshParams | UpdateParams | InspectResult | ConnectionParams;
 }
 
 declare function acquireVsCodeApi(): any;
@@ -75,16 +82,19 @@ function handleUpdate(event: VariablesEvent) {
         // Handle partial update
         // For simplicity, we might just re-render or merge
         // event.params: { assigned: [], unevaluated: [], removed: [] }
+        if (!isUpdateParams(event.params)) {
+            return;
+        }
         const params = event.params;
         const assigned = params.assigned || [];
         const removed = params.removed || [];
 
         // Remove
-        variables = variables.filter(v => !removed.includes(v.access_key));
-        
+        variables = variables.filter((v) => !removed.includes(v.access_key));
+
         // Update/Add
         for (const v of assigned) {
-            const index = variables.findIndex(existing => existing.access_key === v.access_key);
+            const index = variables.findIndex((existing) => existing.access_key === v.access_key);
             if (index !== -1) {
                 variables[index] = v;
             } else {
@@ -123,10 +133,10 @@ function render() {
     }
 
     // Group variables
-    const dataVars = variables.filter(v => v.kind === 'table' || v.kind === 'dataframe');
-    const valueVars = variables.filter(v => v.kind !== 'table' && v.kind !== 'dataframe' && v.kind !== 'plot'); // Assuming plot is separate
+    const dataVars = variables.filter((v) => v.kind === 'table' || v.kind === 'dataframe');
+    const valueVars = variables.filter((v) => v.kind !== 'table' && v.kind !== 'dataframe' && v.kind !== 'plot'); // Assuming plot is separate
     // Note: Ark VariableKind includes 'Table', 'Map', 'Collection' etc.
-    // We should check exact kind strings from Ark. 
+    // We should check exact kind strings from Ark.
     // Ark sends lowercase: 'table', 'string', 'number', etc.
 
     if (dataVars.length > 0) {
@@ -136,7 +146,7 @@ function render() {
     if (valueVars.length > 0) {
         renderGroup('VALUES', valueVars);
     }
-    
+
     if (variables.length === 0) {
         const empty = document.createElement('div');
         empty.style.padding = '10px';
@@ -152,7 +162,7 @@ function renderGroup(title: string, vars: Variable[]) {
     groupHeader.textContent = title;
     listElement.appendChild(groupHeader);
 
-    vars.forEach(v => renderVariable(v, [v.access_key], 0));
+    vars.forEach((v) => renderVariable(v, [v.access_key], 0));
 }
 
 function renderVariable(variable: Variable, path: string[], depth: number) {
@@ -333,11 +343,30 @@ function pathKey(path: string[]): string {
 
 function getIconForKind(kind: string): string {
     switch (kind) {
-        case 'table': return '◫';
-        case 'string': return 'abc';
-        case 'number': return '#';
-        case 'boolean': return '☑';
-        case 'function': return 'λ';
-        default: return '?';
+        case 'table':
+            return '◫';
+        case 'string':
+            return 'abc';
+        case 'number':
+            return '#';
+        case 'boolean':
+            return '☑';
+        case 'function':
+            return 'λ';
+        default:
+            return '?';
     }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isUpdateParams(value: unknown): value is UpdateParams {
+    return (
+        isRecord(value) &&
+        Array.isArray(value.assigned) &&
+        Array.isArray(value.removed) &&
+        typeof value.version === 'number'
+    );
 }

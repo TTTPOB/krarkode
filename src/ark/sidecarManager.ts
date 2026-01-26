@@ -307,7 +307,12 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         let msg: SidecarEvent;
         try {
-            msg = JSON.parse(trimmed) as SidecarEvent;
+            const parsed = JSON.parse(trimmed) as unknown;
+            if (!isSidecarEvent(parsed)) {
+                this.outputChannel.appendLine(this.formatLogMessage(`Unexpected sidecar message: ${trimmed}`));
+                return;
+            }
+            msg = parsed;
         } catch {
             this.outputChannel.appendLine(this.formatLogMessage(trimmed));
             return;
@@ -461,4 +466,33 @@ export class ArkSidecarManager implements vscode.Disposable {
     private parseSidecarLogLevel(message: string): LogLevel {
         return SIDECAR_LOG_LEVEL_PARSER.parse(message, 'info');
     }
+}
+
+const SIDECAR_EVENTS = new Set<SidecarEvent['event']>([
+    'display_data',
+    'update_display_data',
+    'error',
+    'httpgd_url',
+    'comm_open',
+    'comm_msg',
+    'comm_close',
+    'ui_comm_open',
+    'show_html_file',
+    'help_comm_open',
+    'show_help',
+    'variables_comm_open',
+    'data_explorer_comm_open',
+    'kernel_status',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isSidecarEvent(value: unknown): value is SidecarEvent {
+    if (!isRecord(value)) {
+        return false;
+    }
+    const event = value.event;
+    return typeof event === 'string' && SIDECAR_EVENTS.has(event as SidecarEvent['event']);
 }

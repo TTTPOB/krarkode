@@ -180,36 +180,64 @@ class DataExplorerPanel implements vscode.Disposable {
                 return;
             }
             case 'searchSchema': {
+                if (!Array.isArray(message.filters)) {
+                    this.log('Search schema request missing filters.');
+                    return;
+                }
                 const filters = message.filters as ColumnFilter[];
-                const sortOrder = message.sortOrder as string;
+                const sortOrder = typeof message.sortOrder === 'string' ? message.sortOrder : 'original';
                 void this.searchSchema(filters, sortOrder);
                 return;
             }
             case 'setColumnFilters': {
+                if (!Array.isArray(message.filters)) {
+                    this.log('Column filter request missing filters.');
+                    return;
+                }
                 const filters = message.filters as ColumnFilter[];
                 void this.applyColumnFilters(filters);
                 return;
             }
             case 'setRowFilters': {
+                if (!Array.isArray(message.filters)) {
+                    this.log('Row filter request missing filters.');
+                    return;
+                }
                 const filters = message.filters as RowFilter[];
                 void this.applyRowFilters(filters);
                 return;
             }
             case 'getColumnProfiles': {
-                const columnIndex = message.columnIndex as number;
+                if (typeof message.columnIndex !== 'number' || !Array.isArray(message.profileTypes)) {
+                    this.log('Column profiles request missing required fields.');
+                    return;
+                }
+                const columnIndex = message.columnIndex;
                 const profileTypes = message.profileTypes as string[];
-                const histogramParams = message.histogramParams as HistogramParamsInput | undefined;
-                const frequencyParams = message.frequencyParams as FrequencyParamsInput | undefined;
+                const histogramParams = isRecord(message.histogramParams)
+                    ? (message.histogramParams as HistogramParamsInput)
+                    : undefined;
+                const frequencyParams = isRecord(message.frequencyParams)
+                    ? (message.frequencyParams as FrequencyParamsInput)
+                    : undefined;
                 void this.getColumnProfiles(columnIndex, profileTypes, histogramParams, frequencyParams);
                 return;
             }
             case 'exportData': {
+                if (typeof message.format !== 'string') {
+                    this.log('Export request missing format.');
+                    return;
+                }
                 const format = message.format as ExportFormat;
                 void this.exportData(format);
                 return;
             }
             case 'convertToCode': {
-                const syntax = message.syntax as string;
+                if (typeof message.syntax !== 'string') {
+                    this.log('Convert to code request missing syntax.');
+                    return;
+                }
+                const syntax = message.syntax;
                 void this.convertToCode(syntax);
                 return;
             }

@@ -239,8 +239,12 @@ export class DataExplorerSession implements vscode.Disposable {
     }
 
     private handleMessage(data: unknown) {
-        const message = data as DataExplorerMessage;
-        const method = message.method;
+        if (!isDataExplorerMessage(data)) {
+            this.log('Data explorer message is not an object.');
+            return;
+        }
+        const message = data;
+        const method = typeof message.method === 'string' ? message.method : undefined;
         const messageId = typeof message.id === 'string' ? message.id : undefined;
 
         this.log(`Received comm message: ${JSON.stringify(data)}`);
@@ -307,4 +311,12 @@ export class DataExplorerSession implements vscode.Disposable {
     private log(message: string) {
         this.outputChannel.appendLine(message);
     }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isDataExplorerMessage(value: unknown): value is DataExplorerMessage {
+    return isRecord(value);
 }

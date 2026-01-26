@@ -61,8 +61,12 @@ export class VariablesService {
     }
 
     private handleMessage(data: unknown) {
-        const message = data as VariablesMessage;
-        const method = message.method;
+        if (!isVariablesMessage(data)) {
+            this.log('Variables message is not an object.');
+            return;
+        }
+        const message = data;
+        const method = typeof message.method === 'string' ? message.method : undefined;
         this.log(`Received comm message: ${JSON.stringify(data)}`);
 
         if (message.error) {
@@ -70,16 +74,36 @@ export class VariablesService {
         }
 
         if (method === 'refresh' || method === 'update') {
+            const params = message.params;
+            if (!isRecord(params)) {
+                this.log(`Variables ${method} message missing params.`);
+                return;
+            }
+            if (method === 'refresh') {
+                if (!isRefreshParams(params)) {
+                    this.log('Variables refresh params invalid.');
+                    return;
+                }
+                this._onDidReceiveUpdate.fire({
+                    method,
+                    params,
+                });
+                return;
+            }
+            if (!isUpdateParams(params)) {
+                this.log('Variables update params invalid.');
+                return;
+            }
             this._onDidReceiveUpdate.fire({
                 method,
-                params: message.params as RefreshParams | UpdateParams,
+                params,
             });
             return;
         }
 
-        const result = message.result as RefreshParams | UpdateParams | InspectResult | undefined;
+        const result = isRecord(message.result) ? message.result : undefined;
         if (result) {
-            if ('variables' in result) {
+            if (isRefreshParams(result)) {
                 this.log('Dispatching refresh event.');
                 this._onDidReceiveUpdate.fire({
                     method: 'refresh',
@@ -88,7 +112,7 @@ export class VariablesService {
                 return;
             }
 
-            if ('assigned' in result) {
+            if (isUpdateParams(result)) {
                 this.log('Dispatching update event.');
                 this._onDidReceiveUpdate.fire({
                     method: 'update',
@@ -97,7 +121,7 @@ export class VariablesService {
                 return;
             }
 
-            if ('children' in result) {
+            if (isInspectResult(result)) {
                 const path = this.pendingInspectPaths.shift();
                 if (!path) {
                     this.log('Inspect reply received without pending path.');
@@ -176,4 +200,39 @@ export class VariablesService {
     public isConnected(): boolean {
         return this.connected;
     }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isVariablesMessage(value: unknown): value is VariablesMessage {
+    return isRecord(value);
+}
+
+function isRefreshParams(value: unknown): value is RefreshParams {
+    return (
+        isRecord(value) &&
+        Array.isArray(value.variables) &&
+        typeof value.length === 'number' &&
+        typeof value.version === 'number'
+    );
+}
+
+function isUpdateParams(value: unknown): value is UpdateParams {
+    return (
+        isRecord(value) &&
+        Array.isArray(value.assigned) &&
+        Array.isArray(value.removed) &&
+        typeof value.version === 'number'
+    );
+}
+
+function isInspectResult(value: unknown): value is InspectResult {
+    return (
+        isRecord(value) &&
+        Array.isArray(value.path) &&
+        Array.isArray(value.children) &&
+        typeof value.length === 'number'
+    );
 }
