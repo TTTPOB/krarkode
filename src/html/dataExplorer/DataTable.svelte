@@ -253,7 +253,6 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        min-width: 0;
     }
 
     .table-header {
