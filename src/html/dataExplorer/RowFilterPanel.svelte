@@ -187,12 +187,12 @@
 <style>
     .side-panel {
         position: fixed;
-        top: 0;
+        top: var(--table-area-top, 0);
+        bottom: 0;
         right: calc(-1 * var(--side-panel-width) - 20px);
         width: var(--side-panel-width);
         min-width: 280px;
         max-width: 600px;
-        height: 100%;
         background: var(--vscode-sideBar-background);
         border-left: 1px solid var(--vscode-editorWidget-border);
         z-index: 500;

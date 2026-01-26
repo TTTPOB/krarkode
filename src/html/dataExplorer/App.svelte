@@ -136,9 +136,11 @@
     let addRowFilterButtonEl: HTMLButtonElement;
     let histogramContainer: HTMLDivElement;
     let frequencyContainer: HTMLDivElement;
+    let tableAreaEl: HTMLDivElement;
 
 
     let virtualRows: VirtualRow[] = [];
+    let tableAreaTop = 0;
     let virtualizerTotalHeight = 0;
     let headerScrollLeft = 0;
     let tableViewportWidth = 0;
@@ -166,6 +168,10 @@
     $: tableMetaText = buildTableMetaText();
     $: attachTableBodyObserver(tableBodyEl);
     $: updateRenderColumnsLayout($visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
+    // Update CSS variable for popup panel positioning
+    $: if (typeof document !== 'undefined') {
+        document.body.style.setProperty('--table-area-top', `${tableAreaTop}px`);
+    }
 
     function log(message: string, payload?: unknown): void {
         if (!debugEnabled) {
@@ -479,7 +485,10 @@
         handleColumnResizeMove,
         finishSidePanelResize,
         handleColumnResizeEnd,
-        onResize: () => statsCharts.resize(),
+        onResize: () => {
+            statsCharts.resize();
+            updateTableAreaTop();
+        },
     });
 
     const {
@@ -602,6 +611,12 @@
         virtualizer.update();
     }
 
+    function updateTableAreaTop(): void {
+        if (tableAreaEl) {
+            tableAreaTop = tableAreaEl.offsetTop;
+        }
+    }
+
     onMount(() => {
         initializeStatsDefaults();
         setStatsMessage('Select a column to view statistics.', 'empty');
@@ -609,6 +624,8 @@
         document.addEventListener('click', handleDocumentClick);
         vscode.postMessage({ type: 'ready' });
         log('Data explorer initialized.');
+        // Calculate table area top position after mount
+        updateTableAreaTop();
     });
 
     onDestroy(() => {
@@ -753,7 +770,7 @@
     <button class="context-menu-item" id="column-menu-hide-column" disabled={$visibleSchema.length <= 1} on:click={handleColumnMenuHideColumn}>Hide Column</button>
 </div>
 
-<div class="table-area">
+<div class="table-area" bind:this={tableAreaEl}>
     <DataTable
         bind:this={dataTableComponent}
         state={$backendState}
