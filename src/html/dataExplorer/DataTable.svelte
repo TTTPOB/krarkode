@@ -371,14 +371,14 @@
     }
 
     .header-action .codicon {
-        font-size: 1.3em;
+        font-size: 1em;
     }
 
     .header-action-separator {
         color: var(--vscode-descriptionForeground);
         opacity: 0.6;
         padding: 0 4px;
-        font-size: 1.4em;
+        font-size: 1em;
     }
 
     .column-resizer {
