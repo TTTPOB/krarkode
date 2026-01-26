@@ -49,6 +49,17 @@
       }
     },
     {
+      "title": "AliveEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event"],
+      "properties": {
+        "event": {
+          "const": "alive"
+        }
+      }
+    },
+    {
       "title": "CommOpenEvent",
       "type": "object",
       "additionalProperties": false,

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -17,6 +17,7 @@ use crate::connection::{
     send_ui_comm_open, send_variables_comm_open, wait_for_comm_port, wait_for_iopub_idle,
 };
 use crate::logging::LogReloadHandle;
+use crate::protocol::{emit_event, SidecarEvent};
 use crate::types::{
     DATA_EXPLORER_COMM_TARGET, HELP_COMM_TARGET, PLOT_COMM_TARGET, UI_COMM_TARGET,
     VARIABLES_COMM_TARGET,
@@ -43,11 +44,7 @@ pub(crate) async fn run_lsp(
     info!(comm_id = %comm_id, "Sidecar: sent comm_open");
 
     let port = wait_for_comm_port(&mut iopub, &comm_id, Duration::from_millis(timeout_ms)).await?;
-    let payload = json!({
-        "event": "lsp_port",
-        "port": port,
-    });
-    println!("{payload}");
+    emit_event(SidecarEvent::LspPort { port });
 
     Ok(())
 }
@@ -100,53 +97,41 @@ pub(crate) async fn run_plot_watcher(
     // Open the help comm so Ark can serve help pages
     let help_comm_id = Uuid::new_v4().to_string();
     send_help_comm_open(&mut shell, &help_comm_id).await?;
-    println!(
-        "{}",
-        json!({
-            "event": "help_comm_open",
-            "comm_id": help_comm_id,
-            "target_name": HELP_COMM_TARGET
-        })
-    );
+    emit_event(SidecarEvent::HelpCommOpen {
+        comm_id: help_comm_id.clone(),
+        target_name: HELP_COMM_TARGET.to_string(),
+        data: None,
+    });
     info!(comm_id = %help_comm_id, "Sidecar: sent help comm_open");
 
     // Open the UI comm so Ark knows the UI is connected (enables dynamic plots)
     let ui_comm_id = Uuid::new_v4().to_string();
     send_ui_comm_open(&mut shell, &ui_comm_id).await?;
-    println!(
-        "{}",
-        json!({
-            "event": "ui_comm_open",
-            "comm_id": ui_comm_id,
-            "target_name": UI_COMM_TARGET
-        })
-    );
+    emit_event(SidecarEvent::UiCommOpen {
+        comm_id: ui_comm_id.clone(),
+        target_name: UI_COMM_TARGET.to_string(),
+        data: None,
+    });
     info!(comm_id = %ui_comm_id, "Sidecar: sent UI comm_open");
 
     // Open the Variables comm so Ark starts sending variable updates
     let variables_comm_id = Uuid::new_v4().to_string();
     send_variables_comm_open(&mut shell, &variables_comm_id).await?;
-    println!(
-        "{}",
-        json!({
-            "event": "variables_comm_open",
-            "comm_id": variables_comm_id,
-            "target_name": VARIABLES_COMM_TARGET
-        })
-    );
+    emit_event(SidecarEvent::VariablesCommOpen {
+        comm_id: variables_comm_id.clone(),
+        target_name: VARIABLES_COMM_TARGET.to_string(),
+        data: None,
+    });
     info!(comm_id = %variables_comm_id, "Sidecar: sent variables comm_open");
 
     // Open the Data Explorer comm so Ark knows we support it (enables View())
     let data_explorer_comm_id = Uuid::new_v4().to_string();
     send_data_explorer_comm_open(&mut shell, &data_explorer_comm_id).await?;
-    println!(
-        "{}",
-        json!({
-            "event": "data_explorer_comm_open",
-            "comm_id": data_explorer_comm_id,
-            "target_name": DATA_EXPLORER_COMM_TARGET
-        })
-    );
+    emit_event(SidecarEvent::DataExplorerCommOpen {
+        comm_id: data_explorer_comm_id.clone(),
+        target_name: DATA_EXPLORER_COMM_TARGET.to_string(),
+        data: None,
+    });
     info!(comm_id = %data_explorer_comm_id, "Sidecar: sent data explorer comm_open");
 
     let stdin = tokio::io::stdin();
@@ -265,50 +250,45 @@ pub(crate) async fn run_plot_watcher(
                     }
                 };
                 let parent_msg_id = message.parent_header.as_ref().map(|header| header.msg_id.as_str());
-                let payload = match &message.content {
+                let event = match &message.content {
                     JupyterMessageContent::DisplayData(display) => {
-                        build_plot_payload("display_data", &display.data, display.transient.as_ref())
+                        build_plot_event("display_data", &display.data, display.transient.as_ref())
                     }
                     JupyterMessageContent::UpdateDisplayData(update) => {
-                        build_plot_payload("update_display_data", &update.data, Some(&update.transient))
+                        build_plot_event("update_display_data", &update.data, Some(&update.transient))
                     }
                     JupyterMessageContent::StreamContent(_) => None,
                     JupyterMessageContent::CommOpen(comm_open) => {
                         if comm_open.target_name == PLOT_COMM_TARGET {
-                            Some(json!({
-                                "event": "comm_open",
-                                "comm_id": comm_open.comm_id.0,
-                                "target_name": comm_open.target_name,
-                                "data": comm_open.data
-                            }).to_string())
+                            Some(SidecarEvent::CommOpen {
+                                comm_id: comm_open.comm_id.0.clone(),
+                                target_name: comm_open.target_name.clone(),
+                                data: Value::Object(comm_open.data.clone()),
+                            })
                         } else if comm_open.target_name == UI_COMM_TARGET {
-                            Some(json!({
-                                "event": "ui_comm_open",
-                                "comm_id": comm_open.comm_id.0,
-                                "target_name": comm_open.target_name,
-                                "data": comm_open.data
-                            }).to_string())
+                            Some(SidecarEvent::UiCommOpen {
+                                comm_id: comm_open.comm_id.0.clone(),
+                                target_name: comm_open.target_name.clone(),
+                                data: Some(Value::Object(comm_open.data.clone())),
+                            })
                         } else if comm_open.target_name == HELP_COMM_TARGET {
-                            Some(json!({
-                                "event": "help_comm_open",
-                                "comm_id": comm_open.comm_id.0,
-                                "target_name": comm_open.target_name,
-                                "data": comm_open.data
-                            }).to_string())
+                            Some(SidecarEvent::HelpCommOpen {
+                                comm_id: comm_open.comm_id.0.clone(),
+                                target_name: comm_open.target_name.clone(),
+                                data: Some(Value::Object(comm_open.data.clone())),
+                            })
                         } else if comm_open.target_name == VARIABLES_COMM_TARGET {
-                            Some(json!({
-                                "event": "variables_comm_open",
-                                "comm_id": comm_open.comm_id.0,
-                                "target_name": comm_open.target_name,
-                                "data": comm_open.data
-                            }).to_string())
+                            Some(SidecarEvent::VariablesCommOpen {
+                                comm_id: comm_open.comm_id.0.clone(),
+                                target_name: comm_open.target_name.clone(),
+                                data: Some(Value::Object(comm_open.data.clone())),
+                            })
                         } else if comm_open.target_name == DATA_EXPLORER_COMM_TARGET {
-                            Some(json!({
-                                "event": "data_explorer_comm_open",
-                                "comm_id": comm_open.comm_id.0,
-                                "target_name": comm_open.target_name,
-                                "data": comm_open.data
-                            }).to_string())
+                            Some(SidecarEvent::DataExplorerCommOpen {
+                                comm_id: comm_open.comm_id.0.clone(),
+                                target_name: comm_open.target_name.clone(),
+                                data: Some(Value::Object(comm_open.data.clone())),
+                            })
                         } else {
                             None
                         }
@@ -320,41 +300,29 @@ pub(crate) async fn run_plot_watcher(
                             parent_msg_id,
                             &mut pending_comm_ids,
                         );
-                        // Check for UI methods
-                        if let Some(method) = data.get("method").and_then(|m| m.as_str()) {
-                            if method == "show_html_file" {
-                                Some(json!({
-                                    "event": "show_html_file",
-                                    "comm_id": comm_msg.comm_id.0,
-                                    "data": data
-                                }).to_string())
-                            } else if method == "show_help" {
-                                Some(json!({
-                                    "event": "show_help",
-                                    "comm_id": comm_msg.comm_id.0,
-                                    "data": data
-                                }).to_string())
-                            } else {
-                                // Other comm messages (e.g., plot render replies)
-                                Some(json!({
-                                    "event": "comm_msg",
-                                    "comm_id": comm_msg.comm_id.0,
-                                    "data": data
-                                }).to_string())
-                            }
+                        let method = data.get("method").and_then(|m| m.as_str()).map(str::to_string);
+                        let data_value = Value::Object(data);
+                        if method.as_deref() == Some("show_html_file") {
+                            Some(SidecarEvent::ShowHtmlFile {
+                                comm_id: comm_msg.comm_id.0.clone(),
+                                data: data_value,
+                            })
+                        } else if method.as_deref() == Some("show_help") {
+                            Some(SidecarEvent::ShowHelp {
+                                comm_id: comm_msg.comm_id.0.clone(),
+                                data: data_value,
+                            })
                         } else {
-                            Some(json!({
-                                "event": "comm_msg",
-                                "comm_id": comm_msg.comm_id.0,
-                                "data": data
-                            }).to_string())
+                            Some(SidecarEvent::CommMsg {
+                                comm_id: comm_msg.comm_id.0.clone(),
+                                data: data_value,
+                            })
                         }
                     }
                     JupyterMessageContent::CommClose(comm_close) => {
-                        Some(json!({
-                            "event": "comm_close",
-                            "comm_id": comm_close.comm_id.0
-                        }).to_string())
+                        Some(SidecarEvent::CommClose {
+                            comm_id: comm_close.comm_id.0.clone(),
+                        })
                     }
                     JupyterMessageContent::Status(status) => {
                         let state = match status.execution_state {
@@ -364,16 +332,15 @@ pub(crate) async fn run_plot_watcher(
                             _ => "unknown",
                         };
                         debug!(state = %state, "Sidecar: kernel status");
-                        Some(json!({
-                            "event": "kernel_status",
-                            "status": state
-                        }).to_string())
+                        Some(SidecarEvent::KernelStatus {
+                            status: state.to_string(),
+                        })
                     }
                     _ => None,
                 };
 
-                if let Some(payload) = payload {
-                    println!("{payload}");
+                if let Some(event) = event {
+                    emit_event(event);
                 }
             }
             shell_msg = shell.read() => {
@@ -386,15 +353,10 @@ pub(crate) async fn run_plot_watcher(
                             message.parent_header.as_ref().map(|header| header.msg_id.as_str()),
                             &mut pending_comm_ids,
                         );
-                        let payload = Some(json!({
-                            "event": "comm_msg",
-                            "comm_id": comm_msg.comm_id.0,
-                            "data": data
-                        }).to_string());
-
-                        if let Some(payload) = payload {
-                            println!("{payload}");
-                        }
+                        emit_event(SidecarEvent::CommMsg {
+                            comm_id: comm_msg.comm_id.0.clone(),
+                            data: Value::Object(data),
+                        });
                     }
                 }
             }
@@ -451,10 +413,7 @@ pub(crate) async fn run_check(
         }
     }
 
-    let payload = json!({
-        "event": "alive",
-    });
-    println!("{payload}");
+    emit_event(SidecarEvent::Alive);
     Ok(())
 }
 
@@ -497,19 +456,24 @@ fn attach_comm_reply_id(
     data
 }
 
-fn build_plot_payload(
+fn build_plot_event(
     event: &str,
     media: &runtimelib::Media,
     transient: Option<&runtimelib::Transient>,
-) -> Option<String> {
+) -> Option<SidecarEvent> {
     let png_data = extract_png_data(media)?;
     let display_id = transient.and_then(|value| value.display_id.clone());
-    let payload = json!({
-        "event": event,
-        "data": png_data,
-        "display_id": display_id,
-    });
-    Some(payload.to_string())
+    match event {
+        "display_data" => Some(SidecarEvent::DisplayData {
+            data: png_data,
+            display_id,
+        }),
+        "update_display_data" => Some(SidecarEvent::UpdateDisplayData {
+            data: png_data,
+            display_id,
+        }),
+        _ => None,
+    }
 }
 
 pub(crate) fn extract_png_data(media: &runtimelib::Media) -> Option<String> {

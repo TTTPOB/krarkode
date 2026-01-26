@@ -20,6 +20,10 @@ export interface KernelStatusEvent {
     status: 'idle' | 'busy' | 'starting' | 'unknown';
 }
 
+export interface AliveEvent {
+    event: 'alive';
+}
+
 export interface CommOpenEvent {
     event: 'comm_open';
     comm_id: string;
@@ -90,4 +94,4 @@ export interface UpdateDisplayDataEvent {
     display_id?: string | null;
 }
 
-export type SidecarEvent = LspPortEvent | ErrorEvent | KernelStatusEvent | CommOpenEvent | UiCommOpenEvent | HelpCommOpenEvent | VariablesCommOpenEvent | DataExplorerCommOpenEvent | CommMsgEvent | CommCloseEvent | ShowHtmlFileEvent | ShowHelpEvent | DisplayDataEvent | UpdateDisplayDataEvent;
+export type SidecarEvent = LspPortEvent | ErrorEvent | KernelStatusEvent | AliveEvent | CommOpenEvent | UiCommOpenEvent | HelpCommOpenEvent | VariablesCommOpenEvent | DataExplorerCommOpenEvent | CommMsgEvent | CommCloseEvent | ShowHtmlFileEvent | ShowHelpEvent | DisplayDataEvent | UpdateDisplayDataEvent;

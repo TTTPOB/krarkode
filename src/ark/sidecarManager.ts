@@ -487,6 +487,7 @@ const SIDECAR_EVENTS = new Set<SidecarEvent['event']>([
     'display_data',
     'update_display_data',
     'error',
+    'alive',
     'lsp_port',
     'comm_open',
     'comm_msg',
