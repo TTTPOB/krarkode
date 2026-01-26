@@ -160,72 +160,79 @@ pub(crate) async fn run_plot_watcher(
             line = reader.next_line() => {
                 match line {
                     Ok(Some(line)) => {
-                        if let Ok(json) = serde_json::from_str::<Value>(&line) {
-                            if let Some(command) = json.get("command").and_then(|c| c.as_str()) {
-                                if command == LOG_RELOAD_COMMAND {
-                                    debug!(command = %command, "Sidecar: reloading log filter");
-                                    log_handle.reload_from_env();
-                                } else if command == "comm_msg" {
-                                    if let (Some(comm_id), Some(data)) = (
-                                        json.get("comm_id").and_then(|s| s.as_str()),
-                                        json.get("data").and_then(|d| d.as_object()),
-                                    ) {
-                                        debug!(
-                                            comm_id = %comm_id,
-                                            data = ?data,
-                                            "Forwarding comm_msg to shell"
-                                        );
-                                        let comm_msg = CommMsg {
-                                            comm_id: CommId(comm_id.to_string()),
-                                            data: data.clone(),
-                                        };
-                                        let message = JupyterMessage::new(comm_msg, None);
-                                        if let Err(e) = shell.send(message).await {
-                                            warn!(error = %e, "Failed to send comm_msg");
+                        match serde_json::from_str::<Value>(&line) {
+                            Ok(json) => {
+                                if let Some(command) = json.get("command").and_then(|c| c.as_str()) {
+                                    if command == LOG_RELOAD_COMMAND {
+                                        debug!(command = %command, "Sidecar: reloading log filter");
+                                        log_handle.reload_from_env();
+                                    } else if command == "comm_msg" {
+                                        if let (Some(comm_id), Some(data)) = (
+                                            json.get("comm_id").and_then(|s| s.as_str()),
+                                            json.get("data").and_then(|d| d.as_object()),
+                                        ) {
+                                            debug!(
+                                                comm_id = %comm_id,
+                                                data = ?data,
+                                                "Forwarding comm_msg to shell"
+                                            );
+                                            let comm_msg = CommMsg {
+                                                comm_id: CommId(comm_id.to_string()),
+                                                data: data.clone(),
+                                            };
+                                            let message = JupyterMessage::new(comm_msg, None);
+                                            if let Err(e) = shell.send(message).await {
+                                                warn!(error = %e, "Failed to send comm_msg");
+                                            }
+                                        }
+                                    } else if command == "comm_open" {
+                                        if let (Some(comm_id), Some(target_name), Some(data)) = (
+                                            json.get("comm_id").and_then(|s| s.as_str()),
+                                            json.get("target_name").and_then(|s| s.as_str()),
+                                            json.get("data").and_then(|d| d.as_object()),
+                                        ) {
+                                            debug!(
+                                                comm_id = %comm_id,
+                                                target_name = %target_name,
+                                                data = ?data,
+                                                "Forwarding comm_open"
+                                            );
+                                            let comm_open = CommOpen {
+                                                comm_id: CommId(comm_id.to_string()),
+                                                target_name: target_name.to_string(),
+                                                data: data.clone(),
+                                                target_module: None,
+                                            };
+                                            let message = JupyterMessage::new(comm_open, None);
+                                            if let Err(e) = shell.send(message).await {
+                                                warn!(error = %e, "Failed to send comm_open");
+                                            }
+                                        }
+                                    } else if command == "comm_close" {
+                                        if let Some(comm_id) = json.get("comm_id").and_then(|s| s.as_str()) {
+                                            let data = json.get("data").and_then(|d| d.as_object()).cloned().unwrap_or_default();
+                                            let comm_close = CommClose {
+                                                comm_id: CommId(comm_id.to_string()),
+                                                data,
+                                            };
+                                            let message = JupyterMessage::new(comm_close, None);
+                                            if let Err(e) = shell.send(message).await {
+                                                warn!(error = %e, "Failed to send comm_close");
+                                            }
                                         }
                                     }
-                                } else if command == "comm_open" {
-                                    if let (Some(comm_id), Some(target_name), Some(data)) = (
-                                        json.get("comm_id").and_then(|s| s.as_str()),
-                                        json.get("target_name").and_then(|s| s.as_str()),
-                                        json.get("data").and_then(|d| d.as_object()),
-                                    ) {
-                                        debug!(
-                                            comm_id = %comm_id,
-                                            target_name = %target_name,
-                                            data = ?data,
-                                            "Forwarding comm_open"
-                                        );
-                                        let comm_open = CommOpen {
-                                            comm_id: CommId(comm_id.to_string()),
-                                            target_name: target_name.to_string(),
-                                            data: data.clone(),
-                                            target_module: None,
-                                        };
-                                        let message = JupyterMessage::new(comm_open, None);
-                                        if let Err(e) = shell.send(message).await {
-                                            warn!(error = %e, "Failed to send comm_open");
-                                        }
-                                    }
-                                } else if command == "comm_close" {
-                                    if let Some(comm_id) = json.get("comm_id").and_then(|s| s.as_str()) {
-                                        let data = json.get("data").and_then(|d| d.as_object()).cloned().unwrap_or_default();
-                                        let comm_close = CommClose {
-                                            comm_id: CommId(comm_id.to_string()),
-                                            data,
-                                        };
-                                        let message = JupyterMessage::new(comm_close, None);
-                                        if let Err(e) = shell.send(message).await {
-                                            warn!(error = %e, "Failed to send comm_close");
-                                        }
-                                    }
+                                } else {
+                                    info!("Sidecar: stdin message missing command");
                                 }
+                            }
+                            Err(err) => {
+                                info!(error = %err, "Sidecar: ignored invalid stdin JSON");
                             }
                         }
                     }
                     Ok(None) => break Ok(()), // EOF
                     Err(e) => {
-                         warn!(error = %e, "Error reading stdin");
+                         info!(error = %e, "Error reading stdin");
                          break Ok(());
                     }
                 }
