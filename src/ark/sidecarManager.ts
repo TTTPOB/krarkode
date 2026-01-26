@@ -322,13 +322,14 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (!this.proc) {
             return;
         }
-        const msg = { command: SIDECAR_LOG_RELOAD_COMMAND };
+        const logLevel = getArkLogLevel(vscode.workspace.getConfiguration('krarkode.ark'));
+        const msg = { command: SIDECAR_LOG_RELOAD_COMMAND, log_level: logLevel };
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
             getLogger().debug(
                 'sidecar',
                 LogCategory.Logging,
-                this.formatLogMessage('Sent log reload command to sidecar.'),
+                this.formatLogMessage(`Sent log reload command to sidecar (level: ${logLevel}).`),
             );
         } catch (error) {
             getLogger().log(

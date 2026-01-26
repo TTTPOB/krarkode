@@ -164,8 +164,12 @@ pub(crate) async fn run_plot_watcher(
                             Ok(json) => {
                                 if let Some(command) = json.get("command").and_then(|c| c.as_str()) {
                                     if command == LOG_RELOAD_COMMAND {
-                                        debug!(command = %command, "Sidecar: reloading log filter");
-                                        log_handle.reload_from_env();
+                                        let log_level = json.get("log_level").and_then(|value| value.as_str());
+                                        debug!(command = %command, log_level = ?log_level, "Sidecar: reloading log filter");
+                                        match log_level {
+                                            Some("inherit") | None => log_handle.reload_from_env(),
+                                            Some(level) => log_handle.reload_with_level(level),
+                                        }
                                     } else if command == "comm_msg" {
                                         if let (Some(comm_id), Some(data)) = (
                                             json.get("comm_id").and_then(|s| s.as_str()),

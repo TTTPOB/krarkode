@@ -538,13 +538,14 @@ export class ArkLanguageService implements vscode.Disposable {
         if (!this.sidecarProcess || this.sidecarProcess.killed) {
             return;
         }
-        const message = { command: SIDECAR_LOG_RELOAD_COMMAND };
+        const logLevel = getArkLogLevel(this.config);
+        const message = { command: SIDECAR_LOG_RELOAD_COMMAND, log_level: logLevel };
         try {
             this.sidecarProcess.stdin.write(JSON.stringify(message) + '\n');
             getLogger().debug(
                 'lsp',
                 LogCategory.Logging,
-                this.formatLogMessage('Sent log reload command to LSP sidecar.', 'sidecar'),
+                this.formatLogMessage(`Sent log reload command to LSP sidecar (level: ${logLevel}).`, 'sidecar'),
             );
         } catch (error) {
             getLogger().log(
