@@ -10,6 +10,7 @@ export function run(): Promise<void> {
     mocha.addFile(path.join(testsRoot, 'dataExplorerUtils.test.js'));
     mocha.addFile(path.join(testsRoot, 'sidecarUtils.test.js'));
     mocha.addFile(path.join(testsRoot, 'helpService.test.js'));
+    mocha.addFile(path.join(testsRoot, 'variablesService.test.js'));
 
     return new Promise((resolve, reject) => {
         mocha.run((failures: number) => {
