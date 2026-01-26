@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
 import { getNonce, isDebugLoggingEnabled } from '../util';
-import { getLogger, LogCategory } from '../logging/logger';
+import { getLogger, LogCategory, logWebviewMessage } from '../logging/logger';
 import {
     BackendState,
     ColumnFilter,
@@ -154,20 +154,10 @@ class DataExplorerPanel implements vscode.Disposable {
     private handleWebviewMessage(message: { type?: string; [key: string]: unknown }): void {
         switch (message.type) {
             case 'log': {
-                if (!isDebugLoggingEnabled()) {
-                    return;
-                }
                 const logMessage = typeof message.message === 'string' ? message.message : 'Webview log message.';
                 const payload = message.payload;
-                if (payload !== undefined) {
-                    getLogger().debug(
-                        'ark',
-                        LogCategory.DataExplorer,
-                        `webview: ${logMessage} ${JSON.stringify(payload)}`,
-                    );
-                } else {
-                    getLogger().debug('ark', LogCategory.DataExplorer, `webview: ${logMessage}`);
-                }
+                const detail = payload !== undefined ? JSON.stringify(payload) : undefined;
+                logWebviewMessage('ark', LogCategory.DataExplorer, logMessage, detail);
                 return;
             }
             case 'ready':

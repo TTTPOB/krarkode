@@ -189,6 +189,19 @@ export function isDebugLoggingEnabled(channelId: LogChannelId = 'ark'): boolean 
     return isDebugOverrideEnabled();
 }
 
+export function logWebviewMessage(
+    channelId: LogChannelId,
+    category: LogCategory,
+    message: string,
+    detail?: string,
+): void {
+    if (!isDebugLoggingEnabled(channelId)) {
+        return;
+    }
+    const suffix = detail ? ` ${detail}` : '';
+    getLogger().debug(channelId, category, `webview: ${message}${suffix}`);
+}
+
 class LoggerOutputChannel implements vscode.OutputChannel {
     public readonly name: string;
 

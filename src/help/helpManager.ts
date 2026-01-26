@@ -8,7 +8,7 @@ import {
 } from './helpIds';
 import { HelpService } from './helpService';
 import * as util from '../util';
-import { getLogger, LogCategory } from '../logging/logger';
+import { getLogger, LogCategory, logWebviewMessage } from '../logging/logger';
 
 export class HelpManager implements vscode.Disposable {
     private panel?: vscode.WebviewPanel;
@@ -466,12 +466,9 @@ export class HelpManager implements vscode.Disposable {
                 }
                 break;
             case 'log': {
-                if (!util.isDebugLoggingEnabled()) {
-                    break;
-                }
                 const base = typeof message.message === 'string' ? message.message : 'Help webview log.';
-                const detail = typeof message.detail === 'string' ? ` ${message.detail}` : '';
-                getLogger().debug('ark', LogCategory.Help, `webview: ${base}${detail}`);
+                const detail = typeof message.detail === 'string' ? message.detail : undefined;
+                logWebviewMessage('ark', LogCategory.Help, base, detail);
                 break;
             }
         }
