@@ -186,13 +186,13 @@
 
 <style>
     .side-panel {
-        position: fixed;
+        position: absolute;
         top: 0;
+        bottom: 0;
         right: calc(-1 * var(--side-panel-width) - 20px);
         width: var(--side-panel-width);
         min-width: 280px;
         max-width: 600px;
-        height: 100%;
         background: var(--vscode-sideBar-background);
         border-left: 1px solid var(--vscode-editorWidget-border);
         z-index: 500;
@@ -203,6 +203,17 @@
 
     .side-panel.open {
         right: 0;
+    }
+
+    .side-panel.is-pinned {
+        position: relative;
+        right: 0;
+        flex: 0 0 var(--side-panel-width);
+        transition: none;
+    }
+
+    .side-panel.is-pinned:not(.open) {
+        display: none;
     }
 
     .panel-header {

@@ -647,79 +647,108 @@
     on:removeFilter={(e) => removeRowFilter(e.detail.index)}
 />
 
-<ColumnVisibilityPanel
-    open={$columnVisibilityOpenStore}
-    pinned={isPanelPinned('column-visibility-panel')}
-    displayedColumns={columnVisibilityDisplayedColumns}
-    hiddenColumnIndices={$hiddenColumnIndices}
-    bind:searchTerm={columnVisibilitySearchTerm}
-    status={columnVisibilityStatus}
-    bind:panelEl={columnVisibilityPanelEl}
-    on:close={() => {
-        setPanelPinned('column-visibility-panel', false);
-        $columnVisibilityOpenStore = false;
-    }}
-    on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
-    on:search={(e) => {
-        columnVisibilitySearchTerm = e.detail.term;
-        applyColumnSearch();
-    }}
-    on:clear={() => {
-        columnVisibilitySearchTerm = '';
-        applyColumnSearch();
-    }}
-    on:invert={invertColumnVisibility}
-    on:toggleVisibility={(e) => toggleColumnVisibility(e.detail.columnIndex)}
-    on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
-/>
-
-<RowFilterPanel
-    open={$rowFilterPanelOpenStore}
-    pinned={isPanelPinned('row-filter-panel')}
-    schema={$visibleSchema}
-    bind:draft={rowFilterDraft}
-    error={rowFilterError}
-    rowFilterSupport={$rowFilterSupport}
-    bind:panelEl={rowFilterPanelEl}
-    on:close={() => {
-        setPanelPinned('row-filter-panel', false);
-        $rowFilterPanelOpenStore = false;
-    }}
-    on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
-    on:save={(e) => saveRowFilter()}
-    on:cancel={() => { $rowFilterPanelOpenStore = false; }}
-    on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
-/>
-
-<StatsPanel
-    isOpen={$statsPanelOpenStore}
-    isPinned={isPanelPinned('stats-panel')}
-    schema={$visibleSchema}
-    getColumnLabel={getColumnLabel}
-    bind:statsColumnValue
-    collapsedSections={$collapsedSectionsStore}
-    bind:statsPanelEl
-    bind:statsResultsEl
-    bind:histogramContainer
-    bind:frequencyContainer
-    on:close={() => {
-        setPanelPinned('stats-panel', false);
-        $statsPanelOpenStore = false;
-    }}
-    on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
-    on:columnChange={handleStatsColumnChange}
-    on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
-    on:binsInput={(e) => {
-        histogramBinsStore.set(e.detail.value);
-        handleHistogramBinsInput(e.detail.source);
-    }}
-    on:methodChange={handleStatsMethodChange}
-    on:limitInput={(e) => {
-        frequencyLimitStore.set(e.detail.value);
-        handleFrequencyLimitInput(e.detail.source);
-    }}
-    on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}
-/>
+<div class="table-area">
+    <DataTable
+        bind:this={dataTableComponent}
+        state={$backendState}
+        schema={$visibleSchema}
+        {renderColumns}
+        columnWidths={$columnWidths}
+        activeSort={$activeSort}
+        {sortSupported}
+        {rowFilterSupported}
+        {virtualRows}
+        {virtualizerTotalHeight}
+        rowCacheVersion={$rowCacheVersion}
+        {headerScrollLeft}
+        {leftSpacerWidth}
+        {rightSpacerWidth}
+        {getCellValue}
+        {getRowLabel}
+        {getColumnLabel}
+        bind:tableBodyEl
+        bind:tableHeaderEl
+        bind:bodyInnerEl
+        on:sort={(e) => handleDataTableSort(e.detail.columnIndex)}
+        on:columnMenu={(e) => openColumnMenu(e.detail.event, e.detail.columnIndex)}
+        on:openRowFilter={(e) => openRowFilterEditor(undefined, undefined, e.detail.columnIndex)}
+        on:openStats={(e) => openStatsPanel({ columnIndex: e.detail.columnIndex })}
+        on:hideColumn={(e) => hideColumn(e.detail.columnIndex)}
+        on:scroll={handleDataTableScroll}
+        on:startColumnResize={(e) => startColumnResize(e.detail.event, e.detail.columnIndex)}
+    />
+    <ColumnVisibilityPanel
+        open={$columnVisibilityOpenStore}
+        pinned={isPanelPinned('column-visibility-panel')}
+        displayedColumns={columnVisibilityDisplayedColumns}
+        hiddenColumnIndices={$hiddenColumnIndices}
+        bind:searchTerm={columnVisibilitySearchTerm}
+        status={columnVisibilityStatus}
+        bind:panelEl={columnVisibilityPanelEl}
+        on:close={() => {
+            setPanelPinned('column-visibility-panel', false);
+            $columnVisibilityOpenStore = false;
+        }}
+        on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
+        on:search={(e) => {
+            columnVisibilitySearchTerm = e.detail.term;
+            applyColumnSearch();
+        }}
+        on:clear={() => {
+            columnVisibilitySearchTerm = '';
+            applyColumnSearch();
+        }}
+        on:invert={invertColumnVisibility}
+        on:toggleVisibility={(e) => toggleColumnVisibility(e.detail.columnIndex)}
+        on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
+    />
+    <RowFilterPanel
+        open={$rowFilterPanelOpenStore}
+        pinned={isPanelPinned('row-filter-panel')}
+        schema={$visibleSchema}
+        bind:draft={rowFilterDraft}
+        error={rowFilterError}
+        rowFilterSupport={$rowFilterSupport}
+        bind:panelEl={rowFilterPanelEl}
+        on:close={() => {
+            setPanelPinned('row-filter-panel', false);
+            $rowFilterPanelOpenStore = false;
+        }}
+        on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
+        on:save={(e) => saveRowFilter()}
+        on:cancel={() => { $rowFilterPanelOpenStore = false; }}
+        on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
+    />
+    <StatsPanel
+        isOpen={$statsPanelOpenStore}
+        isPinned={isPanelPinned('stats-panel')}
+        schema={$visibleSchema}
+        getColumnLabel={getColumnLabel}
+        bind:statsColumnValue
+        collapsedSections={$collapsedSectionsStore}
+        bind:statsPanelEl
+        bind:statsResultsEl
+        bind:histogramContainer
+        bind:frequencyContainer
+        on:close={() => {
+            setPanelPinned('stats-panel', false);
+            $statsPanelOpenStore = false;
+        }}
+        on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
+        on:columnChange={handleStatsColumnChange}
+        on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
+        on:binsInput={(e) => {
+            histogramBinsStore.set(e.detail.value);
+            handleHistogramBinsInput(e.detail.source);
+        }}
+        on:methodChange={handleStatsMethodChange}
+        on:limitInput={(e) => {
+            frequencyLimitStore.set(e.detail.value);
+            handleFrequencyLimitInput(e.detail.source);
+        }}
+        on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}
+    />
+</div>
 
 <CodeModal
     open={$codeModalOpenStore}
@@ -741,36 +770,6 @@
     <button class="context-menu-item" id="column-menu-add-filter" disabled={!rowFilterSupported} on:click={handleColumnMenuAddFilter}>Add Filter</button>
     <button class="context-menu-item" id="column-menu-hide-column" disabled={$visibleSchema.length <= 1} on:click={handleColumnMenuHideColumn}>Hide Column</button>
 </div>
-
-<DataTable
-    bind:this={dataTableComponent}
-    state={$backendState}
-    schema={$visibleSchema}
-    {renderColumns}
-    columnWidths={$columnWidths}
-    activeSort={$activeSort}
-    {sortSupported}
-    {rowFilterSupported}
-    {virtualRows}
-    {virtualizerTotalHeight}
-    rowCacheVersion={$rowCacheVersion}
-    {headerScrollLeft}
-    {leftSpacerWidth}
-    {rightSpacerWidth}
-    {getCellValue}
-    {getRowLabel}
-    {getColumnLabel}
-    bind:tableBodyEl
-    bind:tableHeaderEl
-    bind:bodyInnerEl
-    on:sort={(e) => handleDataTableSort(e.detail.columnIndex)}
-    on:columnMenu={(e) => openColumnMenu(e.detail.event, e.detail.columnIndex)}
-    on:openRowFilter={(e) => openRowFilterEditor(undefined, undefined, e.detail.columnIndex)}
-    on:openStats={(e) => openStatsPanel({ columnIndex: e.detail.columnIndex })}
-    on:hideColumn={(e) => hideColumn(e.detail.columnIndex)}
-    on:scroll={handleDataTableScroll}
-    on:startColumnResize={(e) => startColumnResize(e.detail.event, e.detail.columnIndex)}
-/>
 
 <style>
     :global(body) {
@@ -796,6 +795,15 @@
     :global(body.panel-resizing) {
         cursor: ew-resize;
         user-select: none;
+    }
+
+    .table-area {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: stretch;
+        position: relative;
+        overflow: hidden;
     }
 
     .context-menu {
