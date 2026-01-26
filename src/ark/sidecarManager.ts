@@ -35,6 +35,11 @@ export class ArkSidecarManager implements vscode.Disposable {
     private variablesCommId: string | undefined;
     private lastUserErrorMessage: string | undefined;
     private lastUserErrorAt = 0;
+    private reconnectTimer: NodeJS.Timeout | undefined;
+    private reconnectAttempts = 0;
+    private readonly reconnectBaseDelayMs = 1000;
+    private readonly reconnectMaxDelayMs = 15000;
+    private readonly reconnectMaxAttempts = 6;
 
     private readonly _onDidOpenPlotComm = new vscode.EventEmitter<{ commId: string; data: unknown }>();
     public readonly onDidOpenPlotComm = this._onDidOpenPlotComm.event;
@@ -92,6 +97,7 @@ export class ArkSidecarManager implements vscode.Disposable {
     }
 
     public stop(): void {
+        this.clearReconnectState('stop');
         this.connectionFile = undefined;
         this.variablesCommId = undefined;
         if (this.rl) {
@@ -239,6 +245,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         });
 
         proc.on('exit', (code, signal) => {
+            const isActive = this.proc?.pid === proc.pid;
             if (signal) {
                 getLogger().log(
                     'sidecar',
@@ -255,8 +262,20 @@ export class ArkSidecarManager implements vscode.Disposable {
                     this.formatLogMessage(`Sidecar exited with code ${code ?? 'null'}.`),
                 );
             }
-            if (this.proc?.pid === proc.pid && this.connectionFile && code !== 0) {
-                this.notifyUserOfSidecarError('Ark sidecar exited unexpectedly.', `Exit code ${code ?? 'null'}.`);
+            if (!isActive) {
+                return;
+            }
+            this.proc = undefined;
+            if (this.rl) {
+                this.rl.close();
+                this.rl = undefined;
+            }
+            this.variablesCommId = undefined;
+            if (this.connectionFile) {
+                if (code !== 0) {
+                    this.notifyUserOfSidecarError('Ark sidecar exited unexpectedly.', `Exit code ${code ?? 'null'}.`);
+                }
+                this.scheduleReconnect(`exit ${code ?? 'null'}`);
             }
         });
     }
@@ -344,7 +363,13 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (msg.event === 'kernel_status') {
             const status = typeof msg.status === 'string' ? msg.status : 'unknown';
             this.outputChannel.appendLine(this.formatLogMessage(`Kernel status update: ${status}`));
+            this.clearReconnectState('kernel_status');
             this._onDidChangeKernelStatus.fire(status);
+            return;
+        }
+
+        if (msg.event === 'alive') {
+            this.clearReconnectState('alive');
             return;
         }
 
@@ -483,6 +508,64 @@ export class ArkSidecarManager implements vscode.Disposable {
             return;
         }
         getLogger().log('sidecar', LogCategory.Stderr, parsed.level, this.formatLogMessage(parsed.message));
+    }
+
+    private scheduleReconnect(reason: string): void {
+        if (!this.connectionFile) {
+            return;
+        }
+        if (this.reconnectTimer) {
+            return;
+        }
+        this.reconnectAttempts += 1;
+        if (this.reconnectAttempts > this.reconnectMaxAttempts) {
+            this.notifyUserOfSidecarError(
+                'Ark sidecar could not reconnect.',
+                'Please restart or reattach your Ark session.',
+            );
+            getLogger().log(
+                'sidecar',
+                LogCategory.Event,
+                'error',
+                this.formatLogMessage(`Reconnect attempts exhausted (${reason}).`),
+            );
+            return;
+        }
+        const delay = Math.min(
+            this.reconnectBaseDelayMs * Math.pow(2, this.reconnectAttempts - 1),
+            this.reconnectMaxDelayMs,
+        );
+        getLogger().log(
+            'sidecar',
+            LogCategory.Event,
+            'warn',
+            this.formatLogMessage(
+                `Scheduling sidecar reconnect attempt ${this.reconnectAttempts} in ${delay}ms (${reason}).`,
+            ),
+        );
+        this._onDidChangeKernelStatus.fire('reconnecting');
+        this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = undefined;
+            if (!this.connectionFile) {
+                return;
+            }
+            this.start(this.connectionFile);
+        }, delay);
+    }
+
+    private clearReconnectState(reason: string): void {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = undefined;
+        }
+        if (this.reconnectAttempts > 0) {
+            getLogger().debug(
+                'sidecar',
+                LogCategory.Event,
+                this.formatLogMessage(`Resetting reconnect state (${reason}).`),
+            );
+        }
+        this.reconnectAttempts = 0;
     }
 
     private notifyUserOfSidecarError(message: string, detail?: string): void {

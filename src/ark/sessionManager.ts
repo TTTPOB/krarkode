@@ -10,7 +10,7 @@ import { getLogger, LogCategory } from '../logging/logger';
 import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
 
 type ArkSessionMode = 'console' | 'notebook' | 'background';
-type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'unknown';
+type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'reconnecting' | 'unknown';
 
 type StatusMenuItem = vscode.QuickPickItem & { action?: () => Promise<void> };
 
@@ -314,6 +314,7 @@ export class ArkSessionManager {
             case 'idle':
             case 'busy':
             case 'starting':
+            case 'reconnecting':
             case 'unknown':
                 return status;
             default:
@@ -330,6 +331,8 @@ export class ArkSessionManager {
                 return { icon: '$(sync~spin)', label: 'Busy' };
             case 'starting':
                 return { icon: '$(clock)', label: 'Starting' };
+            case 'reconnecting':
+                return { icon: '$(sync)', label: 'Reconnecting' };
             default:
                 return { icon: '$(question)', label: 'Unknown' };
         }
