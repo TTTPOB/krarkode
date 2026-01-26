@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use uuid::Uuid;
@@ -150,6 +151,7 @@ pub(crate) async fn run_plot_watcher(
 
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
+    let mut pending_comm_ids: HashMap<String, String> = HashMap::new();
 
     // We no longer wait for IOPub welcome. When attaching to an existing session,
     // the kernel might not send a welcome message, or it might have already sent it.
@@ -175,6 +177,7 @@ pub(crate) async fn run_plot_watcher(
                                             json.get("comm_id").and_then(|s| s.as_str()),
                                             json.get("data").and_then(|d| d.as_object()),
                                         ) {
+                                            let request_id = extract_request_id(data);
                                             debug!(
                                                 comm_id = %comm_id,
                                                 data = ?data,
@@ -185,8 +188,16 @@ pub(crate) async fn run_plot_watcher(
                                                 data: data.clone(),
                                             };
                                             let message = JupyterMessage::new(comm_msg, None);
+                                            let parent_msg_id = message.header.msg_id.clone();
                                             if let Err(e) = shell.send(message).await {
                                                 warn!(error = %e, "Failed to send comm_msg");
+                                            } else if let Some(request_id) = request_id {
+                                                debug!(
+                                                    parent_msg_id = %parent_msg_id,
+                                                    request_id = %request_id,
+                                                    "Sidecar: recorded comm request id"
+                                                );
+                                                pending_comm_ids.insert(parent_msg_id, request_id);
                                             }
                                         }
                                     } else if command == "comm_open" {
@@ -253,6 +264,7 @@ pub(crate) async fn run_plot_watcher(
                         return Err(err).context("Failed to read iopub message");
                     }
                 };
+                let parent_msg_id = message.parent_header.as_ref().map(|header| header.msg_id.as_str());
                 let payload = match &message.content {
                     JupyterMessageContent::DisplayData(display) => {
                         build_plot_payload("display_data", &display.data, display.transient.as_ref())
@@ -313,33 +325,38 @@ pub(crate) async fn run_plot_watcher(
                     }
                     JupyterMessageContent::CommMsg(comm_msg) => {
                         debug!(comm_id = %comm_msg.comm_id.0, data = ?comm_msg.data, "IOPub comm_msg");
+                        let data = attach_comm_reply_id(
+                            comm_msg.data.clone(),
+                            parent_msg_id,
+                            &mut pending_comm_ids,
+                        );
                         // Check for UI methods
-                        if let Some(method) = comm_msg.data.get("method").and_then(|m| m.as_str()) {
+                        if let Some(method) = data.get("method").and_then(|m| m.as_str()) {
                             if method == "show_html_file" {
                                 Some(json!({
                                     "event": "show_html_file",
                                     "comm_id": comm_msg.comm_id.0,
-                                    "data": comm_msg.data
+                                    "data": data
                                 }).to_string())
                             } else if method == "show_help" {
                                 Some(json!({
                                     "event": "show_help",
                                     "comm_id": comm_msg.comm_id.0,
-                                    "data": comm_msg.data
+                                    "data": data
                                 }).to_string())
                             } else {
                                 // Other comm messages (e.g., plot render replies)
                                 Some(json!({
                                     "event": "comm_msg",
                                     "comm_id": comm_msg.comm_id.0,
-                                    "data": comm_msg.data
+                                    "data": data
                                 }).to_string())
                             }
                         } else {
                             Some(json!({
                                 "event": "comm_msg",
                                 "comm_id": comm_msg.comm_id.0,
-                                "data": comm_msg.data
+                                "data": data
                             }).to_string())
                         }
                     }
@@ -374,10 +391,15 @@ pub(crate) async fn run_plot_watcher(
                     // Handle shell replies. Specifically look for CommMsg replies (Variables list, etc.)
                     if let JupyterMessageContent::CommMsg(comm_msg) = &message.content {
                         debug!(comm_id = %comm_msg.comm_id.0, data = ?comm_msg.data, "Shell comm_msg");
+                        let data = attach_comm_reply_id(
+                            comm_msg.data.clone(),
+                            message.parent_header.as_ref().map(|header| header.msg_id.as_str()),
+                            &mut pending_comm_ids,
+                        );
                         let payload = Some(json!({
                             "event": "comm_msg",
                             "comm_id": comm_msg.comm_id.0,
-                            "data": comm_msg.data
+                            "data": data
                         }).to_string());
 
                         if let Some(payload) = payload {
@@ -444,6 +466,45 @@ pub(crate) async fn run_check(
     });
     println!("{payload}");
     Ok(())
+}
+
+fn extract_request_id(data: &Map<String, Value>) -> Option<String> {
+    match data.get("id")? {
+        Value::String(value) => Some(value.clone()),
+        Value::Number(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn attach_comm_reply_id(
+    mut data: Map<String, Value>,
+    parent_msg_id: Option<&str>,
+    pending_comm_ids: &mut HashMap<String, String>,
+) -> Map<String, Value> {
+    if data.get("id").is_some() {
+        if let Some(parent_msg_id) = parent_msg_id {
+            pending_comm_ids.remove(parent_msg_id);
+        }
+        return data;
+    }
+
+    let parent_msg_id = match parent_msg_id {
+        Some(parent_msg_id) => parent_msg_id,
+        None => return data,
+    };
+
+    let request_id = match pending_comm_ids.remove(parent_msg_id) {
+        Some(request_id) => request_id,
+        None => return data,
+    };
+
+    debug!(
+        parent_msg_id = %parent_msg_id,
+        request_id = %request_id,
+        "Sidecar: attached comm reply id"
+    );
+    data.insert("id".to_string(), Value::String(request_id));
+    data
 }
 
 fn build_plot_payload(
