@@ -140,12 +140,6 @@ type DataExplorerRpcMap = {
     };
 };
 
-type RpcMethodsWithParams = {
-    [Key in keyof DataExplorerRpcMap]: DataExplorerRpcMap[Key]['params'] extends undefined ? never : Key;
-}[keyof DataExplorerRpcMap];
-
-type RpcMethodsWithoutParams = Exclude<keyof DataExplorerRpcMap, RpcMethodsWithParams>;
-
 export const DEFAULT_FORMAT_OPTIONS: FormatOptions = {
     large_num_digits: 2,
     small_num_digits: 4,
@@ -268,15 +262,11 @@ export class DataExplorerSession implements vscode.Disposable {
         return this.sendRpc('set_dataset_import_options', { options });
     }
 
-    private sendRpc<K extends RpcMethodsWithoutParams>(method: K): Promise<DataExplorerRpcMap[K]['result']>;
-    private sendRpc<K extends RpcMethodsWithParams>(
-        method: K,
-        params: DataExplorerRpcMap[K]['params'],
-    ): Promise<DataExplorerRpcMap[K]['result']>;
     private sendRpc<K extends keyof DataExplorerRpcMap>(
         method: K,
-        params?: DataExplorerRpcMap[K]['params'],
+        ...args: DataExplorerRpcMap[K]['params'] extends undefined ? [] : [DataExplorerRpcMap[K]['params']]
     ): Promise<DataExplorerRpcMap[K]['result']> {
+        const params = args[0];
         const id = crypto.randomUUID();
         const payload: DataExplorerMessage = {
             jsonrpc: '2.0',
