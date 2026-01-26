@@ -20,10 +20,10 @@ export function usePanelToggleController(options: PanelToggleOptions) {
     } = options;
 
     const openColumnVisibilityPanel = (): void => {
-        setColumnVisibilityOpen(!getColumnVisibilityOpen());
         setStatsPanelOpen(false);
         setCodeModalOpen(false);
         setRowFilterPanelOpen(false);
+        setColumnVisibilityOpen(!getColumnVisibilityOpen());
     };
 
     const openCodeModal = (): void => {
@@ -31,10 +31,10 @@ export function usePanelToggleController(options: PanelToggleOptions) {
         if (shouldOpen) {
             postMessage({ type: 'suggestCodeSyntax' });
         }
-        setCodeModalOpen(shouldOpen);
         setColumnVisibilityOpen(false);
         setStatsPanelOpen(false);
         setRowFilterPanelOpen(false);
+        setCodeModalOpen(shouldOpen);
     };
 
     return {
