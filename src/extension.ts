@@ -12,6 +12,7 @@ import { HelpManager } from './help/helpManager';
 import { VariablesService } from './variables/variablesService';
 import { VariablesManager } from './variables/variablesManager';
 import { DataExplorerManager } from './dataExplorer/dataExplorerManager';
+import { setupTestExplorer, refreshTestExplorer } from './testing/testExplorer';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 import { getLogger } from './logging/logger';
@@ -189,6 +190,16 @@ export function activate(context: vscode.ExtensionContext): void {
             dataExplorerManager?.open(e.commId, e.data);
         }),
     );
+
+    context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration('krarkode.testing.enabled')) {
+                void refreshTestExplorer(context);
+            }
+        }),
+    );
+
+    void setupTestExplorer(context);
 }
 
 export function deactivate(): void {

@@ -226,6 +226,12 @@
           "scope": "window",
           "markdownDescription": "Echo code when sourcing files."
         },
+        "krarkode.testing.enabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window",
+          "markdownDescription": "Enable testthat integration with the VS Code Test Explorer."
+        },
         "krarkode.logging.channels.ark": {
           "type": "string",
           "default": "error",
