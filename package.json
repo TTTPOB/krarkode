@@ -89,21 +89,35 @@
         "krarkode.ark.logLevel": {
           "type": "string",
           "default": "inherit",
-          "enum": ["inherit", "error", "warn", "info", "debug", "trace"],
+          "enum": [
+            "inherit",
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
           "scope": "window",
           "markdownDescription": "Log level for the Ark backend (sets RUST_LOG=ark=<level>). Use inherit to keep the current RUST_LOG."
         },
         "krarkode.ark.sessionMode": {
           "type": "string",
           "default": "console",
-          "enum": ["console", "notebook", "background"],
+          "enum": [
+            "console",
+            "notebook",
+            "background"
+          ],
           "scope": "window",
           "markdownDescription": "Ark session mode (console is recommended; other modes are not fully supported)."
         },
         "krarkode.ark.console.driver": {
           "type": "string",
           "default": "tmux",
-          "enum": ["tmux", "external"],
+          "enum": [
+            "tmux",
+            "external"
+          ],
           "scope": "window",
           "markdownDescription": "Console driver for Ark sessions."
         },
@@ -170,7 +184,14 @@
         "krarkode.plot.viewColumn": {
           "type": "string",
           "default": "Two",
-          "enum": ["Active", "Beside", "One", "Two", "Three", "Disable"],
+          "enum": [
+            "Active",
+            "Beside",
+            "One",
+            "Two",
+            "Three",
+            "Disable"
+          ],
           "scope": "window",
           "markdownDescription": "Where to show plots, or disable plot display."
         },
@@ -183,7 +204,13 @@
         "krarkode.html.viewColumn": {
           "type": "string",
           "default": "Two",
-          "enum": ["Active", "Beside", "One", "Two", "Three"],
+          "enum": [
+            "Active",
+            "Beside",
+            "One",
+            "Two",
+            "Three"
+          ],
           "scope": "window",
           "markdownDescription": "Where to show HTML viewer panels."
         },
@@ -202,13 +229,21 @@
         "krarkode.logging.channels.ark": {
           "type": "string",
           "default": "error",
-          "enum": ["none", "error", "warn", "info", "debug"],
+          "enum": [
+            "none",
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
           "enumDescriptions": [
             "Disable the Krarkode output channel.",
             "Show errors only.",
             "Show warnings and errors.",
             "Show info/warn/error messages.",
-            "Show verbose logs (debug/info/warn/error)."
+            "Show verbose logs (debug/info/warn/error).",
+            "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
           "markdownDescription": "Log level for the main Krarkode output channel (session, plot, data explorer, variables, help)."
@@ -216,13 +251,21 @@
         "krarkode.logging.channels.arkKernel": {
           "type": "string",
           "default": "none",
-          "enum": ["none", "error", "warn", "info", "debug"],
+          "enum": [
+            "none",
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
           "enumDescriptions": [
             "Disable the Ark Kernel output channel.",
             "Show errors only.",
             "Show warnings and errors.",
             "Show info/warn/error messages.",
-            "Show verbose logs (debug/info/warn/error)."
+            "Show verbose logs (debug/info/warn/error).",
+            "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
           "markdownDescription": "Log level for the Ark Kernel stdout/stderr output channel."
@@ -230,13 +273,21 @@
         "krarkode.logging.channels.lsp": {
           "type": "string",
           "default": "error",
-          "enum": ["none", "error", "warn", "info", "debug"],
+          "enum": [
+            "none",
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
           "enumDescriptions": [
             "Disable the Krarkode LSP output channel.",
             "Show errors only.",
             "Show warnings and errors.",
             "Show info/warn/error messages.",
-            "Show verbose logs (debug/info/warn/error)."
+            "Show verbose logs (debug/info/warn/error).",
+            "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
           "markdownDescription": "Log level for the Krarkode LSP output channel."
@@ -244,13 +295,21 @@
         "krarkode.logging.channels.sidecar": {
           "type": "string",
           "default": "error",
-          "enum": ["none", "error", "warn", "info", "debug"],
+          "enum": [
+            "none",
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
           "enumDescriptions": [
             "Disable the Krarkode Sidecar output channel.",
             "Show errors only.",
             "Show warnings and errors.",
             "Show info/warn/error messages.",
-            "Show verbose logs (debug/info/warn/error)."
+            "Show verbose logs (debug/info/warn/error).",
+            "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
           "markdownDescription": "Log level for the Krarkode Sidecar output channel."

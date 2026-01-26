@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 export type LogChannelId = 'ark' | 'ark-kernel' | 'lsp' | 'sidecar';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
-export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug';
+export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
 type WriteOptions = {
     category?: string;
@@ -30,7 +30,14 @@ const MESSAGE_LEVEL_RE = /^\[(Trace|Debug|Info|Warn|Error|LSP)\b/i;
 const MESSAGE_LEVEL_PREFIX_RE = /^\[(Trace|Debug|Info|Warn|Error|LSP)\s*-\s*[^\]]+\]\s*/i;
 
 function normalizeChannelSetting(value: unknown): LogChannelSetting {
-    if (value === 'none' || value === 'error' || value === 'warn' || value === 'info' || value === 'debug') {
+    if (
+        value === 'none' ||
+        value === 'error' ||
+        value === 'warn' ||
+        value === 'info' ||
+        value === 'debug' ||
+        value === 'trace'
+    ) {
         return value;
     }
     if (value === false) {
@@ -81,10 +88,16 @@ function isLevelAllowed(setting: LogChannelSetting, level: LogLevel): boolean {
     if (setting === 'none') {
         return false;
     }
-    if (setting === 'debug') {
-        return true;
-    }
-    const minLevel: LogLevel = setting === 'info' ? 'info' : setting === 'warn' ? 'warn' : 'error';
+    const minLevel: LogLevel =
+        setting === 'trace'
+            ? 'trace'
+            : setting === 'debug'
+              ? 'debug'
+              : setting === 'info'
+                ? 'info'
+                : setting === 'warn'
+                  ? 'warn'
+                  : 'error';
     return LOG_LEVEL_RANK[level] >= LOG_LEVEL_RANK[minLevel];
 }
 
@@ -93,7 +106,7 @@ export function isDebugLoggingEnabled(channelId: LogChannelId = 'ark'): boolean 
     if (setting === 'none') {
         return false;
     }
-    if (setting === 'debug') {
+    if (setting === 'debug' || setting === 'trace') {
         return true;
     }
     const value = process.env.KRARKODE_DEBUG;
@@ -106,7 +119,7 @@ class LoggerOutputChannel implements vscode.OutputChannel {
     constructor(
         private readonly logger: LoggerService,
         private readonly channelId: LogChannelId,
-        private readonly category?: string
+        private readonly category?: string,
     ) {
         this.name = logger.getChannelName(channelId);
     }
@@ -150,7 +163,7 @@ export class LoggerService implements vscode.Disposable {
                 if (event.affectsConfiguration('krarkode.logging.channels')) {
                     this.syncChannels();
                 }
-            })
+            }),
         );
     }
 
@@ -254,7 +267,7 @@ export class LoggerService implements vscode.Disposable {
         output: vscode.LogOutputChannel,
         message: string,
         level: LogLevel,
-        newLine: boolean | undefined
+        newLine: boolean | undefined,
     ): void {
         if (newLine === false && level === 'info') {
             output.append(message);
