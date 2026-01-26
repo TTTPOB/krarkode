@@ -3,6 +3,9 @@
     import { useVirtualizer, type VirtualRow } from './hooks/useVirtualizer';
     import { useStatsCharts } from './hooks/useStatsCharts';
     import { useVscodeMessages } from './hooks/useVscodeMessages';
+    import { useStatsController } from './hooks/useStatsController';
+    import { useSchemaController } from './hooks/useSchemaController';
+    import { useRowFilterController } from './hooks/useRowFilterController';
     import {
         ColumnDef,
         Table,
@@ -66,19 +69,10 @@
     } from './stores';
     import {
         type ColumnSchema,
-        type ColumnFilter,
-        type RowFilter,
-        type RowFilterType,
-        type RowFilterCondition,
-        type ColumnHistogram,
-        type ColumnFrequencyTable,
-        type ColumnProfileResult,
         type ColumnValue,
         type RowsMessage,
         type InitMessage,
-        type SortDirection,
         type SortState,
-        type StatsMessageState,
         type RowFilterDraft,
         ROW_HEIGHT,
         ROW_BLOCK_SIZE,
@@ -87,39 +81,18 @@
         COLUMN_WIDTH,
         MIN_COLUMN_WIDTH,
         ROW_LABEL_WIDTH,
-        DEFAULT_HISTOGRAM_BINS,
-        DEFAULT_FREQUENCY_LIMIT,
-        HISTOGRAM_BINS_MIN,
-        HISTOGRAM_BINS_MAX,
-        FREQUENCY_LIMIT_MIN,
-        FREQUENCY_LIMIT_MAX,
-        SMALL_HISTOGRAM_MAX_BINS,
-        SMALL_FREQUENCY_MAX_LIMIT,
-        STATS_REFRESH_DEBOUNCE_MS,
         SIDE_PANEL_MIN_WIDTH,
         SIDE_PANEL_MAX_WIDTH,
         ROW_FILTER_SECTION_MAP,
         getVsCodeApi,
     } from './types';
     import {
-        formatStatValue,
-        formatQuantileLabel,
-        formatQuantileValue,
-        buildSummaryRows,
-        buildColumnProfileRequest,
-        mergeColumnProfiles,
         formatSpecialValue,
         getColumnLabel,
         isColumnNamed,
-        formatRowFilterChip,
         clampNumber,
         createRowFilterDraft,
-        buildRowFilterParams,
-        createRowFilterId,
-        getSupportedRowFilterTypes,
-        resolveSchemaMatches,
         computeDisplayedColumns,
-        resolveVisibleSchema,
         resolveColumnWidth,
         computeColumnWindow,
         buildRowBlockRanges,
@@ -155,9 +128,6 @@
     let codePreview = '';
     let codeSyntax = 'pandas';
 
-    let statsRefreshDebounceId: number | undefined;
-    let columnVisibilityDebounceId: number | undefined;
-    let pendingStatsScrollTop: number | null = null;
 
     let tableBodyEl: HTMLDivElement;
     let tableHeaderEl: HTMLDivElement;
@@ -248,6 +218,155 @@
         log,
     });
 
+    const statsController = useStatsController({
+        log,
+        postMessage: (message) => vscode.postMessage(message),
+        statsCharts,
+        getVisibleSchema: () => $visibleSchema,
+        getActiveStatsColumnIndex: () => activeStatsColumnIndex,
+        setActiveStatsColumnIndex: (value) => {
+            activeStatsColumnIndex = value;
+        },
+        getStatsColumnValue: () => statsColumnValue,
+        setStatsColumnValue: (value) => {
+            statsColumnValue = value;
+        },
+        getStatsResultsEl: () => statsResultsEl,
+        getStatsPanelOpen: () => $statsPanelOpenStore,
+        setStatsPanelOpen: (value) => {
+            $statsPanelOpenStore = value;
+        },
+        setColumnVisibilityOpen: (value) => {
+            $columnVisibilityOpenStore = value;
+        },
+        setRowFilterPanelOpen: (value) => {
+            $rowFilterPanelOpenStore = value;
+        },
+        setCodeModalOpen: (value) => {
+            $codeModalOpenStore = value;
+        },
+        stores: {
+            statsMessageText: statsMessageTextStore,
+            statsMessageState: statsMessageStateStore,
+            statsSectionsVisible: statsSectionsVisibleStore,
+            statsControlsEnabled: statsControlsEnabledStore,
+            statsOverviewRows: statsOverviewRowsStore,
+            statsSummaryRows: statsSummaryRowsStore,
+            statsOverviewEmptyMessage: statsOverviewEmptyMessageStore,
+            statsSummaryEmptyMessage: statsSummaryEmptyMessageStore,
+            frequencyFootnote: frequencyFootnoteStore,
+            histogramBins: histogramBinsStore,
+            histogramMethod: histogramMethodStore,
+            frequencyLimit: frequencyLimitStore,
+            histogramVisible: histogramVisibleStore,
+            frequencyVisible: frequencyVisibleStore,
+            collapsedSections: collapsedSectionsStore,
+        },
+    });
+
+    const {
+        initializeStatsDefaults,
+        setStatsMessage,
+        clearStatsContent,
+        openStatsPanel,
+        handleStatsColumnChange,
+        handleColumnProfilesResult,
+        handleStatsMethodChange,
+        handleHistogramBinsInput,
+        handleFrequencyLimitInput,
+        toggleStatsSection,
+        dispose: disposeStatsController,
+    } = statsController;
+
+    const schemaController = useSchemaController({
+        log,
+        postMessage: (message) => vscode.postMessage(message),
+        stores: {
+            fullSchema,
+            visibleSchema,
+            columnFilterMatches,
+            hiddenColumnIndices,
+            columnWidths,
+            rowCache,
+            rowLabelCache,
+            rowCacheVersion,
+            loadedBlocks,
+            loadingBlocks,
+        },
+        getColumnVisibilitySearchTerm: () => columnVisibilitySearchTerm,
+        setColumnVisibilityStatus: (value) => {
+            columnVisibilityStatus = value;
+        },
+        isColumnFilterSupported,
+        isSetColumnFiltersSupported,
+        setupTable,
+        updateVirtualizer,
+        requestInitialBlock,
+        scheduleTableLayoutDiagnostics,
+        getStatsPanelOpen: () => $statsPanelOpenStore,
+        getActiveStatsColumnIndex: () => activeStatsColumnIndex,
+        setActiveStatsColumnIndex: (value) => {
+            activeStatsColumnIndex = value;
+        },
+        setStatsColumnValue: (value) => {
+            statsColumnValue = value;
+        },
+        setStatsMessage,
+        clearStatsContent: () => clearStatsContent(),
+    });
+
+    const {
+        handleSearchSchemaResult,
+        getResolvedVisibleSchema,
+        applySchemaUpdate,
+        applyColumnSearch,
+        hideColumn,
+        showColumn,
+        toggleColumnVisibility,
+        invertColumnVisibility,
+        dispose: disposeSchemaController,
+    } = schemaController;
+
+    const rowFilterController = useRowFilterController({
+        log,
+        postMessage: (message) => vscode.postMessage(message),
+        visibleSchema,
+        rowFilters,
+        rowFilterSupport,
+        isRowFilterSupported,
+        supportsRowFilterConditions,
+        getEditingRowFilterIndex: () => editingRowFilterIndex,
+        setEditingRowFilterIndex: (value) => {
+            editingRowFilterIndex = value;
+        },
+        getRowFilterDraft: () => rowFilterDraft,
+        setRowFilterDraft: (draft) => {
+            rowFilterDraft = draft;
+        },
+        setRowFilterError: (message) => {
+            rowFilterError = message;
+        },
+        setRowFilterPanelOpen: (open) => {
+            $rowFilterPanelOpenStore = open;
+        },
+        setColumnVisibilityOpen: (open) => {
+            $columnVisibilityOpenStore = open;
+        },
+        setStatsPanelOpen: (open) => {
+            $statsPanelOpenStore = open;
+        },
+        setCodeModalOpen: (open) => {
+            $codeModalOpenStore = open;
+        },
+        closeColumnMenu,
+    });
+
+    const {
+        openRowFilterEditor,
+        saveRowFilter,
+        removeRowFilter,
+    } = rowFilterController;
+
     useVscodeMessages({
         onInit: handleInit,
         onRows: handleRows,
@@ -336,245 +455,6 @@
         return checkSortSupported($backendState);
     }
 
-    function openRowFilterEditor(filter?: RowFilter, index?: number, columnIndex?: number): void {
-        if (!isRowFilterSupported()) {
-            return;
-        }
-
-        if (!$visibleSchema.length) {
-            log('Row filter editor skipped; schema not loaded.');
-            return;
-        }
-
-        editingRowFilterIndex = index ?? null;
-        rowFilterDraft = createRowFilterDraft(
-            $visibleSchema,
-            filter,
-            columnIndex,
-            getSupportedRowFilterTypes($rowFilterSupport)
-        );
-        rowFilterError = '';
-        $rowFilterPanelOpenStore = true;
-        $columnVisibilityOpenStore = false;
-        $statsPanelOpenStore = false;
-        $codeModalOpenStore = false;
-        closeColumnMenu();
-        log('Row filter editor opened', { filter, index });
-    }
-
-    function handleRowFilterColumnChange(event: Event): void {
-        const target = event.target as HTMLSelectElement | null;
-        if (!target) {
-            return;
-        }
-        rowFilterDraft = {
-            ...rowFilterDraft,
-            columnIndex: parseInt(target.value, 10),
-        };
-    }
-
-    function saveRowFilter(): void {
-        const column = $visibleSchema.find((item) => item.column_index === rowFilterDraft.columnIndex);
-        if (!column) {
-            rowFilterError = 'Select a column.';
-            return;
-        }
-
-        const params = buildRowFilterParams(rowFilterDraft.filterType, rowFilterDraft);
-        if (!params.valid) {
-            rowFilterError = params.errorMessage ?? '';
-            return;
-        }
-
-        const condition: RowFilterCondition = supportsRowFilterConditions()
-            ? rowFilterDraft.condition
-            : 'and';
-
-        const filterId = editingRowFilterIndex !== null
-            ? $rowFilters[editingRowFilterIndex]?.filter_id
-            : createRowFilterId();
-
-        if (!filterId) {
-            rowFilterError = 'Unable to create filter ID.';
-            return;
-        }
-
-        const filter: RowFilter = {
-            filter_id: filterId,
-            filter_type: rowFilterDraft.filterType,
-            column_schema: column,
-            condition,
-            params: params.value,
-        };
-
-        const nextFilters = [...$rowFilters];
-        if (editingRowFilterIndex !== null) {
-            nextFilters[editingRowFilterIndex] = filter;
-        } else {
-            nextFilters.push(filter);
-        }
-        rowFilters.set(nextFilters);
-        $rowFilterPanelOpenStore = false;
-        rowFilterError = '';
-        vscode.postMessage({ type: 'setRowFilters', filters: nextFilters });
-        log('Row filters saved', { count: nextFilters.length, filter });
-    }
-
-    function removeRowFilter(index: number): void {
-        const nextFilters = [...$rowFilters];
-        nextFilters.splice(index, 1);
-        rowFilters.set(nextFilters);
-        vscode.postMessage({ type: 'setRowFilters', filters: nextFilters });
-        log('Row filter removed', { index, count: nextFilters.length });
-    }
-
-    function setStatsMessage(message: string, stateValue: StatsMessageState): void {
-        statsMessageTextStore.set(message);
-        statsMessageStateStore.set(stateValue);
-        statsSectionsVisibleStore.set(false);
-        statsControlsEnabledStore.set(stateValue !== 'empty');
-    }
-
-    function showStatsSections(): void {
-        statsSectionsVisibleStore.set(true);
-        statsControlsEnabledStore.set(true);
-    }
-
-    function clearStatsContent(options: { preserveScrollTop?: boolean } = {}): void {
-        const preserveScrollTop = options.preserveScrollTop === true;
-        // When preserving scroll, keep existing data to prevent DOM rebuild
-        // New data will replace it when profiles arrive
-        if (!preserveScrollTop) {
-            statsOverviewRowsStore.set([]);
-            statsSummaryRowsStore.set([]);
-            statsOverviewEmptyMessageStore.set('No overview data.');
-            statsSummaryEmptyMessageStore.set('No summary statistics.');
-            frequencyFootnoteStore.set('');
-            clearHistogram();
-            clearFrequency();
-            if (statsResultsEl) {
-                statsResultsEl.scrollTop = 0;
-            }
-        }
-        // Charts are cleared regardless since they will be redrawn
-        // but histogram/frequency data is kept visually until new data arrives
-    }
-
-    function syncHistogramBins(source: 'slider' | 'input'): void {
-        const rawValue = $histogramBinsStore;
-        const nextValue = clampNumber(rawValue, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        histogramBinsStore.set(nextValue);
-        if ($histogramMethodStore !== 'fixed') {
-            const previousMethod = $histogramMethodStore;
-            histogramMethodStore.set('fixed');
-            log('Histogram method forced to fixed for bins update', { previousMethod });
-        }
-        log('Histogram bins updated', { value: nextValue, source });
-        scheduleStatsRefresh('histogram-bins');
-    }
-
-    function syncFrequencyLimit(source: 'slider' | 'input'): void {
-        const rawValue = $frequencyLimitStore;
-        const nextValue = clampNumber(rawValue, FREQUENCY_LIMIT_MIN, FREQUENCY_LIMIT_MAX, DEFAULT_FREQUENCY_LIMIT);
-        frequencyLimitStore.set(nextValue);
-        log('Frequency limit updated', { value: nextValue, source });
-        scheduleStatsRefresh('frequency-limit');
-    }
-
-    function scheduleStatsRefresh(reason: string): void {
-        if (activeStatsColumnIndex === null) {
-            return;
-        }
-        if (statsRefreshDebounceId !== undefined) {
-            window.clearTimeout(statsRefreshDebounceId);
-        }
-        const preserveScrollTop = ['histogram-bins', 'histogram-method', 'frequency-limit'].includes(reason);
-        statsRefreshDebounceId = window.setTimeout(() => {
-            requestColumnProfiles(reason, { preserveScrollTop });
-        }, STATS_REFRESH_DEBOUNCE_MS);
-    }
-
-    function requestColumnProfiles(reason: string, options: { preserveScrollTop?: boolean } = {}): void {
-        if (activeStatsColumnIndex === null) {
-            return;
-        }
-        const preserveScrollTop = options.preserveScrollTop === true;
-        const profileRequest = buildColumnProfileRequest({
-            histogramBins: $histogramBinsStore,
-            histogramMethod: $histogramMethodStore,
-            frequencyLimit: $frequencyLimitStore,
-            histogramBinsMin: HISTOGRAM_BINS_MIN,
-            histogramBinsMax: HISTOGRAM_BINS_MAX,
-            histogramBinsDefault: DEFAULT_HISTOGRAM_BINS,
-            frequencyLimitMin: FREQUENCY_LIMIT_MIN,
-            frequencyLimitMax: FREQUENCY_LIMIT_MAX,
-            frequencyLimitDefault: DEFAULT_FREQUENCY_LIMIT,
-            smallHistogramMaxBins: SMALL_HISTOGRAM_MAX_BINS,
-            smallFrequencyMaxLimit: SMALL_FREQUENCY_MAX_LIMIT,
-        });
-        const { profileTypes, histogramParams, frequencyParams } = profileRequest;
-
-        log('Requesting column profiles', {
-            columnIndex: activeStatsColumnIndex,
-            profileTypes,
-            histogramParams,
-            frequencyParams,
-            reason,
-        });
-
-        if (preserveScrollTop && statsResultsEl) {
-            pendingStatsScrollTop = statsResultsEl.scrollTop;
-            log('Preserving stats scroll position', { scrollTop: pendingStatsScrollTop, reason });
-        } else {
-            pendingStatsScrollTop = null;
-        }
-
-        // When preserving scroll (slider adjustments), keep sections visible
-        // to prevent DOM rebuild and scroll jump
-        if (!preserveScrollTop) {
-            setStatsMessage('Loading statistics...', 'loading');
-        }
-        clearStatsContent({ preserveScrollTop });
-        vscode.postMessage({
-            type: 'getColumnProfiles',
-            columnIndex: activeStatsColumnIndex,
-            profileTypes,
-            histogramParams,
-            frequencyParams,
-        });
-    }
-
-    async function finalizeStatsScroll(): Promise<void> {
-        await tick();
-        if (!statsResultsEl) {
-            pendingStatsScrollTop = null;
-            return;
-        }
-        if (pendingStatsScrollTop === null) {
-            statsResultsEl.scrollTop = 0;
-            return;
-        }
-        const maxScrollTop = Math.max(statsResultsEl.scrollHeight - statsResultsEl.clientHeight, 0);
-        const nextScrollTop = Math.min(pendingStatsScrollTop, maxScrollTop);
-        statsResultsEl.scrollTop = nextScrollTop;
-        pendingStatsScrollTop = null;
-    }
-
-    function syncHistogramBinsFromProfile(histogram: ColumnHistogram | undefined): void {
-        if (!histogram || $histogramMethodStore === 'fixed') {
-            return;
-        }
-        const binCount = histogram.bin_counts?.length ?? 0;
-        if (binCount <= 0) {
-            return;
-        }
-        const nextValue = clampNumber(binCount, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        if ($histogramBinsStore !== nextValue) {
-            histogramBinsStore.set(nextValue);
-            log('Histogram bins synced from profile', { value: nextValue, method: $histogramMethodStore });
-        }
-    }
-
     function setSidePanelWidth(width: number): void {
         document.body.style.setProperty('--side-panel-width', `${width}px`);
         requestAnimationFrame(() => {
@@ -620,98 +500,6 @@
         document.body.classList.remove('panel-resizing');
     }
 
-    function initializeStatsDefaults(): void {
-        histogramBinsStore.set(DEFAULT_HISTOGRAM_BINS);
-        histogramMethodStore.set('freedman_diaconis');
-        frequencyLimitStore.set(DEFAULT_FREQUENCY_LIMIT);
-        statsControlsEnabledStore.set(false);
-    }
-
-    function clearHistogram(): void {
-        histogramVisibleStore.set(false);
-        statsCharts.clearHistogram();
-    }
-
-    function clearFrequency(): void {
-        frequencyVisibleStore.set(false);
-        frequencyFootnoteStore.set('');
-        statsCharts.clearFrequency();
-    }
-
-    function renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): void {
-        const rendered = statsCharts.renderHistogram(histogram, columnLabel);
-        histogramVisibleStore.set(rendered);
-        if (rendered) {
-            log('Rendering histogram', { columnLabel, bins: histogram?.bin_counts?.length ?? 0 });
-        } else {
-            clearHistogram();
-        }
-    }
-
-    function renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
-        const rendered = statsCharts.renderFrequency(frequency);
-        frequencyVisibleStore.set(rendered);
-        if (rendered) {
-            log('Rendering frequency chart', { values: frequency?.values?.length ?? 0 });
-        } else {
-            clearFrequency();
-        }
-    }
-
-    function handleColumnProfilesResult(columnIndex: number, profiles: ColumnProfileResult[], errorMessage?: string): void {
-        if (activeStatsColumnIndex !== null && columnIndex !== activeStatsColumnIndex) {
-            log('Ignoring stale column profiles', { columnIndex, activeStatsColumnIndex });
-            return;
-        }
-        if (errorMessage) {
-            setStatsMessage(`Error: ${errorMessage}`, 'error');
-            clearStatsContent();
-            void finalizeStatsScroll();
-            return;
-        }
-
-        log('Column profiles received', { columnIndex, profiles });
-        if (!profiles || profiles.length === 0) {
-            setStatsMessage('No statistics available for this column.', 'empty');
-            clearStatsContent();
-            void finalizeStatsScroll();
-            return;
-        }
-
-        const combined = mergeColumnProfiles(profiles);
-
-        const column = $visibleSchema.find((col) => col.column_index === columnIndex);
-        const columnLabel = column ? getColumnLabel(column) : `Column ${columnIndex + 1}`;
-        const summaryStats = combined.summary_stats;
-        const histogram = combined.large_histogram ?? combined.small_histogram;
-        const frequency = combined.large_frequency_table ?? combined.small_frequency_table;
-        const quantiles = histogram?.quantiles ?? [];
-
-        statsOverviewRowsStore.set([
-            { label: 'Column', value: columnLabel },
-            { label: 'Type', value: formatStatValue(summaryStats?.type_display) },
-            { label: 'Null Count', value: formatStatValue(combined.null_count) },
-        ]);
-        statsSummaryRowsStore.set(buildSummaryRows(summaryStats, quantiles));
-        statsOverviewEmptyMessageStore.set('No overview data.');
-        statsSummaryEmptyMessageStore.set('No summary statistics.');
-
-        syncHistogramBinsFromProfile(histogram);
-        renderHistogram(histogram, columnLabel);
-        renderFrequencyChart(frequency);
-        if (!frequency) {
-            frequencyFootnoteStore.set('No frequency data.');
-        } else if (frequency.other_count !== undefined) {
-            frequencyFootnoteStore.set(`Other values: ${frequency.other_count}`);
-            log('Frequency table contains other values', { otherCount: frequency.other_count });
-        } else {
-            frequencyFootnoteStore.set('');
-        }
-
-        showStatsSections();
-        void finalizeStatsScroll();
-    }
-
     function handleExportResult(data: string, format: string): void {
         const blob = new Blob([data], { type: format === 'html' ? 'text/html' : 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -728,209 +516,6 @@
 
     function handleSuggestCodeSyntaxResult(syntax: string): void {
         codeSyntax = syntax;
-    }
-
-    function handleSearchSchemaResult(matches: Array<number | string | Record<string, unknown>>): void {
-        const searchTerm = columnVisibilitySearchTerm.trim();
-        if (!searchTerm) {
-            columnFilterMatches.set(null);
-            columnVisibilityStatus = 'Showing all columns.';
-            return;
-        }
-        columnFilterMatches.set(matches);
-        if (!isSetColumnFiltersSupported()) {
-            applySchemaUpdate(getResolvedVisibleSchema());
-        }
-        columnVisibilityStatus = `Found ${matches.length} matching columns.`;
-    }
-
-    function getResolvedVisibleSchema(): ColumnSchema[] {
-        return resolveVisibleSchema($fullSchema, $columnFilterMatches, $hiddenColumnIndices, isSetColumnFiltersSupported());
-    }
-
-    function applySchemaUpdate(nextSchema: ColumnSchema[]): void {
-        rowCache.set(new Map());
-        rowLabelCache.set(new Map());
-        loadedBlocks.set(new Set());
-        loadingBlocks.set(new Set());
-        rowCacheVersion.set(0);
-        const previousWidths = new Map($columnWidths);
-        const nextWidths = new Map<number, number>();
-        $fullSchema.forEach((column) => {
-            const width = previousWidths.get(column.column_index);
-            if (width !== undefined) {
-                nextWidths.set(column.column_index, width);
-            }
-        });
-        nextSchema.forEach((column) => {
-            if (!nextWidths.has(column.column_index)) {
-                nextWidths.set(column.column_index, COLUMN_WIDTH);
-            }
-        });
-        columnWidths.set(nextWidths);
-        setupTable();
-        updateVirtualizer();
-        requestInitialBlock();
-        if ($statsPanelOpenStore) {
-            if (activeStatsColumnIndex !== null) {
-                const stillExists = nextSchema.some((column) => column.column_index === activeStatsColumnIndex);
-                if (!stillExists) {
-                    activeStatsColumnIndex = null;
-                    statsColumnValue = '';
-                    setStatsMessage('Select a column to view statistics.', 'empty');
-                    clearStatsContent();
-                } else {
-                    statsColumnValue = String(activeStatsColumnIndex);
-                }
-            }
-        }
-        scheduleTableLayoutDiagnostics('schema-update');
-    }
-
-    function applyColumnSearch(): void {
-        if (!isColumnFilterSupported()) {
-            columnVisibilityStatus = 'Column filtering is not supported.';
-            log('Column filter unavailable; search_schema unsupported.');
-            return;
-        }
-        const searchTerm = columnVisibilitySearchTerm.trim();
-        const sortOrder = 'original';
-
-        const filters: ColumnFilter[] = [];
-        if (!searchTerm) {
-            columnFilterMatches.set(null);
-            columnVisibilityStatus = 'Showing all columns.';
-            if (!isSetColumnFiltersSupported()) {
-                applySchemaUpdate(getResolvedVisibleSchema());
-            } else {
-                vscode.postMessage({ type: 'setColumnFilters', filters });
-            }
-            log('Column search cleared');
-            return;
-        }
-        if (searchTerm) {
-            filters.push({
-                filter_type: 'text_search',
-                params: {
-                    search_type: 'contains',
-                    term: searchTerm,
-                    case_sensitive: false,
-                },
-            });
-        }
-
-        log('Applying column search', { term: searchTerm, filters: filters.length });
-        columnVisibilityStatus = 'Searching...';
-        vscode.postMessage({ type: 'searchSchema', filters, sortOrder });
-        if (isSetColumnFiltersSupported()) {
-            vscode.postMessage({ type: 'setColumnFilters', filters });
-        }
-    }
-
-    function scheduleColumnVisibilitySearch(): void {
-        if (columnVisibilityDebounceId !== undefined) {
-            window.clearTimeout(columnVisibilityDebounceId);
-        }
-        columnVisibilityDebounceId = window.setTimeout(() => {
-            applyColumnSearch();
-        }, 250);
-    }
-
-    function hideColumn(columnIndex: number): void {
-        if ($hiddenColumnIndices.has(columnIndex)) {
-            return;
-        }
-        hiddenColumnIndices.update((indices) => {
-            const nextHidden = new Set(indices);
-            nextHidden.add(columnIndex);
-            return nextHidden;
-        });
-        log('Column hidden', { columnIndex });
-        applySchemaUpdate(getResolvedVisibleSchema());
-    }
-
-    function showColumn(columnIndex: number): void {
-        if (!$hiddenColumnIndices.has(columnIndex)) {
-            return;
-        }
-        hiddenColumnIndices.update((indices) => {
-            const nextHidden = new Set(indices);
-            nextHidden.delete(columnIndex);
-            return nextHidden;
-        });
-        log('Column shown', { columnIndex });
-        applySchemaUpdate(getResolvedVisibleSchema());
-    }
-
-    function toggleColumnVisibility(columnIndex: number): void {
-        if ($hiddenColumnIndices.has(columnIndex)) {
-            showColumn(columnIndex);
-            return;
-        }
-        if (getResolvedVisibleSchema().length <= 1) {
-            return;
-        }
-        hideColumn(columnIndex);
-    }
-
-    function invertColumnVisibility(): void {
-        if (!$fullSchema.length) {
-            return;
-        }
-
-        const baseSchema = $columnFilterMatches
-            ? resolveSchemaMatches($fullSchema, $columnFilterMatches)
-            : $fullSchema;
-        if (!baseSchema.length) {
-            return;
-        }
-
-        log('Inverting column visibility', { matches: baseSchema.length });
-        const nextHidden = new Set($hiddenColumnIndices);
-        for (const column of baseSchema) {
-            const index = column.column_index;
-            if (nextHidden.has(index)) {
-                nextHidden.delete(index);
-            } else {
-                nextHidden.add(index);
-            }
-        }
-
-        if (nextHidden.size >= $fullSchema.length) {
-            nextHidden.delete($fullSchema[0]?.column_index ?? 0);
-        }
-
-        hiddenColumnIndices.set(nextHidden);
-        applySchemaUpdate(getResolvedVisibleSchema());
-    }
-
-    function openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
-        const { columnIndex, toggle = false } = options;
-        const shouldOpen = toggle ? !$statsPanelOpenStore : true;
-        $columnVisibilityOpenStore = false;
-        $codeModalOpenStore = false;
-        $rowFilterPanelOpenStore = false;
-        if (!shouldOpen) {
-            $statsPanelOpenStore = false;
-            return;
-        }
-
-        $statsPanelOpenStore = true;
-        if (columnIndex !== undefined) {
-            statsColumnValue = String(columnIndex);
-        }
-        const resolvedIndex = parseInt(statsColumnValue, 10);
-        if (!Number.isNaN(resolvedIndex)) {
-            activeStatsColumnIndex = resolvedIndex;
-            requestColumnProfiles('panel-open');
-        } else {
-            activeStatsColumnIndex = null;
-            setStatsMessage('Select a column to view statistics.', 'empty');
-            clearStatsContent();
-        }
-        requestAnimationFrame(() => {
-            statsCharts.resize();
-        });
     }
 
     function openColumnVisibilityPanel(): void {
@@ -1378,45 +963,6 @@
         return value ?? '';
     }
 
-    function handleStatsColumnChange(): void {
-        const columnIndex = parseInt(statsColumnValue, 10);
-        if (Number.isNaN(columnIndex)) {
-            activeStatsColumnIndex = null;
-            setStatsMessage('Select a column to view statistics.', 'empty');
-            clearStatsContent();
-            return;
-        }
-        activeStatsColumnIndex = columnIndex;
-        requestColumnProfiles('column-change');
-    }
-
-    function toggleStatsSection(sectionId: string): void {
-        collapsedSectionsStore.update((sections) => {
-            const next = new Set(sections);
-            if (next.has(sectionId)) {
-                next.delete(sectionId);
-            } else {
-                next.add(sectionId);
-            }
-            return next;
-        });
-        requestAnimationFrame(() => {
-            statsCharts.resize();
-        });
-    }
-
-    function handleStatsMethodChange(): void {
-        scheduleStatsRefresh('histogram-method');
-    }
-
-    function handleHistogramBinsInput(source: 'slider' | 'input'): void {
-        syncHistogramBins(source);
-    }
-
-    function handleFrequencyLimitInput(source: 'slider' | 'input'): void {
-        syncFrequencyLimit(source);
-    }
-
     function handleCodeConvert(): void {
         vscode.postMessage({ type: 'convertToCode', syntax: codeSyntax });
     }
@@ -1501,12 +1047,6 @@
 
     onDestroy(() => {
         document.removeEventListener('click', handleDocumentClick);
-        if (statsRefreshDebounceId !== undefined) {
-            window.clearTimeout(statsRefreshDebounceId);
-        }
-        if (columnVisibilityDebounceId !== undefined) {
-            window.clearTimeout(columnVisibilityDebounceId);
-        }
         if (rowRequestDebounceId !== undefined) {
             window.clearTimeout(rowRequestDebounceId);
         }
@@ -1514,6 +1054,8 @@
             tableBodyResizeObserver.disconnect();
             tableBodyResizeObserver = null;
         }
+        disposeStatsController();
+        disposeSchemaController();
         virtualizer.dispose();
         statsCharts.dispose();
     });
