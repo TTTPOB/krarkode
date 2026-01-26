@@ -27,6 +27,7 @@ const LOG_LEVEL_RANK: Record<LogLevel, number> = {
 };
 
 const MESSAGE_LEVEL_RE = /^\[(Trace|Debug|Info|Warn|Error|LSP)\b/i;
+const MESSAGE_LEVEL_PREFIX_RE = /^\[(Trace|Debug|Info|Warn|Error|LSP)\s*-\s*[^\]]+\]\s*/i;
 
 function normalizeChannelSetting(value: unknown): LogChannelSetting {
     if (value === 'none' || value === 'error' || value === 'warn' || value === 'info' || value === 'debug') {
@@ -70,6 +71,10 @@ function inferMessageLogLevel(message: string): LogLevel {
 
 function stripContextPrefix(message: string): string {
     return message.replace(/^\[[^\]]+\]\s*/, '');
+}
+
+function stripMessageLevelPrefix(message: string): string {
+    return message.replace(MESSAGE_LEVEL_PREFIX_RE, '');
 }
 
 function isLevelAllowed(setting: LogChannelSetting, level: LogLevel): boolean {
@@ -127,7 +132,7 @@ class LoggerOutputChannel implements vscode.OutputChannel {
     }
 
     replace(value: string): void {
-        this.logger.replace(this.channelId, value, { category: this.category });
+        this.logger.replace(this.channelId, value);
     }
 
     dispose(): void {
@@ -183,12 +188,13 @@ export class LoggerService implements vscode.Disposable {
         channel?.clear();
     }
 
-    replace(channelId: LogChannelId, message: string, options: { category?: string } = {}): void {
+    replace(channelId: LogChannelId, message: string): void {
         if (!this.isChannelEnabled(channelId) || !this.isLevelEnabled(channelId, 'info')) {
             return;
         }
         const channel = this.getOrCreateChannel(channelId);
-        channel.replace(this.formatMessage(message, options.category, 'info'));
+        const cleanedMessage = stripMessageLevelPrefix(message);
+        channel.replace(cleanedMessage);
     }
 
     release(_channelId: LogChannelId): void {
@@ -206,6 +212,7 @@ export class LoggerService implements vscode.Disposable {
 
     write(channelId: LogChannelId, message: string, options: WriteOptions): void {
         const level = options.level ?? inferMessageLogLevel(message);
+        const cleanedMessage = stripMessageLevelPrefix(message);
         if (level === 'debug') {
             if (!isDebugLoggingEnabled(channelId)) {
                 return;
@@ -217,7 +224,7 @@ export class LoggerService implements vscode.Disposable {
             return;
         }
         const output = this.getOrCreateChannel(channelId);
-        this.writeToChannel(output, message, level, options.category, options.newLine);
+        this.writeToChannel(output, cleanedMessage, level, options.newLine);
     }
 
     getChannelName(channelId: LogChannelId): string {
@@ -243,47 +250,31 @@ export class LoggerService implements vscode.Disposable {
         return channel;
     }
 
-    private formatMessage(message: string, category?: string, level: LogLevel = 'info'): string {
-        const segments: string[] = [];
-        if (category) {
-            segments.push(`[${category}]`);
-        }
-        if (level !== 'info') {
-            segments.push(`[${level}]`);
-        }
-        if (segments.length === 0) {
-            return message;
-        }
-        return `${segments.join('')} ${message}`;
-    }
-
     private writeToChannel(
         output: vscode.LogOutputChannel,
         message: string,
         level: LogLevel,
-        category: string | undefined,
         newLine: boolean | undefined
     ): void {
-        const formatted = this.formatMessage(message, category, level);
         if (newLine === false && level === 'info') {
-            output.append(formatted);
+            output.append(message);
             return;
         }
         switch (level) {
             case 'trace':
-                output.trace(formatted);
+                output.trace(message);
                 break;
             case 'debug':
-                output.debug(formatted);
+                output.debug(message);
                 break;
             case 'warn':
-                output.warn(formatted);
+                output.warn(message);
                 break;
             case 'error':
-                output.error(formatted);
+                output.error(message);
                 break;
             default:
-                output.info(formatted);
+                output.info(message);
                 break;
         }
     }
