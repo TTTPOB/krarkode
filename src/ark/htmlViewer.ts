@@ -18,7 +18,7 @@ export class HtmlViewer implements vscode.Disposable {
 
         // Validate file exists
         if (!fs.existsSync(filePath)) {
-            this.outputChannel.appendLine(`HTML file not found: ${filePath}`);
+            getLogger().log('ark', LogCategory.Html, 'error', `HTML file not found: ${filePath}`);
             void vscode.window.showErrorMessage(`HTML file not found: ${filePath}`);
             return;
         }
@@ -34,7 +34,12 @@ export class HtmlViewer implements vscode.Disposable {
                 await this.openInEditor(filePath);
                 break;
             default:
-                this.outputChannel.appendLine(`Unknown destination: ${destination}, defaulting to viewer`);
+                getLogger().log(
+                    'ark',
+                    LogCategory.Html,
+                    'warn',
+                    `Unknown destination: ${destination}, defaulting to viewer`,
+                );
                 await this.showInViewer(filePath, title, height);
         }
     }
@@ -99,7 +104,12 @@ export class HtmlViewer implements vscode.Disposable {
                 panel.title = title;
             }
         } catch (err) {
-            this.outputChannel.appendLine(`Failed to load HTML file: ${filePath}, error: ${String(err)}`);
+            getLogger().log(
+                'ark',
+                LogCategory.Html,
+                'error',
+                `Failed to load HTML file: ${filePath}, error: ${String(err)}`,
+            );
             panel.webview.html = `<html><body><p>Failed to load HTML file: ${filePath}</p><p>${String(err)}</p></body></html>`;
         }
     }

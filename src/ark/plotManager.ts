@@ -653,7 +653,7 @@ export class PlotManager implements vscode.Disposable {
                 data: this.plotToHtml(updated),
             });
         } catch (err) {
-            this.outputChannel.appendLine(`Failed to render plot ${plotId}: ${String(err)}`);
+            getLogger().log('ark', LogCategory.Plot, 'error', `Failed to render plot ${plotId}: ${String(err)}`);
         }
     }
 

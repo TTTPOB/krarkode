@@ -145,7 +145,12 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(this.formatLogMessage(`Failed to send comm message: ${error}`));
+            getLogger().log(
+                'sidecar',
+                LogCategory.Comm,
+                'error',
+                this.formatLogMessage(`Failed to send comm message: ${error}`),
+            );
         }
     }
 
@@ -157,7 +162,12 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(this.formatLogMessage(`Failed to send comm_open message: ${error}`));
+            getLogger().log(
+                'sidecar',
+                LogCategory.Comm,
+                'error',
+                this.formatLogMessage(`Failed to send comm_open message: ${error}`),
+            );
         }
     }
 
@@ -169,7 +179,12 @@ export class ArkSidecarManager implements vscode.Disposable {
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
         } catch (error) {
-            this.outputChannel.appendLine(this.formatLogMessage(`Failed to send comm_close message: ${error}`));
+            getLogger().log(
+                'sidecar',
+                LogCategory.Comm,
+                'error',
+                this.formatLogMessage(`Failed to send comm_close message: ${error}`),
+            );
         }
     }
 
@@ -220,13 +235,23 @@ export class ArkSidecarManager implements vscode.Disposable {
         this.proc = proc;
 
         proc.on('error', (err) => {
-            this.outputChannel.appendLine(this.formatLogMessage(`Failed to spawn sidecar: ${err.message}`));
+            getLogger().log(
+                'sidecar',
+                LogCategory.Logging,
+                'error',
+                this.formatLogMessage(`Failed to spawn sidecar: ${err.message}`),
+            );
         });
 
         if (proc.pid) {
             this._onDidStart.fire();
         } else {
-            this.outputChannel.appendLine(this.formatLogMessage('Sidecar spawn failed (no PID)'));
+            getLogger().log(
+                'sidecar',
+                LogCategory.Logging,
+                'error',
+                this.formatLogMessage('Sidecar spawn failed (no PID)'),
+            );
         }
 
         proc.stderr?.on('data', (chunk: Buffer) => {
@@ -248,9 +273,20 @@ export class ArkSidecarManager implements vscode.Disposable {
 
         proc.on('exit', (code, signal) => {
             if (signal) {
-                this.outputChannel.appendLine(this.formatLogMessage(`Sidecar exited with signal ${signal}.`));
+                getLogger().log(
+                    'sidecar',
+                    LogCategory.Event,
+                    'warn',
+                    this.formatLogMessage(`Sidecar exited with signal ${signal}.`),
+                );
             } else {
-                this.outputChannel.appendLine(this.formatLogMessage(`Sidecar exited with code ${code ?? 'null'}.`));
+                const level = code === 0 ? 'info' : 'warn';
+                getLogger().log(
+                    'sidecar',
+                    LogCategory.Event,
+                    level,
+                    this.formatLogMessage(`Sidecar exited with code ${code ?? 'null'}.`),
+                );
             }
         });
     }
@@ -295,7 +331,12 @@ export class ArkSidecarManager implements vscode.Disposable {
                 this.formatLogMessage('Sent log reload command to sidecar.'),
             );
         } catch (error) {
-            this.outputChannel.appendLine(this.formatLogMessage(`Failed to reload sidecar log level: ${error}`));
+            getLogger().log(
+                'sidecar',
+                LogCategory.Logging,
+                'warn',
+                this.formatLogMessage(`Failed to reload sidecar log level: ${error}`),
+            );
         }
     }
 
@@ -450,7 +491,12 @@ export class ArkSidecarManager implements vscode.Disposable {
                 const content = await fs.promises.readFile(filePath);
                 return content.toString('base64');
             } catch (err) {
-                this.outputChannel.appendLine(this.formatLogMessage(`Failed to read plot file: ${filePath}`));
+                getLogger().log(
+                    'sidecar',
+                    LogCategory.Plot,
+                    'error',
+                    this.formatLogMessage(`Failed to read plot file: ${filePath}`),
+                );
                 return undefined;
             }
         }

@@ -121,7 +121,12 @@ export class ArkLanguageService implements vscode.Disposable {
             this.updateLspTrace();
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Unknown error';
-            this.outputChannel.appendLine(this.formatLogMessage(`Ark LSP failed to start: ${message}`, 'lsp'));
+            getLogger().log(
+                'lsp',
+                LogCategory.Logging,
+                'error',
+                this.formatLogMessage(`Ark LSP failed to start: ${message}`, 'lsp'),
+            );
             void vscode.window.showErrorMessage(`Ark LSP failed to start: ${message}`);
             this.outputChannel.show();
             await this.stopLanguageService();
@@ -148,7 +153,10 @@ export class ArkLanguageService implements vscode.Disposable {
                 return;
             }
 
-            this.outputChannel.appendLine(
+            getLogger().log(
+                'lsp',
+                LogCategory.Session,
+                'warn',
                 this.formatLogMessage(
                     `Ark session connection file is stale: ${activeSession.connectionFilePath}`,
                     'lsp',
@@ -253,7 +261,12 @@ export class ArkLanguageService implements vscode.Disposable {
         const result = await util.spawnAsync(sidecarPath, args, { env: process.env });
         if (result.error || result.status !== 0) {
             const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';
-            this.outputChannel.appendLine(this.formatLogMessage(`Ark connection check failed: ${message}`, 'lsp'));
+            getLogger().log(
+                'lsp',
+                LogCategory.Logging,
+                'warn',
+                this.formatLogMessage(`Ark connection check failed: ${message}`, 'lsp'),
+            );
             return false;
         }
         return true;
@@ -534,7 +547,10 @@ export class ArkLanguageService implements vscode.Disposable {
                 this.formatLogMessage('Sent log reload command to LSP sidecar.', 'sidecar'),
             );
         } catch (error) {
-            this.outputChannel.appendLine(
+            getLogger().log(
+                'lsp',
+                LogCategory.Logging,
+                'warn',
                 this.formatLogMessage(`Failed to reload LSP sidecar log level: ${error}`, 'sidecar'),
             );
         }

@@ -664,7 +664,12 @@ export class ArkSessionManager {
 
     private async interruptSessionEntry(entry: ArkSessionEntry): Promise<void> {
         if (!entry.pid) {
-            this.outputChannel.appendLine(`Interrupt requested for ${entry.name}, but PID is missing.`);
+            getLogger().log(
+                'ark',
+                LogCategory.Session,
+                'warn',
+                `Interrupt requested for ${entry.name}, but PID is missing.`,
+            );
             void vscode.window.showWarningMessage(`Ark session "${entry.name}" does not have a PID to interrupt.`);
             return;
         }
@@ -676,7 +681,12 @@ export class ArkSessionManager {
             void vscode.window.showInformationMessage(`Sent Ctrl+C to Ark session "${entry.name}".`);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
-            this.outputChannel.appendLine(`Failed to interrupt Ark session ${entry.name}: ${message}`);
+            getLogger().log(
+                'ark',
+                LogCategory.Session,
+                'error',
+                `Failed to interrupt Ark session ${entry.name}: ${message}`,
+            );
             void vscode.window.showErrorMessage(`Failed to interrupt Ark session "${entry.name}": ${message}`);
         }
     }
@@ -697,7 +707,7 @@ export class ArkSessionManager {
                 fs.rmSync(sessionDir, { recursive: true, force: true });
             }
         } catch (err) {
-            this.outputChannel.appendLine(`Failed to remove session directory: ${err}`);
+            getLogger().log('ark', LogCategory.Session, 'error', `Failed to remove session directory: ${err}`);
         }
 
         const registry = sessionRegistry.loadRegistry();
@@ -779,7 +789,7 @@ export class ArkSessionManager {
                     const content = await fs.promises.readFile(announceFile, 'utf8');
                     return JSON.parse(content) as ArkAnnouncePayload;
                 } catch (err) {
-                    this.outputChannel.appendLine(`Failed to read announce file: ${String(err)}`);
+                    getLogger().log('ark', LogCategory.Session, 'warn', `Failed to read announce file: ${String(err)}`);
                     return undefined;
                 }
             }
@@ -904,7 +914,7 @@ export class ArkSessionManager {
     private async runTmux(command: string, args: string[]): Promise<util.SpawnResult> {
         const result = await util.spawnAsync(command, args, { env: process.env });
         if (result.error) {
-            this.outputChannel.appendLine(`tmux error: ${String(result.error)}`);
+            getLogger().log('ark', LogCategory.Session, 'error', `tmux error: ${String(result.error)}`);
         }
         return result;
     }
