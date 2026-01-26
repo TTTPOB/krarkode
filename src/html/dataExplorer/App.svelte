@@ -106,10 +106,13 @@
         formatQuantileLabel,
         formatQuantileValue,
         buildSummaryRows,
+        buildColumnProfileRequest,
+        mergeColumnProfiles,
         formatSpecialValue,
         getColumnLabel,
         isColumnNamed,
         formatRowFilterChip,
+        clampNumber,
         createRowFilterDraft,
         buildRowFilterParams,
         createRowFilterId,
@@ -117,6 +120,9 @@
         resolveSchemaMatches,
         computeDisplayedColumns,
         resolveVisibleSchema,
+        resolveColumnWidth,
+        computeColumnWindow,
+        buildRowBlockRanges,
         isRowFilterSupported as checkRowFilterSupported,
         isColumnFilterSupported as checkColumnFilterSupported,
         isSetColumnFiltersSupported as checkSetColumnFiltersSupported,
@@ -254,20 +260,6 @@
         onConvertToCodeResult: handleConvertToCodeResult,
         onSuggestCodeSyntaxResult: handleSuggestCodeSyntaxResult,
     });
-
-    function clampNumber(value: number, min: number, max: number, fallback: number): number {
-        if (!Number.isFinite(value)) {
-            return fallback;
-        }
-        return Math.min(Math.max(Math.round(value), min), max);
-    }
-
-    function resolveColumnWidth(width: number | undefined): number {
-        if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
-            return COLUMN_WIDTH;
-        }
-        return Math.max(MIN_COLUMN_WIDTH, Math.round(width));
-    }
 
     function logTableLayoutState(stage: string): void {
         const rawWidths = $visibleSchema.map((column) => $columnWidths.get(column.column_index));
@@ -507,19 +499,20 @@
             return;
         }
         const preserveScrollTop = options.preserveScrollTop === true;
-        const histogramBinsValue = clampNumber($histogramBinsStore, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        const frequencyLimitValue = clampNumber($frequencyLimitStore, FREQUENCY_LIMIT_MIN, FREQUENCY_LIMIT_MAX, DEFAULT_FREQUENCY_LIMIT);
-        const histogramProfile = histogramBinsValue > SMALL_HISTOGRAM_MAX_BINS ? 'large_histogram' : 'small_histogram';
-        const frequencyProfile = frequencyLimitValue > SMALL_FREQUENCY_MAX_LIMIT ? 'large_frequency_table' : 'small_frequency_table';
-        const profileTypes = ['null_count', 'summary_stats', histogramProfile, frequencyProfile];
-        const histogramParams = {
-            method: $histogramMethodStore,
-            num_bins: histogramBinsValue,
-            quantiles: [0.25, 0.5, 0.75],
-        };
-        const frequencyParams = {
-            limit: frequencyLimitValue,
-        };
+        const profileRequest = buildColumnProfileRequest({
+            histogramBins: $histogramBinsStore,
+            histogramMethod: $histogramMethodStore,
+            frequencyLimit: $frequencyLimitStore,
+            histogramBinsMin: HISTOGRAM_BINS_MIN,
+            histogramBinsMax: HISTOGRAM_BINS_MAX,
+            histogramBinsDefault: DEFAULT_HISTOGRAM_BINS,
+            frequencyLimitMin: FREQUENCY_LIMIT_MIN,
+            frequencyLimitMax: FREQUENCY_LIMIT_MAX,
+            frequencyLimitDefault: DEFAULT_FREQUENCY_LIMIT,
+            smallHistogramMaxBins: SMALL_HISTOGRAM_MAX_BINS,
+            smallFrequencyMaxLimit: SMALL_FREQUENCY_MAX_LIMIT,
+        });
+        const { profileTypes, histogramParams, frequencyParams } = profileRequest;
 
         log('Requesting column profiles', {
             columnIndex: activeStatsColumnIndex,
@@ -685,27 +678,7 @@
             return;
         }
 
-        const combined: ColumnProfileResult = {};
-        profiles.forEach((profile) => {
-            if (profile.null_count !== undefined) {
-                combined.null_count = profile.null_count;
-            }
-            if (profile.summary_stats) {
-                combined.summary_stats = profile.summary_stats;
-            }
-            if (profile.small_histogram) {
-                combined.small_histogram = profile.small_histogram;
-            }
-            if (profile.large_histogram) {
-                combined.large_histogram = profile.large_histogram;
-            }
-            if (profile.small_frequency_table) {
-                combined.small_frequency_table = profile.small_frequency_table;
-            }
-            if (profile.large_frequency_table) {
-                combined.large_frequency_table = profile.large_frequency_table;
-            }
-        });
+        const combined = mergeColumnProfiles(profiles);
 
         const column = $visibleSchema.find((col) => col.column_index === columnIndex);
         const columnLabel = column ? getColumnLabel(column) : `Column ${columnIndex + 1}`;
@@ -1054,99 +1027,29 @@
         scrollLeft: number,
         viewportWidth: number,
     ): void {
-        const columnCount = schema.length;
-        if (columnCount === 0) {
-            renderColumns = [];
-            leftSpacerWidth = 0;
-            rightSpacerWidth = 0;
-            return;
-        }
+        const windowResult = computeColumnWindow({
+            schema,
+            widths,
+            scrollLeft,
+            viewportWidth,
+            virtualizationThreshold: COLUMN_VIRTUALIZATION_THRESHOLD,
+        });
 
-        if (columnCount < COLUMN_VIRTUALIZATION_THRESHOLD || viewportWidth <= 0) {
-            renderColumns = schema.map((column, index) => ({ column, schemaIndex: index }));
-            leftSpacerWidth = 0;
-            rightSpacerWidth = 0;
-            return;
-        }
+        renderColumns = windowResult.renderColumns;
+        leftSpacerWidth = windowResult.leftSpacerWidth;
+        rightSpacerWidth = windowResult.rightSpacerWidth;
 
-        const offsets = buildColumnOffsets(widths);
-        const totalColumnsWidth = offsets.length > 0
-            ? offsets[offsets.length - 1] + widths[widths.length - 1]
-            : 0;
-        const overscanPx = Math.max(ROW_LABEL_WIDTH, Math.floor(viewportWidth * 0.5));
-        const labelOverlap = Math.max(0, ROW_LABEL_WIDTH - scrollLeft);
-        const columnViewportWidth = Math.max(0, viewportWidth - labelOverlap);
-        const columnScrollLeft = Math.max(0, scrollLeft - ROW_LABEL_WIDTH);
-        const leftEdge = Math.max(0, columnScrollLeft - overscanPx);
-        const rightEdge = columnScrollLeft + columnViewportWidth + overscanPx;
-
-        const startIndex = findColumnStartIndex(offsets, widths, leftEdge);
-        const endIndex = findColumnEndIndex(offsets, widths, rightEdge);
-
-        renderColumns = schema
-            .slice(startIndex, endIndex + 1)
-            .map((column, index) => ({ column, schemaIndex: startIndex + index }));
-
-        leftSpacerWidth = offsets[startIndex] ?? 0;
-        const endOffset = (offsets[endIndex] ?? 0) + (widths[endIndex] ?? 0);
-        rightSpacerWidth = Math.max(0, totalColumnsWidth - endOffset);
-
-        const windowKey = `${startIndex}-${endIndex}-${leftSpacerWidth}-${rightSpacerWidth}`;
-        if (windowKey !== lastColumnWindowKey) {
-            lastColumnWindowKey = windowKey;
+        if (windowResult.windowKey !== lastColumnWindowKey) {
+            lastColumnWindowKey = windowResult.windowKey;
             log('Column window updated', {
-                startIndex,
-                endIndex,
-                leftSpacerWidth,
-                rightSpacerWidth,
+                startIndex: windowResult.startIndex,
+                endIndex: windowResult.endIndex,
+                leftSpacerWidth: windowResult.leftSpacerWidth,
+                rightSpacerWidth: windowResult.rightSpacerWidth,
                 viewportWidth,
                 scrollLeft,
             });
         }
-    }
-
-    function buildColumnOffsets(widths: number[]): number[] {
-        const offsets: number[] = [];
-        let running = 0;
-        for (const width of widths) {
-            offsets.push(running);
-            running += width;
-        }
-        return offsets;
-    }
-
-    function findColumnStartIndex(offsets: number[], widths: number[], leftEdge: number): number {
-        let low = 0;
-        let high = Math.max(0, widths.length - 1);
-        let result = 0;
-        while (low <= high) {
-            const mid = Math.floor((low + high) / 2);
-            const end = offsets[mid] + widths[mid];
-            if (end >= leftEdge) {
-                result = mid;
-                high = mid - 1;
-            } else {
-                low = mid + 1;
-            }
-        }
-        return result;
-    }
-
-    function findColumnEndIndex(offsets: number[], widths: number[], rightEdge: number): number {
-        let low = 0;
-        let high = Math.max(0, widths.length - 1);
-        let result = high;
-        while (low <= high) {
-            const mid = Math.floor((low + high) / 2);
-            const start = offsets[mid];
-            if (start <= rightEdge) {
-                result = mid;
-                low = mid + 1;
-            } else {
-                high = mid - 1;
-            }
-        }
-        return result;
     }
 
     function attachTableBodyObserver(target: HTMLDivElement | undefined): void {
@@ -1264,57 +1167,28 @@
         const startIndex = virtualItems[0].index;
         const endIndex = virtualItems[virtualItems.length - 1].index;
         const rowCount = $backendState.table_shape.num_rows;
-        const maxBlock = Math.max(Math.ceil(rowCount / ROW_BLOCK_SIZE) - 1, 0);
-        const startBlock = Math.floor(startIndex / ROW_BLOCK_SIZE);
-        const endBlock = Math.floor(endIndex / ROW_BLOCK_SIZE);
-        const prefetchStart = Math.max(0, startBlock - ROW_PREFETCH_BLOCKS);
-        const prefetchEnd = Math.min(maxBlock, endBlock + ROW_PREFETCH_BLOCKS);
+        const rangeResult = buildRowBlockRanges({
+            startIndex,
+            endIndex,
+            rowCount,
+            blockSize: ROW_BLOCK_SIZE,
+            prefetchBlocks: ROW_PREFETCH_BLOCKS,
+            loadedBlocks: $loadedBlocks,
+            loadingBlocks: $loadingBlocks,
+        });
 
-        const ranges: Array<{ startBlock: number; endBlock: number }> = [];
-        let rangeStart: number | null = null;
-        let rangeEnd: number | null = null;
-
-        for (let block = prefetchStart; block <= prefetchEnd; block += 1) {
-            if ($loadedBlocks.has(block) || $loadingBlocks.has(block)) {
-                if (rangeStart !== null && rangeEnd !== null) {
-                    ranges.push({ startBlock: rangeStart, endBlock: rangeEnd });
-                    rangeStart = null;
-                    rangeEnd = null;
-                }
-                continue;
-            }
-
-            if (rangeStart === null) {
-                rangeStart = block;
-                rangeEnd = block;
-                continue;
-            }
-
-            if (rangeEnd !== null && block === rangeEnd + 1) {
-                rangeEnd = block;
-            } else {
-                ranges.push({ startBlock: rangeStart, endBlock: rangeEnd ?? block });
-                rangeStart = block;
-                rangeEnd = block;
-            }
-        }
-
-        if (rangeStart !== null && rangeEnd !== null) {
-            ranges.push({ startBlock: rangeStart, endBlock: rangeEnd });
-        }
-
-        if (ranges.length === 0) {
+        if (!rangeResult || rangeResult.ranges.length === 0) {
             return;
         }
 
         log('Requesting row blocks', {
             reason,
-            visibleRange: { startBlock, endBlock },
-            prefetchRange: { startBlock: prefetchStart, endBlock: prefetchEnd },
-            ranges: ranges.map((range) => ({ startBlock: range.startBlock, endBlock: range.endBlock })),
+            visibleRange: rangeResult.visibleRange,
+            prefetchRange: rangeResult.prefetchRange,
+            ranges: rangeResult.ranges.map((range) => ({ startBlock: range.startBlock, endBlock: range.endBlock })),
         });
 
-        for (const range of ranges) {
+        for (const range of rangeResult.ranges) {
             loadingBlocks.update((blocks: Set<number>) => {
                 const next = new Set(blocks);
                 for (let block = range.startBlock; block <= range.endBlock; block += 1) {
