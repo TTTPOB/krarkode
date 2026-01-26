@@ -29,6 +29,31 @@ const LOG_LEVEL_RANK: Record<LogLevel, number> = {
 const MESSAGE_LEVEL_RE = /^\[(Trace|Debug|Info|Warn|Error|LSP)\b/i;
 const MESSAGE_LEVEL_PREFIX_RE = /^\[(Trace|Debug|Info|Warn|Error|LSP)\s*-\s*[^\]]+\]\s*/i;
 
+export interface LogLevelParser {
+    parse(message: string, fallback?: LogLevel): LogLevel;
+}
+
+export class RegexLogLevelParser implements LogLevelParser {
+    constructor(private readonly pattern: RegExp) {}
+
+    parse(message: string, fallback: LogLevel = 'info'): LogLevel {
+        if (this.pattern.global) {
+            this.pattern.lastIndex = 0;
+        }
+        const match = this.pattern.exec(message);
+        return match ? parseLogLevelToken(match[1] ?? match[0], fallback) : fallback;
+    }
+}
+
+export class DefaultLogLevelParser implements LogLevelParser {
+    parse(message: string, fallback: LogLevel = 'info'): LogLevel {
+        const match = MESSAGE_LEVEL_RE.exec(message) ?? MESSAGE_LEVEL_RE.exec(stripContextPrefix(message));
+        return match ? parseLogLevelToken(match[1], fallback) : fallback;
+    }
+}
+
+export const DEFAULT_LOG_LEVEL_PARSER = new DefaultLogLevelParser();
+
 function normalizeChannelSetting(value: unknown): LogChannelSetting {
     if (
         value === 'none' ||
@@ -56,11 +81,11 @@ export function getLogChannelSetting(channelId: LogChannelId): LogChannelSetting
 }
 
 function inferMessageLogLevel(message: string): LogLevel {
-    const match = MESSAGE_LEVEL_RE.exec(message) ?? MESSAGE_LEVEL_RE.exec(stripContextPrefix(message));
-    if (!match) {
-        return 'info';
-    }
-    switch (match[1].toLowerCase()) {
+    return DEFAULT_LOG_LEVEL_PARSER.parse(message, 'info');
+}
+
+function parseLogLevelToken(token: string, fallback: LogLevel): LogLevel {
+    switch (token.toLowerCase()) {
         case 'trace':
             return 'trace';
         case 'lsp':
@@ -71,8 +96,10 @@ function inferMessageLogLevel(message: string): LogLevel {
             return 'warn';
         case 'error':
             return 'error';
-        default:
+        case 'info':
             return 'info';
+        default:
+            return fallback;
     }
 }
 
