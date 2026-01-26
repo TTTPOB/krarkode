@@ -5,7 +5,14 @@ import * as path from 'path';
 import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
-import { getLogger, isDebugLoggingEnabled, RegexLogLevelParser, type LogLevel } from '../logging/logger';
+import {
+    formatLogMessage,
+    getLogger,
+    isDebugLoggingEnabled,
+    RegexLogLevelParser,
+    type LogContext,
+    type LogLevel,
+} from '../logging/logger';
 import { formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
 import * as sessionRegistry from './sessionRegistry';
 
@@ -247,22 +254,16 @@ export class ArkSidecarManager implements vscode.Disposable {
         });
     }
 
+    private getLogContext(): LogContext {
+        return {
+            sessionName: sessionRegistry.getActiveSessionName(),
+            connectionFile: this.connectionFile,
+            pid: this.proc?.pid,
+        };
+    }
+
     private formatLogMessage(message: string): string {
-        const segments: string[] = [];
-        const sessionName = sessionRegistry.getActiveSessionName();
-        if (sessionName) {
-            segments.push(`session=${sessionName}`);
-        }
-        if (this.connectionFile) {
-            segments.push(`conn=${path.basename(this.connectionFile)}`);
-        }
-        if (this.proc?.pid) {
-            segments.push(`pid=${this.proc.pid}`);
-        }
-        if (segments.length === 0) {
-            return message;
-        }
-        return `[${segments.join(' ')}] ${message}`;
+        return formatLogMessage(message, this.getLogContext());
     }
 
     private buildSidecarEnv(): NodeJS.ProcessEnv {

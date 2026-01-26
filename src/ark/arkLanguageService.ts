@@ -19,10 +19,12 @@ import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import {
+    formatLogMessage,
     getLogChannelSetting,
     getLogger,
     RegexLogLevelParser,
     type LogChannelId,
+    type LogContext,
     type LogLevel,
 } from '../logging/logger';
 import { formatArkRustLog, formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
@@ -463,27 +465,22 @@ export class ArkLanguageService implements vscode.Disposable {
         await Promise.allSettled(promises);
     }
 
+    private getLogContext(source: 'lsp' | 'kernel' | 'sidecar'): LogContext {
+        return {
+            sessionName: sessionRegistry.getActiveSessionName(),
+            connectionFile: this.connectionFile,
+            port: source === 'lsp' ? this.lspPort : undefined,
+            pid:
+                source === 'kernel'
+                    ? this.arkProcess?.pid
+                    : source === 'sidecar'
+                      ? this.sidecarProcess?.pid
+                      : undefined,
+        };
+    }
+
     private formatLogMessage(message: string, source: 'lsp' | 'kernel' | 'sidecar'): string {
-        const segments: string[] = [];
-        const sessionName = sessionRegistry.getActiveSessionName();
-        if (sessionName) {
-            segments.push(`session=${sessionName}`);
-        }
-        if (this.connectionFile) {
-            segments.push(`conn=${path.basename(this.connectionFile)}`);
-        }
-        if (source === 'lsp' && this.lspPort) {
-            segments.push(`port=${this.lspPort}`);
-        }
-        const pid =
-            source === 'kernel' ? this.arkProcess?.pid : source === 'sidecar' ? this.sidecarProcess?.pid : undefined;
-        if (pid) {
-            segments.push(`pid=${pid}`);
-        }
-        if (segments.length === 0) {
-            return message;
-        }
-        return `[${segments.join(' ')}] ${message}`;
+        return formatLogMessage(message, this.getLogContext(source));
     }
 
     private logKernelOutput(source: 'stdout' | 'stderr', chunk: Buffer): void {

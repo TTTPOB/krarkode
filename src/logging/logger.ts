@@ -1,8 +1,16 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 
 export type LogChannelId = 'ark' | 'ark-kernel' | 'lsp' | 'sidecar';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+
+export type LogContext = {
+    sessionName?: string;
+    connectionFile?: string;
+    pid?: number;
+    port?: number;
+};
 
 type WriteOptions = {
     category?: string;
@@ -53,6 +61,26 @@ export class DefaultLogLevelParser implements LogLevelParser {
 }
 
 export const DEFAULT_LOG_LEVEL_PARSER = new DefaultLogLevelParser();
+
+export function formatLogMessage(message: string, context: LogContext): string {
+    const segments: string[] = [];
+    if (context.sessionName) {
+        segments.push(`session=${context.sessionName}`);
+    }
+    if (context.connectionFile) {
+        segments.push(`conn=${path.basename(context.connectionFile)}`);
+    }
+    if (context.port) {
+        segments.push(`port=${context.port}`);
+    }
+    if (context.pid) {
+        segments.push(`pid=${context.pid}`);
+    }
+    if (segments.length === 0) {
+        return message;
+    }
+    return `[${segments.join(' ')}] ${message}`;
+}
 
 function normalizeChannelSetting(value: unknown): LogChannelSetting {
     if (
