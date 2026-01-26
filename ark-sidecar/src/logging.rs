@@ -1,3 +1,4 @@
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::reload;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -10,10 +11,11 @@ pub(crate) struct LogReloadHandle {
 
 pub(crate) fn init_logging() -> LogReloadHandle {
     let filter = build_env_filter();
+    let show_target = matches!(filter.max_level_hint(), Some(level) if level >= LevelFilter::DEBUG);
     let (reload_layer, handle) = reload::Layer::new(filter);
     let subscriber = tracing_subscriber::registry()
         .with(reload_layer)
-        .with(tracing_subscriber::fmt::layer().with_target(false));
+        .with(tracing_subscriber::fmt::layer().with_target(show_target));
     let _ = subscriber.try_init();
     LogReloadHandle { handle }
 }
