@@ -67,12 +67,15 @@ export const DEFAULT_FORMAT_OPTIONS: FormatOptions = {
 };
 
 type PendingRequest<T> = {
+    id: string;
+    replyMethod: string;
     resolve: (value: T) => void;
     reject: (error: Error) => void;
 };
 
 export class DataExplorerSession implements vscode.Disposable {
     private readonly pendingByReply = new Map<string, Array<PendingRequest<unknown>>>();
+    private readonly pendingById = new Map<string, PendingRequest<unknown>>();
     private readonly _onDidReceiveEvent = new vscode.EventEmitter<DataExplorerFrontendEvent>();
     public readonly onDidReceiveEvent = this._onDidReceiveEvent.event;
     private readonly disposables: vscode.Disposable[] = [];
@@ -80,14 +83,14 @@ export class DataExplorerSession implements vscode.Disposable {
     constructor(
         private readonly sidecarManager: ArkSidecarManager,
         private readonly commId: string,
-        private readonly outputChannel: vscode.OutputChannel
+        private readonly outputChannel: vscode.OutputChannel,
     ) {
         this.disposables.push(
             sidecarManager.onDidReceiveCommMessage((e) => {
                 if (e.commId === this.commId) {
                     this.handleMessage(e.data);
                 }
-            })
+            }),
         );
     }
 
@@ -146,7 +149,11 @@ export class DataExplorerSession implements vscode.Disposable {
         });
     }
 
-    async getColumnProfiles(callbackId: string, profiles: ColumnProfileRequest[], formatOptions: FormatOptions): Promise<void> {
+    async getColumnProfiles(
+        callbackId: string,
+        profiles: ColumnProfileRequest[],
+        formatOptions: FormatOptions,
+    ): Promise<void> {
         await this.sendRpc<void>('get_column_profiles', REPLY_METHODS.getColumnProfiles, {
             callback_id: callbackId,
             profiles,
@@ -154,14 +161,26 @@ export class DataExplorerSession implements vscode.Disposable {
         });
     }
 
-    async exportDataSelection(selection: TableSelection, format: ExportFormat): Promise<{ data: string; format: ExportFormat }> {
-        return this.sendRpc<{ data: string; format: ExportFormat }>('export_data_selection', REPLY_METHODS.exportDataSelection, {
-            selection,
-            format,
-        });
+    async exportDataSelection(
+        selection: TableSelection,
+        format: ExportFormat,
+    ): Promise<{ data: string; format: ExportFormat }> {
+        return this.sendRpc<{ data: string; format: ExportFormat }>(
+            'export_data_selection',
+            REPLY_METHODS.exportDataSelection,
+            {
+                selection,
+                format,
+            },
+        );
     }
 
-    async convertToCode(columnFilters: ColumnFilter[], rowFilters: RowFilter[], sortKeys: ColumnSortKey[], codeSyntaxName: CodeSyntaxName): Promise<ConvertedCode> {
+    async convertToCode(
+        columnFilters: ColumnFilter[],
+        rowFilters: RowFilter[],
+        sortKeys: ColumnSortKey[],
+        codeSyntaxName: CodeSyntaxName,
+    ): Promise<ConvertedCode> {
         return this.sendRpc<ConvertedCode>('convert_to_code', REPLY_METHODS.convertToCode, {
             column_filters: columnFilters,
             row_filters: rowFilters,
@@ -181,15 +200,20 @@ export class DataExplorerSession implements vscode.Disposable {
     }
 
     async setDatasetImportOptions(options: DatasetImportOptions): Promise<SetDatasetImportOptionsResult> {
-        return this.sendRpc<SetDatasetImportOptionsResult>('set_dataset_import_options', REPLY_METHODS.setDatasetImportOptions, {
-            options,
-        });
+        return this.sendRpc<SetDatasetImportOptionsResult>(
+            'set_dataset_import_options',
+            REPLY_METHODS.setDatasetImportOptions,
+            {
+                options,
+            },
+        );
     }
 
     private sendRpc<T>(method: string, replyMethod: string, params?: Record<string, unknown>): Promise<T> {
+        const id = crypto.randomUUID();
         const payload: DataExplorerMessage = {
             jsonrpc: '2.0',
-            id: crypto.randomUUID(),
+            id,
             method,
         };
 
@@ -197,20 +221,27 @@ export class DataExplorerSession implements vscode.Disposable {
             payload.params = params;
         }
 
-        const queue = this.pendingByReply.get(replyMethod) ?? [];
-        this.pendingByReply.set(replyMethod, queue);
-
         this.log(`Sending RPC '${method}' on comm ${this.commId}.`);
         this.sidecarManager.sendCommMessage(this.commId, payload);
 
         return new Promise<T>((resolve, reject) => {
-            queue.push({ resolve: resolve as (value: unknown) => void, reject });
+            const pending: PendingRequest<unknown> = {
+                id,
+                replyMethod,
+                resolve: resolve as (value: unknown) => void,
+                reject,
+            };
+            const queue = this.pendingByReply.get(replyMethod) ?? [];
+            queue.push(pending);
+            this.pendingByReply.set(replyMethod, queue);
+            this.pendingById.set(id, pending);
         });
     }
 
     private handleMessage(data: unknown) {
         const message = data as DataExplorerMessage;
         const method = message.method;
+        const messageId = typeof message.id === 'string' ? message.id : undefined;
 
         this.log(`Received comm message: ${JSON.stringify(data)}`);
 
@@ -233,6 +264,17 @@ export class DataExplorerSession implements vscode.Disposable {
             return;
         }
 
+        if (messageId) {
+            const pendingById = this.pendingById.get(messageId);
+            if (pendingById) {
+                this.pendingById.delete(messageId);
+                this.removePendingFromReplyQueue(pendingById);
+                this.log(`Resolved RPC ${messageId} from reply ${pendingById.replyMethod}.`);
+                pendingById.resolve(message.result as unknown);
+                return;
+            }
+        }
+
         if (method.endsWith('Reply')) {
             const queue = this.pendingByReply.get(method);
             if (!queue || queue.length === 0) {
@@ -243,7 +285,22 @@ export class DataExplorerSession implements vscode.Disposable {
             if (!pending) {
                 return;
             }
+            this.pendingById.delete(pending.id);
             pending.resolve(message.result as unknown);
+        }
+    }
+
+    private removePendingFromReplyQueue(pending: PendingRequest<unknown>): void {
+        const queue = this.pendingByReply.get(pending.replyMethod);
+        if (!queue) {
+            return;
+        }
+        const index = queue.findIndex((entry) => entry.id === pending.id);
+        if (index >= 0) {
+            queue.splice(index, 1);
+        }
+        if (queue.length === 0) {
+            this.pendingByReply.delete(pending.replyMethod);
         }
     }
 
