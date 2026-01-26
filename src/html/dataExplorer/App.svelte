@@ -6,6 +6,8 @@
     import { useStatsController } from './hooks/useStatsController';
     import { useSchemaController } from './hooks/useSchemaController';
     import { useRowFilterController } from './hooks/useRowFilterController';
+    import { useTableLayoutController } from './hooks/useTableLayoutController';
+    import { useRowDataController } from './hooks/useRowDataController';
     import {
         ColumnDef,
         Table,
@@ -69,8 +71,6 @@
     } from './stores';
     import {
         type ColumnSchema,
-        type ColumnValue,
-        type RowsMessage,
         type InitMessage,
         type SortState,
         type RowFilterDraft,
@@ -87,15 +87,11 @@
         getVsCodeApi,
     } from './types';
     import {
-        formatSpecialValue,
         getColumnLabel,
         isColumnNamed,
-        clampNumber,
         createRowFilterDraft,
         computeDisplayedColumns,
         resolveColumnWidth,
-        computeColumnWindow,
-        buildRowBlockRanges,
         isRowFilterSupported as checkRowFilterSupported,
         isColumnFilterSupported as checkColumnFilterSupported,
         isSetColumnFiltersSupported as checkSetColumnFiltersSupported,
@@ -109,7 +105,6 @@
 
     const COLUMN_VIRTUALIZATION_THRESHOLD = 80;
 
-    let pendingRows: RowsMessage[] = [];
     let editingRowFilterIndex: number | null = null;
 
     // Panel visibility now comes from stores via $columnVisibilityOpenStore, $rowFilterPanelOpenStore, etc.
@@ -151,13 +146,10 @@
     let virtualizerTotalHeight = 0;
     let headerScrollLeft = 0;
     let lastScrollLeft = 0;
-    let tableLayoutLogSequence = 0;
     let tableViewportWidth = 0;
-    let tableBodyResizeObserver: ResizeObserver | null = null;
     let renderColumns: Array<{ column: ColumnSchema; schemaIndex: number }> = [];
     let leftSpacerWidth = 0;
     let rightSpacerWidth = 0;
-    let lastColumnWindowKey = '';
 
     // TanStack Table state
     interface RowData {
@@ -165,14 +157,11 @@
     }
     let tableInstance: Table<RowData> | null = null;
 
-    let activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
-    let sidePanelResizeState: { startX: number; startWidth: number; panelId?: string } | null = null;
 
     // collapsedSections now comes from store via $collapsedSectionsStore
 
     let tableTitleText = 'Data Explorer';
     let tableMetaText = '';
-    let rowRequestDebounceId: number | undefined = undefined;
 
     $: resolvedColumnWidths = $visibleSchema.map((column) => resolveColumnWidth($columnWidths.get(column.column_index)));
     $: columnTemplate = resolvedColumnWidths.length > 0
@@ -187,7 +176,7 @@
     $: columnVisibilityDisplayedColumns = computeDisplayedColumns($fullSchema, $columnFilterMatches, columnVisibilitySearchTerm);
     $: tableMetaText = buildTableMetaText();
     $: attachTableBodyObserver(tableBodyEl);
-    $: updateRenderColumns($visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
+    $: updateRenderColumnsLayout($visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
 
     function log(message: string, payload?: unknown): void {
         if (!debugEnabled) {
@@ -217,6 +206,55 @@
         getFrequencyContainer: () => frequencyContainer,
         log,
     });
+
+    const tableLayoutController = useTableLayoutController({
+        log,
+        columnWidths,
+        minColumnWidth: MIN_COLUMN_WIDTH,
+        columnWidthFallback: COLUMN_WIDTH,
+        sidePanelMinWidth: SIDE_PANEL_MIN_WIDTH,
+        sidePanelMaxWidth: SIDE_PANEL_MAX_WIDTH,
+        virtualizationThreshold: COLUMN_VIRTUALIZATION_THRESHOLD,
+        getVisibleSchema: () => $visibleSchema,
+        getResolvedColumnWidths: () => resolvedColumnWidths,
+        getTotalWidth: () => totalWidth,
+        getColumnTemplate: () => columnTemplate,
+        getTableHeaderEl: () => tableHeaderEl,
+        getTableBodyEl: () => tableBodyEl,
+        getBodyInnerEl: () => bodyInnerEl,
+        getStatsPanelEl: () => statsPanelEl,
+        getDataTableComponent: () => dataTableComponent ?? null,
+        setTableViewportWidth: (value) => {
+            tableViewportWidth = value;
+        },
+        setHeaderScrollLeft: (value) => {
+            headerScrollLeft = value;
+        },
+        setRenderColumns: (columns) => {
+            renderColumns = columns;
+        },
+        setLeftSpacerWidth: (value) => {
+            leftSpacerWidth = value;
+        },
+        setRightSpacerWidth: (value) => {
+            rightSpacerWidth = value;
+        },
+        onSidePanelResize: () => statsCharts.resize(),
+    });
+
+    const {
+        scheduleTableLayoutDiagnostics,
+        updateRenderColumns: updateRenderColumnsLayout,
+        attachTableBodyObserver,
+        updateHeaderScroll,
+        startColumnResize,
+        handleColumnResizeMove,
+        handleColumnResizeEnd,
+        startSidePanelResize,
+        handleSidePanelResize,
+        finishSidePanelResize,
+        dispose: disposeTableLayoutController,
+    } = tableLayoutController;
 
     const statsController = useStatsController({
         log,
@@ -367,6 +405,33 @@
         removeRowFilter,
     } = rowFilterController;
 
+    const rowDataController = useRowDataController({
+        log,
+        postMessage: (message) => vscode.postMessage(message),
+        getBackendState: () => $backendState,
+        visibleSchema,
+        rowCache,
+        rowLabelCache,
+        rowCacheVersion,
+        loadedBlocks,
+        loadingBlocks,
+        rowBlockSize: ROW_BLOCK_SIZE,
+        prefetchBlocks: ROW_PREFETCH_BLOCKS,
+        requestDebounceMs: ROW_REQUEST_DEBOUNCE_MS,
+        getVirtualItems: () => virtualizer.getVirtualItems(),
+        measureVirtualizer: () => virtualizer.measure(),
+    });
+
+    const {
+        requestInitialBlock,
+        scheduleVisibleBlocksRequest,
+        handleRows,
+        applyPendingRows,
+        getCellValue,
+        getRowLabel,
+        dispose: disposeRowDataController,
+    } = rowDataController;
+
     useVscodeMessages({
         onInit: handleInit,
         onRows: handleRows,
@@ -379,51 +444,6 @@
         onConvertToCodeResult: handleConvertToCodeResult,
         onSuggestCodeSyntaxResult: handleSuggestCodeSyntaxResult,
     });
-
-    function logTableLayoutState(stage: string): void {
-        const rawWidths = $visibleSchema.map((column) => $columnWidths.get(column.column_index));
-        const invalidWidths = rawWidths.filter((value) => typeof value !== 'number' || !Number.isFinite(value) || value <= 0);
-        log('Table layout state', {
-            stage,
-            sequence: (tableLayoutLogSequence += 1),
-            schemaCount: $visibleSchema.length,
-            resolvedWidthCount: resolvedColumnWidths.length,
-            widthSample: resolvedColumnWidths.slice(0, 6),
-            totalWidth,
-            columnTemplate,
-            invalidWidthCount: invalidWidths.length,
-        });
-    }
-
-    function logTableLayoutDom(stage: string): void {
-        if (!tableHeaderEl && !tableBodyEl) {
-            log('Table layout DOM skipped', { stage, reason: 'missing table elements' });
-            return;
-        }
-        const headerRow = tableHeaderEl?.querySelector<HTMLDivElement>('.header-row');
-        const bodyRow = tableBodyEl?.querySelector<HTMLDivElement>('.table-row');
-        const headerStyle = headerRow ? getComputedStyle(headerRow) : null;
-        const bodyStyle = bodyRow ? getComputedStyle(bodyRow) : null;
-        log('Table layout DOM', {
-            stage,
-            headerDisplay: headerStyle?.display,
-            headerGridTemplate: headerStyle?.gridTemplateColumns,
-            headerWidth: headerRow?.getBoundingClientRect().width,
-            bodyDisplay: bodyStyle?.display,
-            bodyGridTemplate: bodyStyle?.gridTemplateColumns,
-            bodyWidth: bodyRow?.getBoundingClientRect().width,
-            scrollWidth: tableBodyEl?.scrollWidth,
-            clientWidth: tableBodyEl?.clientWidth,
-        });
-    }
-
-    function scheduleTableLayoutDiagnostics(stage: string): void {
-        void tick().then(() => {
-            logTableLayoutState(stage);
-            logTableLayoutDom(stage);
-        });
-    }
-
 
     function setPanelPinned(panelId: string, pinned: boolean): void {
         storeSetPanelPinned(panelId, pinned);
@@ -453,51 +473,6 @@
 
     function isSortSupported(): boolean {
         return checkSortSupported($backendState);
-    }
-
-    function setSidePanelWidth(width: number): void {
-        document.body.style.setProperty('--side-panel-width', `${width}px`);
-        requestAnimationFrame(() => {
-            statsCharts.resize();
-        });
-    }
-
-    function startSidePanelResize(event: MouseEvent, panelId?: string): void {
-        const panel = panelId ? document.getElementById(panelId) : null;
-        const startWidth = panel?.getBoundingClientRect().width ?? statsPanelEl?.getBoundingClientRect().width ?? SIDE_PANEL_MIN_WIDTH;
-        sidePanelResizeState = {
-            startX: event.clientX,
-            startWidth,
-            panelId,
-        };
-        log('Side panel resize started', { panelId, startWidth });
-        document.body.classList.add('panel-resizing');
-        event.preventDefault();
-    }
-
-    function handleSidePanelResize(event: MouseEvent): void {
-        if (!sidePanelResizeState) {
-            return;
-        }
-        const delta = sidePanelResizeState.startX - event.clientX;
-        const nextWidth = clampNumber(
-            sidePanelResizeState.startWidth + delta,
-            SIDE_PANEL_MIN_WIDTH,
-            SIDE_PANEL_MAX_WIDTH,
-            sidePanelResizeState.startWidth
-        );
-        setSidePanelWidth(nextWidth);
-    }
-
-    function finishSidePanelResize(): void {
-        if (!sidePanelResizeState) {
-            return;
-        }
-        const { panelId, startWidth } = sidePanelResizeState;
-        const resolvedWidth = statsPanelEl?.getBoundingClientRect().width;
-        log('Side panel resize finished', { panelId, startWidth, resolvedWidth });
-        sidePanelResizeState = null;
-        document.body.classList.remove('panel-resizing');
     }
 
     function handleExportResult(data: string, format: string): void {
@@ -546,111 +521,8 @@
         return null;
     }
 
-    function updateHeaderScroll(scrollLeft: number): void {
-        headerScrollLeft = scrollLeft;
-    }
-
-    function applyColumnLayout(): void {
-        if (bodyInnerEl) {
-            bodyInnerEl.style.width = `${totalWidth}px`;
-        }
-    }
-
-    function startColumnResize(event: MouseEvent, columnIndex: number): void {
-        event.preventDefault();
-        event.stopPropagation();
-        const startWidth = $columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
-        activeColumnResize = {
-            columnIndex,
-            startX: event.clientX,
-            startWidth,
-        };
-        document.body.classList.add('column-resizing');
-        log('Column resize started', { columnIndex, startWidth });
-    }
-
-    function handleColumnResizeMove(event: MouseEvent): void {
-        if (!activeColumnResize) {
-            return;
-        }
-        const delta = event.clientX - activeColumnResize.startX;
-        const nextWidth = Math.max(MIN_COLUMN_WIDTH, activeColumnResize.startWidth + delta);
-        const currentWidth = $columnWidths.get(activeColumnResize.columnIndex) ?? COLUMN_WIDTH;
-        if (currentWidth === nextWidth) {
-            return;
-        }
-        const nextWidths = new Map($columnWidths);
-        nextWidths.set(activeColumnResize.columnIndex, nextWidth);
-        columnWidths.set(nextWidths);
-        log('Column resize update', { columnIndex: activeColumnResize.columnIndex, width: nextWidth });
-        applyColumnLayout();
-    }
-
-    function handleColumnResizeEnd(): void {
-        if (!activeColumnResize) {
-            return;
-        }
-        const columnIndex = activeColumnResize.columnIndex;
-        const width = $columnWidths.get(columnIndex) ?? COLUMN_WIDTH;
-        log('Column resize ended', { columnIndex, width });
-        activeColumnResize = null;
-        document.body.classList.remove('column-resizing');
-        dataTableComponent?.setIgnoreHeaderSortClick(true);
-        scheduleTableLayoutDiagnostics('column-resize-end');
-        window.setTimeout(() => {
-            dataTableComponent?.setIgnoreHeaderSortClick(false);
-        }, 0);
-    }
-
     function updateVirtualizer(): void {
         virtualizer.update();
-    }
-
-    function updateRenderColumns(
-        schema: ColumnSchema[],
-        widths: number[],
-        scrollLeft: number,
-        viewportWidth: number,
-    ): void {
-        const windowResult = computeColumnWindow({
-            schema,
-            widths,
-            scrollLeft,
-            viewportWidth,
-            virtualizationThreshold: COLUMN_VIRTUALIZATION_THRESHOLD,
-        });
-
-        renderColumns = windowResult.renderColumns;
-        leftSpacerWidth = windowResult.leftSpacerWidth;
-        rightSpacerWidth = windowResult.rightSpacerWidth;
-
-        if (windowResult.windowKey !== lastColumnWindowKey) {
-            lastColumnWindowKey = windowResult.windowKey;
-            log('Column window updated', {
-                startIndex: windowResult.startIndex,
-                endIndex: windowResult.endIndex,
-                leftSpacerWidth: windowResult.leftSpacerWidth,
-                rightSpacerWidth: windowResult.rightSpacerWidth,
-                viewportWidth,
-                scrollLeft,
-            });
-        }
-    }
-
-    function attachTableBodyObserver(target: HTMLDivElement | undefined): void {
-        if (!target || tableBodyResizeObserver) {
-            return;
-        }
-        tableBodyResizeObserver = new ResizeObserver(() => {
-            const width = target?.clientWidth ?? 0;
-            if (width !== tableViewportWidth) {
-                tableViewportWidth = width;
-                log('Table viewport resized', { width });
-            }
-        });
-        tableBodyResizeObserver.observe(target);
-        tableViewportWidth = target.clientWidth;
-        log('Table viewport observer attached', { width: tableViewportWidth });
     }
 
     function buildColumnDefs(): ColumnDef<RowData>[] {
@@ -706,138 +578,6 @@
         log('Table setup complete', { rowCount, columnCount: columns.length });
     }
 
-    function requestInitialBlock(): void {
-        if (!$backendState) {
-            return;
-        }
-        if ($backendState.table_shape.num_rows === 0) {
-            return;
-        }
-        const endIndex = Math.min($backendState.table_shape.num_rows - 1, ROW_BLOCK_SIZE - 1);
-        if ($loadedBlocks.has(0) || $loadingBlocks.has(0)) {
-            return;
-        }
-        loadingBlocks.update((blocks: Set<number>) => {
-            const next = new Set(blocks);
-            next.add(0);
-            return next;
-        });
-        vscode.postMessage({
-            type: 'requestRows',
-            startIndex: 0,
-            endIndex,
-        });
-    }
-
-    function scheduleVisibleBlocksRequest(reason: string): void {
-        if (rowRequestDebounceId !== undefined) {
-            window.clearTimeout(rowRequestDebounceId);
-        }
-        rowRequestDebounceId = window.setTimeout(() => {
-            rowRequestDebounceId = undefined;
-            requestVisibleBlocks(reason);
-        }, ROW_REQUEST_DEBOUNCE_MS);
-    }
-
-    function requestVisibleBlocks(reason: string): void {
-        if (!$backendState) {
-            return;
-        }
-
-        const virtualItems = virtualizer.getVirtualItems();
-        if (!virtualItems.length) {
-            return;
-        }
-
-        const startIndex = virtualItems[0].index;
-        const endIndex = virtualItems[virtualItems.length - 1].index;
-        const rowCount = $backendState.table_shape.num_rows;
-        const rangeResult = buildRowBlockRanges({
-            startIndex,
-            endIndex,
-            rowCount,
-            blockSize: ROW_BLOCK_SIZE,
-            prefetchBlocks: ROW_PREFETCH_BLOCKS,
-            loadedBlocks: $loadedBlocks,
-            loadingBlocks: $loadingBlocks,
-        });
-
-        if (!rangeResult || rangeResult.ranges.length === 0) {
-            return;
-        }
-
-        log('Requesting row blocks', {
-            reason,
-            visibleRange: rangeResult.visibleRange,
-            prefetchRange: rangeResult.prefetchRange,
-            ranges: rangeResult.ranges.map((range) => ({ startBlock: range.startBlock, endBlock: range.endBlock })),
-        });
-
-        for (const range of rangeResult.ranges) {
-            loadingBlocks.update((blocks: Set<number>) => {
-                const next = new Set(blocks);
-                for (let block = range.startBlock; block <= range.endBlock; block += 1) {
-                    next.add(block);
-                }
-                return next;
-            });
-
-            const blockStart = range.startBlock * ROW_BLOCK_SIZE;
-            const blockEnd = Math.min(rowCount - 1, (range.endBlock + 1) * ROW_BLOCK_SIZE - 1);
-            vscode.postMessage({
-                type: 'requestRows',
-                startIndex: blockStart,
-                endIndex: blockEnd,
-            });
-        }
-    }
-
-    function handleRows(message: RowsMessage): void {
-        if (!$backendState || $visibleSchema.length === 0) {
-            pendingRows.push(message);
-            log('Queued rows before init', { startIndex: message.startIndex, endIndex: message.endIndex });
-            return;
-        }
-        const { startIndex, endIndex, columns, rowLabels } = message;
-        const rowCount = endIndex - startIndex + 1;
-        const columnCount = $visibleSchema.length;
-        const nextRowCache = new Map($rowCache);
-        const nextRowLabelCache = new Map($rowLabelCache);
-
-        for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
-            const rowIndex = startIndex + rowOffset;
-            const values: string[] = new Array(columnCount).fill('');
-
-            for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
-                const columnValues = columns[columnIndex];
-                const value = columnValues ? columnValues[rowOffset] : '';
-                values[columnIndex] = formatColumnValue(value);
-            }
-
-            nextRowCache.set(rowIndex, values);
-            if (rowLabels && rowLabels[rowOffset] !== undefined) {
-                nextRowLabelCache.set(rowIndex, rowLabels[rowOffset]);
-            }
-        }
-
-        const startBlock = Math.floor(startIndex / ROW_BLOCK_SIZE);
-        const endBlock = Math.floor(endIndex / ROW_BLOCK_SIZE);
-        const nextLoadedBlocks = new Set($loadedBlocks);
-        const nextLoadingBlocks = new Set($loadingBlocks);
-        for (let block = startBlock; block <= endBlock; block += 1) {
-            nextLoadingBlocks.delete(block);
-            nextLoadedBlocks.add(block);
-        }
-
-        rowCache.set(nextRowCache);
-        rowLabelCache.set(nextRowLabelCache);
-        loadedBlocks.set(nextLoadedBlocks);
-        loadingBlocks.set(nextLoadingBlocks);
-        rowCacheVersion.update((version: number) => version + 1);
-        virtualizer.measure();
-        log('Rows rendered', { startIndex, endIndex, rows: rowCount, columns: columnCount });
-    }
-
     function handleInit(message: InitMessage): void {
         initializeDataStore(message.state, message.schema ?? []);
         columnVisibilityStatus = '';
@@ -850,12 +590,7 @@
         clearStatsContent();
         codePreview = '';
         applySchemaUpdate($visibleSchema);
-        if (pendingRows.length > 0) {
-            const queued = [...pendingRows];
-            pendingRows = [];
-            queued.forEach((rowsMessage) => handleRows(rowsMessage));
-            log('Applied pending rows', { count: queued.length });
-        }
+        applyPendingRows();
         log('Data explorer initialized', {
             rows: message.state.table_shape.num_rows,
             columns: $visibleSchema.length,
@@ -939,28 +674,6 @@
             ? ` - ${unnamedCount === $fullSchema.length ? 'No column names' : `${unnamedCount} unnamed columns`}`
             : '';
         return `${num_rows}x${num_columns}${filteredText}${unnamedText}`;
-    }
-
-    function getCellValue(rowIndex: number, columnIndex: number, _version?: number): string {
-        const values = $rowCache.get(rowIndex);
-        if (!values) {
-            return '';
-        }
-        return values[columnIndex] ?? '';
-    }
-
-    function getRowLabel(rowIndex: number, _version?: number): string {
-        if ($backendState?.has_row_labels) {
-            return $rowLabelCache.get(rowIndex) ?? '';
-        }
-        return String(rowIndex + 1);
-    }
-
-    function formatColumnValue(value: ColumnValue): string {
-        if (typeof value === 'number') {
-            return formatSpecialValue(value);
-        }
-        return value ?? '';
     }
 
     function handleCodeConvert(): void {
@@ -1047,15 +760,10 @@
 
     onDestroy(() => {
         document.removeEventListener('click', handleDocumentClick);
-        if (rowRequestDebounceId !== undefined) {
-            window.clearTimeout(rowRequestDebounceId);
-        }
-        if (tableBodyResizeObserver) {
-            tableBodyResizeObserver.disconnect();
-            tableBodyResizeObserver = null;
-        }
         disposeStatsController();
         disposeSchemaController();
+        disposeRowDataController();
+        disposeTableLayoutController();
         virtualizer.dispose();
         statsCharts.dispose();
     });
