@@ -186,8 +186,8 @@
 
 <style>
     .side-panel {
-        position: absolute;
-        top: 0;
+        position: fixed;
+        top: var(--table-area-top, 0);
         bottom: 0;
         right: calc(-1 * var(--side-panel-width) - 20px);
         width: var(--side-panel-width);
