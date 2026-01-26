@@ -6,6 +6,7 @@ export function run(): Promise<void> {
     const testsRoot = path.resolve(__dirname);
 
     mocha.addFile(path.join(testsRoot, 'extension.test.js'));
+    mocha.addFile(path.join(testsRoot, 'logging.test.js'));
 
     return new Promise((resolve, reject) => {
         mocha.run((failures: number) => {
