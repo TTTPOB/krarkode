@@ -10,12 +10,7 @@
     import { useRowDataController } from './hooks/useRowDataController';
     import { useTableInteractionController } from './hooks/useTableInteractionController';
     import { useWindowEventsController } from './hooks/useWindowEventsController';
-    import {
-        ColumnDef,
-        Table,
-        createTable,
-        getCoreRowModel,
-    } from '@tanstack/table-core';
+    import { useTableSetupController } from './hooks/useTableSetupController';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -88,7 +83,6 @@
     } from './types';
     import {
         getColumnLabel,
-        isColumnNamed,
         createRowFilterDraft,
         computeDisplayedColumns,
         resolveColumnWidth,
@@ -149,12 +143,6 @@
     let renderColumns: Array<{ column: ColumnSchema; schemaIndex: number }> = [];
     let leftSpacerWidth = 0;
     let rightSpacerWidth = 0;
-
-    // TanStack Table state
-    interface RowData {
-        index: number;
-    }
-    let tableInstance: Table<RowData> | null = null;
 
 
     // collapsedSections now comes from store via $collapsedSectionsStore
@@ -314,6 +302,21 @@
         toggleStatsSection,
         dispose: disposeStatsController,
     } = statsController;
+
+    const tableSetupController = useTableSetupController({
+        log,
+        getBackendState: () => $backendState,
+        getVisibleSchema: () => $visibleSchema,
+        getFullSchema: () => $fullSchema,
+        getRowLabel,
+        getCellValue,
+        getColumnLabel,
+    });
+
+    const {
+        setupTable,
+        buildTableMetaText,
+    } = tableSetupController;
 
     const schemaController = useSchemaController({
         log,
@@ -567,59 +570,6 @@
         virtualizer.update();
     }
 
-    function buildColumnDefs(): ColumnDef<RowData>[] {
-        const columns: ColumnDef<RowData>[] = [];
-
-        // Row label column
-        columns.push({
-            id: 'row-label',
-            header: $backendState?.has_row_labels ? '#' : 'Row',
-            accessorFn: (row) => getRowLabel(row.index),
-        });
-
-        // Data columns
-        for (let i = 0; i < $visibleSchema.length; i++) {
-            const column = $visibleSchema[i];
-            const schemaIndex = i;
-            columns.push({
-                id: `col-${column.column_index}`,
-                header: getColumnLabel(column),
-                accessorFn: (row) => getCellValue(row.index, schemaIndex),
-            });
-        }
-
-        return columns;
-    }
-
-    function setupTable(): void {
-        if (!$backendState) {
-            return;
-        }
-
-        const rowCount = $backendState.table_shape.num_rows;
-        const rowData: RowData[] = Array.from({ length: rowCount }, (_, index) => ({ index }));
-        const columns = buildColumnDefs();
-
-        if (!tableInstance) {
-            tableInstance = createTable<RowData>({
-                data: rowData,
-                columns,
-                getCoreRowModel: getCoreRowModel(),
-                state: {},
-                onStateChange: () => undefined,
-                renderFallbackValue: '',
-            });
-        } else {
-            tableInstance.setOptions((prev) => ({
-                ...prev,
-                data: rowData,
-                columns,
-            }));
-        }
-
-        log('Table setup complete', { rowCount, columnCount: columns.length });
-    }
-
     function handleInit(message: InitMessage): void {
         initializeDataStore(message.state, message.schema ?? []);
         columnVisibilityStatus = '';
@@ -638,23 +588,6 @@
             columns: $visibleSchema.length,
         });
         scheduleTableLayoutDiagnostics('init');
-    }
-
-    function buildTableMetaText(): string {
-        if (!$backendState) {
-            return '';
-        }
-        const { num_rows } = $backendState.table_shape;
-        const num_columns = $visibleSchema.length;
-        const { num_rows: rawRows, num_columns: rawColumns } = $backendState.table_unfiltered_shape;
-        const filteredText = num_rows !== rawRows || num_columns !== rawColumns
-            ? ` (${rawRows}x${rawColumns} raw)`
-            : '';
-        const unnamedCount = $fullSchema.filter((column) => !isColumnNamed(column)).length;
-        const unnamedText = unnamedCount
-            ? ` - ${unnamedCount === $fullSchema.length ? 'No column names' : `${unnamedCount} unnamed columns`}`
-            : '';
-        return `${num_rows}x${num_columns}${filteredText}${unnamedText}`;
     }
 
     function handleCodeConvert(): void {
