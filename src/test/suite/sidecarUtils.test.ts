@@ -24,16 +24,14 @@ suite('Sidecar/session utils', () => {
         assert.strictEqual(formatSidecarRustLog('debug'), 'vscode_r_ark_sidecar=debug');
     });
 
-    test('getArkLogLevel reads configuration with fallback', async () => {
-        const config = vscode.workspace.getConfiguration('krarkode.ark');
-        const previous = config.get('logLevel');
-        try {
-            await config.update('logLevel', 'trace', vscode.ConfigurationTarget.Global);
-            assert.strictEqual(getArkLogLevel(config), 'trace');
-            await config.update('logLevel', 'invalid', vscode.ConfigurationTarget.Global);
-            assert.strictEqual(getArkLogLevel(config), 'inherit');
-        } finally {
-            await config.update('logLevel', previous ?? undefined, vscode.ConfigurationTarget.Global);
-        }
+    test('getArkLogLevel reads configuration with fallback', () => {
+        const config = {
+            get: () => 'trace',
+        } as unknown as vscode.WorkspaceConfiguration;
+        assert.strictEqual(getArkLogLevel(config), 'trace');
+        const invalidConfig = {
+            get: () => 'invalid',
+        } as unknown as vscode.WorkspaceConfiguration;
+        assert.strictEqual(getArkLogLevel(invalidConfig), 'inherit');
     });
 });
