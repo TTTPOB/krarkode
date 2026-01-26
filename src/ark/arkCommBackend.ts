@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from './sidecarManager';
-import { getLogger } from '../logging/logger';
+import { getLogger, LogCategory } from '../logging/logger';
 
 /**
  * PlotId is a string identifier for a plot (matches comm_id).
@@ -38,7 +38,7 @@ export interface IPlotBackend extends vscode.Disposable {
     readonly onPlotsChanged: vscode.Event<PlotValidation[]>;
     readonly onConnectionChanged: vscode.Event<void>;
     readonly onDeviceActiveChanged: vscode.Event<void>;
-    
+
     connect(): Promise<void>;
     disconnect(): void;
     getPlots(): PlotValidation[];
@@ -92,21 +92,23 @@ export class ArkCommBackend implements IPlotBackend {
 
     private readonly disposables: vscode.Disposable[] = [];
     private readonly plots = new Map<PlotId, PlotValidation>();
-    private readonly pendingRenders = new Map<PlotId, { resolve: (result: { data: string; mime_type: string }) => void; reject: (err: unknown) => void }>();
-    
-    private readonly outputChannel = getLogger().createChannel('ark', 'plot-comm');
+    private readonly pendingRenders = new Map<
+        PlotId,
+        { resolve: (result: { data: string; mime_type: string }) => void; reject: (err: unknown) => void }
+    >();
+
+    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.PlotComm);
 
     private uiCommId: string | undefined;
 
-    constructor(private readonly sidecarManager: ArkSidecarManager) {
-    }
+    constructor(private readonly sidecarManager: ArkSidecarManager) {}
 
     public async connect(): Promise<void> {
         this.disposables.push(
-            this.sidecarManager.onDidOpenPlotComm(e => this.handleOpenPlot(e)),
-            this.sidecarManager.onDidReceiveCommMessage(e => this.handleMessage(e)),
-            this.sidecarManager.onDidClosePlotComm(e => this.handleClosePlot(e)),
-            this.sidecarManager.onDidStart(() => this.initializeComm())
+            this.sidecarManager.onDidOpenPlotComm((e) => this.handleOpenPlot(e)),
+            this.sidecarManager.onDidReceiveCommMessage((e) => this.handleMessage(e)),
+            this.sidecarManager.onDidClosePlotComm((e) => this.handleClosePlot(e)),
+            this.sidecarManager.onDidStart(() => this.initializeComm()),
         );
         // Initial sync if needed? Usually we wait for events.
         this._onConnectionChanged.fire();
@@ -132,10 +134,10 @@ export class ArkCommBackend implements IPlotBackend {
     }
 
     public dispose(): void {
-        this.disposables.forEach(d => d.dispose());
+        this.disposables.forEach((d) => d.dispose());
         this.disposables.length = 0;
         this.plots.clear();
-        this.pendingRenders.forEach(p => p.reject(new Error('Backend disposed')));
+        this.pendingRenders.forEach((p) => p.reject(new Error('Backend disposed')));
         this.pendingRenders.clear();
         this._onPlotsChanged.dispose();
         this._onConnectionChanged.dispose();
@@ -149,13 +151,24 @@ export class ArkCommBackend implements IPlotBackend {
         return Array.from(this.plots.values());
     }
 
-    public async getPlotContent(id: PlotId, width: number, height: number, zoom: number, renderer: string): Promise<string> {
-        const format = (renderer === 'svg' || renderer === 'svgp') ? 'svg' : 'png';
+    public async getPlotContent(
+        id: PlotId,
+        width: number,
+        height: number,
+        zoom: number,
+        renderer: string,
+    ): Promise<string> {
+        const format = renderer === 'svg' || renderer === 'svgp' ? 'svg' : 'png';
         const result = await this.renderPlot(id, { width, height }, zoom, format);
         return `<img src="data:${result.mimeType};base64,${result.data}" style="max-width: 100%; max-height: 100%;" />`;
     }
 
-    public async renderPlot(id: PlotId, size: { width: number; height: number }, pixelRatio: number, format: 'png' | 'svg' | 'pdf'): Promise<PlotRenderResult> {
+    public async renderPlot(
+        id: PlotId,
+        size: { width: number; height: number },
+        pixelRatio: number,
+        format: 'png' | 'svg' | 'pdf',
+    ): Promise<PlotRenderResult> {
         return new Promise<{ data: string; mime_type: string }>((resolve, reject) => {
             const pending = this.pendingRenders.get(id);
             if (pending) {
@@ -176,11 +189,7 @@ export class ArkCommBackend implements IPlotBackend {
 
             this.sidecarManager.sendCommMessage(id, request);
         }).then(({ data, mime_type }) => {
-            const format = mime_type === 'image/svg+xml'
-                ? 'svg'
-                : mime_type === 'application/pdf'
-                    ? 'pdf'
-                    : 'png';
+            const format = mime_type === 'image/svg+xml' ? 'svg' : mime_type === 'application/pdf' ? 'pdf' : 'png';
             return {
                 data,
                 mimeType: mime_type,
@@ -190,22 +199,26 @@ export class ArkCommBackend implements IPlotBackend {
     }
 
     public getRenderers(): PlotRenderer[] {
-        return [{
-            id: 'svg',
-            name: 'SVG Image',
-            descr: 'Scalable Vector Graphics',
-            ext: '.svg'
-        }, {
-            id: 'pdf',
-            name: 'PDF Document',
-            descr: 'Portable Document Format',
-            ext: '.pdf'
-        }, {
-            id: 'png',
-            name: 'PNG Image',
-            descr: 'Rasterized PNG image',
-            ext: '.png'
-        }];
+        return [
+            {
+                id: 'svg',
+                name: 'SVG Image',
+                descr: 'Scalable Vector Graphics',
+                ext: '.svg',
+            },
+            {
+                id: 'pdf',
+                name: 'PDF Document',
+                descr: 'Portable Document Format',
+                ext: '.pdf',
+            },
+            {
+                id: 'png',
+                name: 'PNG Image',
+                descr: 'Rasterized PNG image',
+                ext: '.png',
+            },
+        ];
     }
 
     public getFullUrl(): string {
@@ -218,11 +231,12 @@ export class ArkCommBackend implements IPlotBackend {
     }
 
     public async savePlot(id: PlotId, renderer: string, outFile: string): Promise<void> {
-        const format = renderer === 'svg' || renderer === 'svgp'
-            ? 'svg'
-            : renderer === 'pdf'
-                ? 'pdf'
-                : renderer === 'png'
+        const format =
+            renderer === 'svg' || renderer === 'svgp'
+                ? 'svg'
+                : renderer === 'pdf'
+                  ? 'pdf'
+                  : renderer === 'png'
                     ? 'png'
                     : undefined;
         if (!format) {
@@ -247,11 +261,12 @@ export class ArkCommBackend implements IPlotBackend {
         const preRenderData = payload?.pre_render as Record<string, unknown> | undefined;
         let preRender: PlotRenderResult | undefined;
         if (preRenderData && typeof preRenderData.data === 'string' && typeof preRenderData.mime_type === 'string') {
-            const format = preRenderData.mime_type === 'image/svg+xml'
-                ? 'svg'
-                : preRenderData.mime_type === 'application/pdf'
-                    ? 'pdf'
-                    : 'png';
+            const format =
+                preRenderData.mime_type === 'image/svg+xml'
+                    ? 'svg'
+                    : preRenderData.mime_type === 'application/pdf'
+                      ? 'pdf'
+                      : 'png';
             preRender = {
                 data: preRenderData.data,
                 mimeType: preRenderData.mime_type,
@@ -277,7 +292,7 @@ export class ArkCommBackend implements IPlotBackend {
         if (pending && data && data.method === 'RenderReply') {
             const reply = data as unknown as ArkRenderReply;
             if (reply.result && reply.result.data) {
-                 pending.resolve(reply.result);
+                pending.resolve(reply.result);
             } else {
                 pending.reject(new Error('Invalid RenderReply: missing data'));
             }
@@ -287,12 +302,18 @@ export class ArkCommBackend implements IPlotBackend {
 
     private asViewColumn(value: string | undefined, defaultColumn: vscode.ViewColumn): vscode.ViewColumn {
         switch (value) {
-            case 'Active': return vscode.ViewColumn.Active;
-            case 'Beside': return vscode.ViewColumn.Beside;
-            case 'One': return vscode.ViewColumn.One;
-            case 'Two': return vscode.ViewColumn.Two;
-            case 'Three': return vscode.ViewColumn.Three;
-            default: return defaultColumn;
+            case 'Active':
+                return vscode.ViewColumn.Active;
+            case 'Beside':
+                return vscode.ViewColumn.Beside;
+            case 'One':
+                return vscode.ViewColumn.One;
+            case 'Two':
+                return vscode.ViewColumn.Two;
+            case 'Three':
+                return vscode.ViewColumn.Three;
+            default:
+                return defaultColumn;
         }
     }
 }

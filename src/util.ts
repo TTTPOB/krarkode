@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import { getExtensionContext } from './context';
-import { getLogger } from './logging/logger';
+import { getLogger, LogCategory } from './logging/logger';
 
 export interface SpawnResult {
     status: number | null;
@@ -21,7 +21,7 @@ export function config(): vscode.WorkspaceConfiguration {
 export { isDebugLoggingEnabled } from './logging/logger';
 
 export function logDebug(message: string): void {
-    getLogger().debug('ark', 'core', message);
+    getLogger().debug('ark', LogCategory.Core, message);
 }
 
 function substituteVariable(str: string, key: string, getValue: () => string | undefined) {
@@ -89,7 +89,7 @@ async function getRpathFromSystem(): Promise<string> {
                     } else {
                         reject(err);
                     }
-                })
+                }),
             );
             rpath = path.join((item as { value: string }).value, 'bin', 'R.exe');
         } catch (e) {
@@ -113,7 +113,9 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
     rpath ||= undefined;
 
     if (!rpath) {
-        void vscode.window.showErrorMessage(`Cannot find R to use for Ark kernel. Change setting krarkode.r.rBinaryPath to R path.`);
+        void vscode.window.showErrorMessage(
+            `Cannot find R to use for Ark kernel. Change setting krarkode.r.rBinaryPath to R path.`,
+        );
     } else if (quote && /^[^'"].* .*[^'"]$/.exec(rpath)) {
         rpath = `"${rpath}"`;
     } else if (!quote) {
@@ -257,9 +259,11 @@ export function getTempDir(): string {
  * @returns Path to the temporary directory.
  */
 export function createTempDir(root: string, hidden?: boolean): string {
-    const hidePrefix = (!hidden || process.platform === 'win32') ? '' : '.';
+    const hidePrefix = !hidden || process.platform === 'win32' ? '' : '.';
     let tempDir: string;
-    while (fs.existsSync(tempDir = path.join(root, `${hidePrefix}___temp_${randomBytes(8).toString('hex')}`))) { /* Name clash */ }
+    while (fs.existsSync((tempDir = path.join(root, `${hidePrefix}___temp_${randomBytes(8).toString('hex')}`)))) {
+        /* Name clash */
+    }
     fs.mkdirSync(tempDir, { recursive: true });
     return tempDir;
 }
@@ -275,7 +279,7 @@ export type DisposableProcess = cp.ChildProcessWithoutNullStreams & vscode.Dispo
 
 /**
  * Spawn a process that can be disposed.
- * 
+ *
  * @param command The command to run.
  * @param args Arguments for the command.
  * @param options Spawn options.
@@ -286,11 +290,11 @@ export function spawn(
     command: string,
     args?: ReadonlyArray<string>,
     options?: cp.CommonOptions,
-    onDisposed?: () => unknown
+    onDisposed?: () => unknown,
 ): DisposableProcess {
     const proc = cp.spawn(command, args, options) as DisposableProcess;
     logDebug(proc.pid ? `Process ${proc.pid} spawned` : 'Process failed to spawn');
-    
+
     let running = true;
     const exitHandler = () => {
         running = false;
@@ -298,7 +302,7 @@ export function spawn(
     };
     proc.on('exit', exitHandler);
     proc.on('error', exitHandler);
-    
+
     proc.dispose = () => {
         if (running) {
             logDebug(`Process ${proc.pid || ''} terminating`);
@@ -314,6 +318,6 @@ export function spawn(
             onDisposed();
         }
     };
-    
+
     return proc;
 }

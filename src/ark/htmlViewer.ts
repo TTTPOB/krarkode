@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import * as util from '../util';
 import type { ShowHtmlFileParams } from './sidecarManager';
-import { getLogger } from '../logging/logger';
+import { getLogger, LogCategory } from '../logging/logger';
 
 /**
  * HtmlViewer handles ShowHtmlFile events from Ark.
@@ -11,7 +11,7 @@ import { getLogger } from '../logging/logger';
  */
 export class HtmlViewer implements vscode.Disposable {
     private readonly panels = new Map<string, vscode.WebviewPanel>();
-    private readonly outputChannel = getLogger().createChannel('ark', 'html');
+    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Html);
 
     public async showHtmlFile(params: ShowHtmlFileParams): Promise<void> {
         const { path: filePath, title, destination, height } = params;
@@ -42,7 +42,7 @@ export class HtmlViewer implements vscode.Disposable {
     private async showInViewer(filePath: string, title: string, height: number): Promise<void> {
         const viewColumn = this.getViewColumn();
         const panel = this.getOrCreatePanel('viewer', title || 'HTML Viewer', viewColumn);
-        
+
         await this.loadHtmlIntoPanel(panel, filePath, title, height);
         panel.reveal(viewColumn, true);
     }
@@ -56,7 +56,7 @@ export class HtmlViewer implements vscode.Disposable {
 
         const viewColumn = this.asViewColumn(configured, vscode.ViewColumn.Two);
         const panel = this.getOrCreatePanel('plot', title || 'Plot', viewColumn);
-        
+
         await this.loadHtmlIntoPanel(panel, filePath, title, height);
         panel.reveal(viewColumn, true);
     }
@@ -70,20 +70,20 @@ export class HtmlViewer implements vscode.Disposable {
         panel: vscode.WebviewPanel,
         filePath: string,
         title: string,
-        _height: number
+        _height: number,
     ): Promise<void> {
         try {
             let htmlContent = await fs.promises.readFile(filePath, 'utf8');
-            
+
             // Get the directory of the HTML file for resource loading
             const baseDir = path.dirname(filePath);
             const baseUri = panel.webview.asWebviewUri(vscode.Uri.file(baseDir));
-            
+
             // Inject base tag to resolve relative paths
             // Also add CSP meta tag for security
             const cspMeta = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${panel.webview.cspSource} data: file: https:; style-src ${panel.webview.cspSource} 'unsafe-inline'; script-src 'unsafe-inline' ${panel.webview.cspSource}; font-src ${panel.webview.cspSource} data:;">`;
             const baseTag = `<base href="${baseUri}/">`;
-            
+
             // Insert base and csp tags into head
             if (htmlContent.includes('<head>')) {
                 htmlContent = htmlContent.replace('<head>', `<head>\n${cspMeta}\n${baseTag}`);
@@ -92,9 +92,9 @@ export class HtmlViewer implements vscode.Disposable {
             } else {
                 htmlContent = `<!DOCTYPE html><html><head>${cspMeta}\n${baseTag}</head><body>${htmlContent}</body></html>`;
             }
-            
+
             panel.webview.html = htmlContent;
-            
+
             if (title) {
                 panel.title = title;
             }
@@ -123,7 +123,7 @@ export class HtmlViewer implements vscode.Disposable {
                 enableFindWidget: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [vscode.Uri.file('/')], // Allow loading from any local path
-            }
+            },
         );
 
         panel.onDidDispose(() => {

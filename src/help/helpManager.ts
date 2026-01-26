@@ -1,18 +1,24 @@
 import * as vscode from 'vscode';
-import { HELP_VIEW_TITLE, COMMAND_HELP_GO_BACK, COMMAND_HELP_GO_FORWARD, COMMAND_HELP_GO_HOME, COMMAND_HELP_FIND } from './helpIds';
+import {
+    HELP_VIEW_TITLE,
+    COMMAND_HELP_GO_BACK,
+    COMMAND_HELP_GO_FORWARD,
+    COMMAND_HELP_GO_HOME,
+    COMMAND_HELP_FIND,
+} from './helpIds';
 import { HelpService } from './helpService';
 import * as util from '../util';
-import { getLogger } from '../logging/logger';
+import { getLogger, LogCategory } from '../logging/logger';
 
 export class HelpManager implements vscode.Disposable {
     private panel?: vscode.WebviewPanel;
     private readonly disposables: vscode.Disposable[] = [];
     private isFirstLoad = true;
-    private readonly outputChannel = getLogger().createChannel('ark', 'help');
+    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Help);
 
     constructor(
         private readonly extensionUri: vscode.Uri,
-        private readonly helpService: HelpService
+        private readonly helpService: HelpService,
     ) {
         this.disposables.push(
             this.helpService.onDidChangeHelpEntry(() => {
@@ -20,11 +26,11 @@ export class HelpManager implements vscode.Disposable {
                     this.updateNavigationState();
                     this.updateContent();
                 } else if (this.panel) {
-                    // Content changed but panel hidden/background? 
+                    // Content changed but panel hidden/background?
                     // Usually we might want to reveal it if it's a new request
                     // But let's leave that policy to the caller or service
                 }
-            })
+            }),
         );
 
         this.registerCommands();
@@ -32,7 +38,7 @@ export class HelpManager implements vscode.Disposable {
 
     public showHelp(focus: boolean = true): void {
         const viewColumn = this.getViewColumn();
-        
+
         if (this.panel) {
             this.panel.reveal(viewColumn, focus);
         } else {
@@ -48,21 +54,29 @@ export class HelpManager implements vscode.Disposable {
                         vscode.Uri.joinPath(this.extensionUri, 'html', 'help'),
                         vscode.Uri.joinPath(this.extensionUri, 'resources'),
                     ],
-                }
+                },
             );
 
-            this.panel.onDidDispose(() => {
-                this.panel = undefined;
-                this.isFirstLoad = true;
-            }, null, this.disposables);
+            this.panel.onDidDispose(
+                () => {
+                    this.panel = undefined;
+                    this.isFirstLoad = true;
+                },
+                null,
+                this.disposables,
+            );
 
-            this.panel.webview.onDidReceiveMessage((message) => {
-                this.handleMessage(message);
-            }, null, this.disposables);
+            this.panel.webview.onDidReceiveMessage(
+                (message) => {
+                    this.handleMessage(message);
+                },
+                null,
+                this.disposables,
+            );
 
             this.panel.webview.html = this.getWebviewHtml();
         }
-        
+
         this.updateNavigationState();
         this.updateContent();
     }
@@ -74,12 +88,18 @@ export class HelpManager implements vscode.Disposable {
 
     private asViewColumn(value: string | undefined, defaultColumn: vscode.ViewColumn): vscode.ViewColumn {
         switch (value) {
-            case 'Active': return vscode.ViewColumn.Active;
-            case 'Beside': return vscode.ViewColumn.Beside;
-            case 'One': return vscode.ViewColumn.One;
-            case 'Two': return vscode.ViewColumn.Two;
-            case 'Three': return vscode.ViewColumn.Three;
-            default: return defaultColumn;
+            case 'Active':
+                return vscode.ViewColumn.Active;
+            case 'Beside':
+                return vscode.ViewColumn.Beside;
+            case 'One':
+                return vscode.ViewColumn.One;
+            case 'Two':
+                return vscode.ViewColumn.Two;
+            case 'Three':
+                return vscode.ViewColumn.Three;
+            default:
+                return defaultColumn;
         }
     }
 
@@ -92,7 +112,7 @@ export class HelpManager implements vscode.Disposable {
         if (entry.entryType === 'welcome') {
             this.panel.webview.postMessage({
                 command: 'show-welcome',
-                title: entry.title
+                title: entry.title,
             });
         } else if (entry.content) {
             this.panel.webview.postMessage({
@@ -100,7 +120,7 @@ export class HelpManager implements vscode.Disposable {
                 html: entry.content,
                 title: entry.title,
                 kind: entry.kind,
-                scrollPosition: entry.scrollPosition
+                scrollPosition: entry.scrollPosition,
             });
         }
     }
@@ -118,7 +138,7 @@ export class HelpManager implements vscode.Disposable {
             }),
             vscode.commands.registerCommand(COMMAND_HELP_FIND, () => {
                 this.panel?.webview.postMessage({ command: 'positron-help-find' });
-            })
+            }),
         );
     }
 
@@ -451,7 +471,7 @@ export class HelpManager implements vscode.Disposable {
                 }
                 const base = typeof message.message === 'string' ? message.message : 'Help webview log.';
                 const detail = typeof message.detail === 'string' ? ` ${message.detail}` : '';
-                getLogger().debug('ark', 'help', `webview: ${base}${detail}`);
+                getLogger().debug('ark', LogCategory.Help, `webview: ${base}${detail}`);
                 break;
             }
         }
@@ -475,7 +495,7 @@ export class HelpManager implements vscode.Disposable {
     }
 
     public dispose(): void {
-        this.disposables.forEach(d => d.dispose());
+        this.disposables.forEach((d) => d.dispose());
         this.disposables.length = 0;
         this.panel?.dispose();
         this.outputChannel.dispose();

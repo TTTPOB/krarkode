@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import type { ArkSessionEntry } from './sessionRegistry';
-import { getLogger } from '../logging/logger';
+import { getLogger, LogCategory } from '../logging/logger';
 
 /**
  * Get selected text or word under cursor.
@@ -95,7 +95,7 @@ export async function saveDocument(doc: vscode.TextDocument): Promise<boolean> {
  * It sends code to the active terminal where the Ark/Jupyter console is running.
  */
 export class CodeExecutor implements vscode.Disposable {
-    private readonly outputChannel = getLogger().createChannel('ark', 'exec');
+    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Exec);
 
     constructor() {}
 
@@ -121,8 +121,12 @@ export class CodeExecutor implements vscode.Disposable {
             vscode.commands.registerCommand('krarkode.names', () => this.runSelectionOrWord(['names'])),
             vscode.commands.registerCommand('krarkode.view', () => this.runSelectionOrWord(['View'])),
             vscode.commands.registerCommand('krarkode.runCommand', (command: string) => this.runCommand(command)),
-            vscode.commands.registerCommand('krarkode.runCommandWithSelectionOrWord', (command: string) => this.runCommandWithSelectionOrWord(command)),
-            vscode.commands.registerCommand('krarkode.runCommandWithEditorPath', (command: string) => this.runCommandWithEditorPath(command)),
+            vscode.commands.registerCommand('krarkode.runCommandWithSelectionOrWord', (command: string) =>
+                this.runCommandWithSelectionOrWord(command),
+            ),
+            vscode.commands.registerCommand('krarkode.runCommandWithEditorPath', (command: string) =>
+                this.runCommandWithEditorPath(command),
+            ),
         );
     }
 
@@ -264,9 +268,12 @@ export class CodeExecutor implements vscode.Disposable {
             const lineCount = textEditor.document.lineCount;
             if (selectionInfo.linesDownToMoveCursor + textEditor.selection.end.line === lineCount) {
                 const endPos = new vscode.Position(lineCount, textEditor.document.lineAt(lineCount - 1).text.length);
-                await textEditor.edit(e => e.insert(endPos, '\n'));
+                await textEditor.edit((e) => e.insert(endPos, '\n'));
             }
-            await vscode.commands.executeCommand('cursorMove', { to: 'down', value: selectionInfo.linesDownToMoveCursor });
+            await vscode.commands.executeCommand('cursorMove', {
+                to: 'down',
+                value: selectionInfo.linesDownToMoveCursor,
+            });
             await vscode.commands.executeCommand('cursorMove', { to: 'wrappedLineFirstNonWhitespaceCharacter' });
         }
         await this.runTextInArk(selectionInfo.selectedText);
@@ -308,7 +315,7 @@ export class CodeExecutor implements vscode.Disposable {
             const choice = await vscode.window.showInformationMessage(
                 'No Ark sessions found. Create one now?',
                 'Create',
-                'Cancel'
+                'Cancel',
             );
             if (choice === 'Create') {
                 await vscode.commands.executeCommand('krarkode.createArkSession');
@@ -333,7 +340,7 @@ export class CodeExecutor implements vscode.Disposable {
                 label: entry.name,
                 description: entry.tmuxSessionName ?? entry.mode,
             })),
-            { placeHolder: 'Select Ark session to run code' }
+            { placeHolder: 'Select Ark session to run code' },
         );
         if (!selected) {
             return undefined;

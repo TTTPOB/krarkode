@@ -9,6 +9,7 @@ import {
     formatLogMessage,
     getLogger,
     isDebugLoggingEnabled,
+    LogCategory,
     RegexLogLevelParser,
     type LogContext,
     type LogLevel,
@@ -274,7 +275,7 @@ export class ArkSidecarManager implements vscode.Disposable {
             env.RUST_LOG = sidecarRustLog;
             getLogger().debug(
                 'sidecar',
-                'logging',
+                LogCategory.Logging,
                 this.formatLogMessage(`Sidecar log level set to ${sidecarRustLog}.`),
             );
         }
@@ -288,7 +289,11 @@ export class ArkSidecarManager implements vscode.Disposable {
         const msg = { command: SIDECAR_LOG_RELOAD_COMMAND };
         try {
             this.proc.stdin.write(JSON.stringify(msg) + '\n');
-            getLogger().debug('sidecar', 'logging', this.formatLogMessage('Sent log reload command to sidecar.'));
+            getLogger().debug(
+                'sidecar',
+                LogCategory.Logging,
+                this.formatLogMessage('Sent log reload command to sidecar.'),
+            );
         } catch (error) {
             this.outputChannel.appendLine(this.formatLogMessage(`Failed to reload sidecar log level: ${error}`));
         }
@@ -311,7 +316,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (msg.event === 'error') {
             getLogger().log(
                 'sidecar',
-                'event',
+                LogCategory.Event,
                 'error',
                 this.formatLogMessage(`Sidecar error: ${msg.message ?? 'unknown error'}`),
             );
@@ -373,7 +378,7 @@ export class ArkSidecarManager implements vscode.Disposable {
                 const payload = JSON.stringify(msg.data);
                 getLogger().debug(
                     'sidecar',
-                    'comm',
+                    LogCategory.Comm,
                     this.formatLogMessage(`Received comm_msg ${msg.comm_id ?? 'unknown'}: ${payload}`),
                 );
             }
@@ -450,7 +455,7 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private logSidecarStderr(message: string): void {
         const level = this.parseSidecarLogLevel(message);
-        getLogger().log('sidecar', 'stderr', level, this.formatLogMessage(message));
+        getLogger().log('sidecar', LogCategory.Stderr, level, this.formatLogMessage(message));
     }
 
     private parseSidecarLogLevel(message: string): LogLevel {

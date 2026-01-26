@@ -22,6 +22,7 @@ import {
     formatLogMessage,
     getLogChannelSetting,
     getLogger,
+    LogCategory,
     RegexLogLevelParser,
     type LogChannelId,
     type LogContext,
@@ -430,7 +431,11 @@ export class ArkLanguageService implements vscode.Disposable {
         const traceLevel = setting === 'debug' ? Trace.Verbose : Trace.Off;
         void this.client.setTrace(traceLevel);
         if (traceLevel === Trace.Verbose) {
-            getLogger().debug('lsp', 'logging', this.formatLogMessage('Ark LSP trace logging enabled.', 'lsp'));
+            getLogger().debug(
+                'lsp',
+                LogCategory.Logging,
+                this.formatLogMessage('Ark LSP trace logging enabled.', 'lsp'),
+            );
         }
     }
 
@@ -490,9 +495,10 @@ export class ArkLanguageService implements vscode.Disposable {
             .map((line) => line.trim())
             .filter((line) => line.length > 0);
         const fallback: LogLevel = source === 'stderr' ? 'warn' : 'info';
+        const category = source === 'stderr' ? LogCategory.Stderr : LogCategory.Stdout;
         for (const line of lines) {
             const level = this.parseKernelLogLevel(line, fallback);
-            getLogger().log('ark-kernel', source, level, this.formatLogMessage(line, 'kernel'));
+            getLogger().log('ark-kernel', category, level, this.formatLogMessage(line, 'kernel'));
         }
     }
 
@@ -508,7 +514,7 @@ export class ArkLanguageService implements vscode.Disposable {
             env.RUST_LOG = sidecarRustLog;
             getLogger().debug(
                 'lsp',
-                'logging',
+                LogCategory.Logging,
                 this.formatLogMessage(`LSP sidecar log level set to ${sidecarRustLog}.`, 'sidecar'),
             );
         }
@@ -524,7 +530,7 @@ export class ArkLanguageService implements vscode.Disposable {
             this.sidecarProcess.stdin.write(JSON.stringify(message) + '\n');
             getLogger().debug(
                 'lsp',
-                'logging',
+                LogCategory.Logging,
                 this.formatLogMessage('Sent log reload command to LSP sidecar.', 'sidecar'),
             );
         } catch (error) {

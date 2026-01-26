@@ -5,6 +5,23 @@ export type LogChannelId = 'ark' | 'ark-kernel' | 'lsp' | 'sidecar';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
+export enum LogCategory {
+    Core = 'core',
+    Logging = 'logging',
+    Session = 'session',
+    Help = 'help',
+    DataExplorer = 'data-explorer',
+    Variables = 'variables',
+    Exec = 'exec',
+    Html = 'html',
+    PlotComm = 'plot-comm',
+    Plot = 'plot',
+    Comm = 'comm',
+    Event = 'event',
+    Stdout = 'stdout',
+    Stderr = 'stderr',
+}
+
 export type LogContext = {
     sessionName?: string;
     connectionFile?: string;
@@ -13,7 +30,7 @@ export type LogContext = {
 };
 
 type WriteOptions = {
-    category?: string;
+    category?: LogCategory;
     level?: LogLevel;
     newLine?: boolean;
 };
@@ -178,7 +195,7 @@ class LoggerOutputChannel implements vscode.OutputChannel {
     constructor(
         private readonly logger: LoggerService,
         private readonly channelId: LogChannelId,
-        private readonly category?: string,
+        private readonly category?: LogCategory,
     ) {
         this.name = logger.getChannelName(channelId);
     }
@@ -226,15 +243,15 @@ export class LoggerService implements vscode.Disposable {
         );
     }
 
-    createChannel(channelId: LogChannelId, category?: string): vscode.OutputChannel {
+    createChannel(channelId: LogChannelId, category?: LogCategory): vscode.OutputChannel {
         return new LoggerOutputChannel(this, channelId, category);
     }
 
-    log(channelId: LogChannelId, category: string, level: LogLevel, message: string): void {
+    log(channelId: LogChannelId, category: LogCategory, level: LogLevel, message: string): void {
         this.write(channelId, message, { category, level, newLine: true });
     }
 
-    debug(channelId: LogChannelId, category: string, message: string): void {
+    debug(channelId: LogChannelId, category: LogCategory, message: string): void {
         this.log(channelId, category, 'debug', message);
     }
 
@@ -318,7 +335,7 @@ export class LoggerService implements vscode.Disposable {
         }
         const channel = vscode.window.createOutputChannel(CHANNELS[channelId].name, { log: true });
         this.channels.set(channelId, channel);
-        this.debug('ark', 'logging', `Created output channel ${CHANNELS[channelId].name}.`);
+        this.debug('ark', LogCategory.Logging, `Created output channel ${CHANNELS[channelId].name}.`);
         return channel;
     }
 
@@ -358,7 +375,7 @@ export class LoggerService implements vscode.Disposable {
                 this.channels.delete(channelId);
             }
         }
-        this.debug('ark', 'logging', 'Logging channel settings refreshed.');
+        this.debug('ark', LogCategory.Logging, 'Logging channel settings refreshed.');
     }
 }
 

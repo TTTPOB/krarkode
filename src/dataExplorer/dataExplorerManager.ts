@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
 import { getNonce, isDebugLoggingEnabled } from '../util';
-import { getLogger } from '../logging/logger';
+import { getLogger, LogCategory } from '../logging/logger';
 import {
     BackendState,
     ColumnFilter,
@@ -57,7 +57,7 @@ class DataExplorerPanel implements vscode.Disposable {
         private readonly extensionUri: vscode.Uri,
         private readonly sidecarManager: ArkSidecarManager,
         private readonly commId: string,
-        private readonly outputChannel: vscode.OutputChannel
+        private readonly outputChannel: vscode.OutputChannel,
     ) {
         this.panel = vscode.window.createWebviewPanel(
             'krarkodeDataExplorer',
@@ -67,7 +67,7 @@ class DataExplorerPanel implements vscode.Disposable {
                 enableScripts: true,
                 retainContextWhenHidden: true,
                 localResourceRoots: [extensionUri],
-            }
+            },
         );
 
         this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
@@ -85,7 +85,7 @@ class DataExplorerPanel implements vscode.Disposable {
                 if (event.method === 'return_column_profiles') {
                     this.handleReturnColumnProfiles(event.params);
                 }
-            })
+            }),
         );
     }
 
@@ -160,9 +160,13 @@ class DataExplorerPanel implements vscode.Disposable {
                 const logMessage = typeof message.message === 'string' ? message.message : 'Webview log message.';
                 const payload = message.payload;
                 if (payload !== undefined) {
-                    getLogger().debug('ark', 'data-explorer', `webview: ${logMessage} ${JSON.stringify(payload)}`);
+                    getLogger().debug(
+                        'ark',
+                        LogCategory.DataExplorer,
+                        `webview: ${logMessage} ${JSON.stringify(payload)}`,
+                    );
                 } else {
-                    getLogger().debug('ark', 'data-explorer', `webview: ${logMessage}`);
+                    getLogger().debug('ark', LogCategory.DataExplorer, `webview: ${logMessage}`);
                 }
                 return;
             }
@@ -257,9 +261,7 @@ class DataExplorerPanel implements vscode.Disposable {
             ? [{ column_index: sortKey.columnIndex, ascending: sortKey.direction === 'asc' }]
             : [];
 
-        const description = sortKey
-            ? `column ${sortKey.columnIndex} ${sortKey.direction}`
-            : 'cleared';
+        const description = sortKey ? `column ${sortKey.columnIndex} ${sortKey.direction}` : 'cleared';
         this.log(`Applying sort: ${description}.`);
 
         this.sortInFlight = true;
@@ -417,7 +419,7 @@ class DataExplorerPanel implements vscode.Disposable {
         columnIndex: number,
         profileTypes: string[],
         histogramParams?: HistogramParamsInput,
-        frequencyParams?: FrequencyParamsInput
+        frequencyParams?: FrequencyParamsInput,
     ): Promise<void> {
         if (!this.state) {
             return;
@@ -427,7 +429,7 @@ class DataExplorerPanel implements vscode.Disposable {
             return;
         }
         const resolvedProfileTypes = profileTypes.filter((profileType): profileType is ColumnProfileType =>
-            Object.values(ColumnProfileType).includes(profileType as ColumnProfileType)
+            Object.values(ColumnProfileType).includes(profileType as ColumnProfileType),
         );
         if (resolvedProfileTypes.length === 0) {
             this.log('Column profiles request ignored; no profile types selected.');
@@ -440,16 +442,18 @@ class DataExplorerPanel implements vscode.Disposable {
         this.log(`Getting column profiles for column ${columnIndex}: ${resolvedProfileTypes.join(', ')}`);
         if (histogramParams || frequencyParams) {
             this.log(
-                `Column profile params histogram=${JSON.stringify(histogramParams ?? {})} frequency=${JSON.stringify(frequencyParams ?? {})}`
+                `Column profile params histogram=${JSON.stringify(histogramParams ?? {})} frequency=${JSON.stringify(frequencyParams ?? {})}`,
             );
         }
         const callbackId = crypto.randomUUID();
-        const profiles: ColumnProfileRequest[] = [{
-            column_index: columnIndex,
-            profiles: resolvedProfileTypes.map((profileType) =>
-                this.buildColumnProfileSpec(profileType, histogramParams, frequencyParams)
-            ),
-        }];
+        const profiles: ColumnProfileRequest[] = [
+            {
+                column_index: columnIndex,
+                profiles: resolvedProfileTypes.map((profileType) =>
+                    this.buildColumnProfileSpec(profileType, histogramParams, frequencyParams),
+                ),
+            },
+        ];
         try {
             this.pendingProfileCallbacks.set(callbackId, { columnIndex });
             await this.session.getColumnProfiles(callbackId, profiles, DEFAULT_FORMAT_OPTIONS);
@@ -467,7 +471,7 @@ class DataExplorerPanel implements vscode.Disposable {
     private buildColumnProfileSpec(
         profileType: ColumnProfileType,
         histogramParams?: HistogramParamsInput,
-        frequencyParams?: FrequencyParamsInput
+        frequencyParams?: FrequencyParamsInput,
     ): ColumnProfileSpec {
         if (profileType === ColumnProfileType.SmallHistogram || profileType === ColumnProfileType.LargeHistogram) {
             const resolvedHistogramParams = this.resolveHistogramParams(histogramParams);
@@ -476,7 +480,10 @@ class DataExplorerPanel implements vscode.Disposable {
                 params: resolvedHistogramParams,
             };
         }
-        if (profileType === ColumnProfileType.SmallFrequencyTable || profileType === ColumnProfileType.LargeFrequencyTable) {
+        if (
+            profileType === ColumnProfileType.SmallFrequencyTable ||
+            profileType === ColumnProfileType.LargeFrequencyTable
+        ) {
             return {
                 profile_type: profileType,
                 params: {
@@ -495,7 +502,9 @@ class DataExplorerPanel implements vscode.Disposable {
         const method = this.resolveHistogramMethod(histogramParams?.method);
         const numBins = this.resolveHistogramBins(histogramParams?.num_bins);
         const quantiles = Array.isArray(histogramParams?.quantiles)
-            ? histogramParams?.quantiles.filter((quantile) => typeof quantile === 'number' && quantile >= 0 && quantile <= 1)
+            ? histogramParams?.quantiles.filter(
+                  (quantile) => typeof quantile === 'number' && quantile >= 0 && quantile <= 1,
+              )
             : undefined;
         return {
             method,
@@ -595,12 +604,9 @@ class DataExplorerPanel implements vscode.Disposable {
             const columnFilters = this.state.column_filters ?? [];
             const rowFilters = this.state.row_filters ?? [];
             const sortKeys = this.state.sort_keys ?? [];
-            const result = await this.session.convertToCode(
-                columnFilters,
-                rowFilters,
-                sortKeys,
-                { code_syntax_name: syntax }
-            );
+            const result = await this.session.convertToCode(columnFilters, rowFilters, sortKeys, {
+                code_syntax_name: syntax,
+            });
             const code = result.converted_code.join('\n');
             this.log(`Converted to ${syntax}, ${code.length} characters.`);
             void this.panel.webview.postMessage({
@@ -703,10 +709,10 @@ class DataExplorerPanel implements vscode.Disposable {
 
     private getHtmlForWebview(webview: vscode.Webview): string {
         const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'dist', 'html', 'dataExplorer', 'dataExplorer.js')
+            vscode.Uri.joinPath(this.extensionUri, 'dist', 'html', 'dataExplorer', 'dataExplorer.js'),
         );
         const codiconUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css')
+            vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
         );
         const nonce = getNonce();
         const debugEnabled = isDebugLoggingEnabled();
@@ -735,18 +741,16 @@ class DataExplorerPanel implements vscode.Disposable {
 
 export class DataExplorerManager implements vscode.Disposable {
     private readonly panels = new Map<string, DataExplorerPanel>();
-    private readonly outputChannel = getLogger().createChannel('ark', 'data-explorer');
+    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.DataExplorer);
 
     constructor(
         private readonly extensionUri: vscode.Uri,
-        private readonly sidecarManager: ArkSidecarManager
+        private readonly sidecarManager: ArkSidecarManager,
     ) {}
 
     open(commId: string, data?: unknown): void {
         if (!isDataExplorerMetadata(data)) {
-            this.outputChannel.appendLine(
-                `Ignoring data explorer comm_open ${commId}; missing dataset metadata.`
-            );
+            this.outputChannel.appendLine(`Ignoring data explorer comm_open ${commId}; missing dataset metadata.`);
             return;
         }
         const existing = this.panels.get(commId);

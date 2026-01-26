@@ -6,7 +6,7 @@ import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import type { ArkConsoleDriver, ArkSessionEntry } from './sessionRegistry';
 import { getRBinaryPath } from '../util';
-import { getLogger } from '../logging/logger';
+import { getLogger, LogCategory } from '../logging/logger';
 import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
 
 type ArkSessionMode = 'console' | 'notebook' | 'background';
@@ -64,7 +64,7 @@ function renderShellTemplate(template: string, values: Record<string, string>): 
 }
 
 export class ArkSessionManager {
-    private readonly outputChannel = getLogger().createChannel('ark', 'session');
+    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Session);
     private readonly statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     private onActiveSessionChanged?: (entry: ArkSessionEntry | undefined) => void;
     private kernelStatus: ArkKernelStatus | undefined;
@@ -87,7 +87,7 @@ export class ArkSessionManager {
             vscode.commands.registerCommand('krarkode.switchArkSession', () => this.switchSession()),
             vscode.commands.registerCommand('krarkode.interruptActiveArkSession', () => this.interruptActiveSession()),
             vscode.commands.registerCommand('krarkode.stopActiveArkSession', () => this.stopActiveSession()),
-            vscode.commands.registerCommand('krarkode.copyArkConnectionFile', () => this.copyActiveConnectionFile())
+            vscode.commands.registerCommand('krarkode.copyArkConnectionFile', () => this.copyActiveConnectionFile()),
         );
     }
 
@@ -97,9 +97,12 @@ export class ArkSessionManager {
             void vscode.window.showInformationMessage('No Ark sessions found. Use "Create Ark session" first.');
             return;
         }
-        const selected = await vscode.window.showQuickPick(registry.map((entry) => ({ label: entry.name })), {
-            placeHolder: 'Select an Ark session'
-        });
+        const selected = await vscode.window.showQuickPick(
+            registry.map((entry) => ({ label: entry.name })),
+            {
+                placeHolder: 'Select an Ark session',
+            },
+        );
         if (!selected) {
             return;
         }
@@ -153,20 +156,23 @@ export class ArkSessionManager {
         this.statusBarItem.show();
     }
 
-    private buildStatusTooltip(entry: ArkSessionEntry | undefined, status: { icon: string; label: string }): vscode.MarkdownString {
+    private buildStatusTooltip(
+        entry: ArkSessionEntry | undefined,
+        status: { icon: string; label: string },
+    ): vscode.MarkdownString {
         const pidLabel = entry?.pid ? String(entry.pid) : 'unknown';
         const nameLabel = entry?.name ?? 'No active session';
         const connectionFile = entry?.connectionFilePath;
         const md = new vscode.MarkdownString(
-            `**Ark Session**\n\n`
-            + `- Status: ${status.label}\n`
-            + `- Session: ${nameLabel}\n`
-            + `- PID: ${pidLabel}\n`
-            + `- Connection: ${connectionFile ? '[Copy connection file](command:krarkode.copyArkConnectionFile)' : 'Not available'}\n\n`
-            + `[$(plug) Attach](command:krarkode.attachArkSession) | `
-            + `[$(arrow-swap) Switch](command:krarkode.switchArkSession) | `
-            + `[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession) | `
-            + `[$(stop-circle) Kill](command:krarkode.stopActiveArkSession)`
+            `**Ark Session**\n\n` +
+                `- Status: ${status.label}\n` +
+                `- Session: ${nameLabel}\n` +
+                `- PID: ${pidLabel}\n` +
+                `- Connection: ${connectionFile ? '[Copy connection file](command:krarkode.copyArkConnectionFile)' : 'Not available'}\n\n` +
+                `[$(plug) Attach](command:krarkode.attachArkSession) | ` +
+                `[$(arrow-swap) Switch](command:krarkode.switchArkSession) | ` +
+                `[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession) | ` +
+                `[$(stop-circle) Kill](command:krarkode.stopActiveArkSession)`,
         );
         md.isTrusted = true;
         md.supportThemeIcons = true;
@@ -250,12 +256,12 @@ export class ArkSessionManager {
             items.push({
                 label: `$(info) ${activeSession.name}`,
                 description: `Status: ${status.label}`,
-                detail: `PID: ${pidLabel} | ${connectionFile}`
+                detail: `PID: ${pidLabel} | ${connectionFile}`,
             });
         } else {
             items.push({
                 label: 'No active Ark session',
-                detail: 'Attach or switch a session to connect.'
+                detail: 'Attach or switch a session to connect.',
             });
         }
 
@@ -266,7 +272,7 @@ export class ArkSessionManager {
             action: async () => {
                 this.outputChannel.appendLine('Status popup: attach current console.');
                 await this.attachSession();
-            }
+            },
         });
         items.push({
             label: 'Switch session',
@@ -274,7 +280,7 @@ export class ArkSessionManager {
             action: async () => {
                 this.outputChannel.appendLine('Status popup: switch session.');
                 await this.switchSession();
-            }
+            },
         });
 
         if (activeSession) {
@@ -285,7 +291,7 @@ export class ArkSessionManager {
                 action: async () => {
                     this.outputChannel.appendLine('Status popup: interrupt active session.');
                     await this.interruptActiveSession();
-                }
+                },
             });
             items.push({
                 label: 'Kill active session',
@@ -293,7 +299,7 @@ export class ArkSessionManager {
                 action: async () => {
                     this.outputChannel.appendLine('Status popup: kill active session.');
                     await this.stopActiveSession();
-                }
+                },
             });
         }
 
@@ -334,7 +340,9 @@ export class ArkSessionManager {
     }
 
     private getSessionMode(): ArkSessionMode {
-        const configured = (util.config().get<string>('krarkode.ark.sessionMode') || DEFAULT_SESSION_MODE).trim() as ArkSessionMode;
+        const configured = (
+            util.config().get<string>('krarkode.ark.sessionMode') || DEFAULT_SESSION_MODE
+        ).trim() as ArkSessionMode;
         if (configured !== 'console') {
             void vscode.window.showWarningMessage('Ark console backend 仅支持 console 模式，已强制使用 console。');
             return 'console';
@@ -351,18 +359,23 @@ export class ArkSessionManager {
     }
 
     private getConsoleCommandTemplate(): string {
-        return util.config().get<string>('krarkode.ark.console.commandTemplate')
-            || 'jupyter console --existing {connectionFile}';
+        return (
+            util.config().get<string>('krarkode.ark.console.commandTemplate') ||
+            'jupyter console --existing {connectionFile}'
+        );
     }
 
     private getKernelCommandTemplate(): string {
-        return util.config().get<string>('krarkode.ark.kernel.commandTemplate')
-            || '{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}';
+        return (
+            util.config().get<string>('krarkode.ark.kernel.commandTemplate') ||
+            '{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}'
+        );
     }
 
     private getStartupFileTemplate(): string {
-        return util.config().get<string>('krarkode.ark.kernel.startupFileTemplate')
-            || '{sessionsDir}/{name}/init-ark.R';
+        return (
+            util.config().get<string>('krarkode.ark.kernel.startupFileTemplate') || '{sessionsDir}/{name}/init-ark.R'
+        );
     }
 
     private getTmuxPath(): string {
@@ -415,7 +428,7 @@ export class ArkSessionManager {
             prompt: 'Ark session name',
             placeHolder: 'analysis',
             ignoreFocusOut: true,
-            validateInput: (value) => value.trim().length === 0 ? 'Name is required.' : undefined
+            validateInput: (value) => (value.trim().length === 0 ? 'Name is required.' : undefined),
         });
         if (!nameInput) {
             return;
@@ -428,7 +441,7 @@ export class ArkSessionManager {
             const choice = await vscode.window.showWarningMessage(
                 `Session "${sessionName}" already exists. Attach instead?`,
                 'Attach',
-                'Cancel'
+                'Cancel',
             );
             if (choice === 'Attach') {
                 const existing = sessionRegistry.findSession(sessionName);
@@ -509,7 +522,9 @@ export class ArkSessionManager {
             const timeoutMs = 15000;
             const payload = await this.waitForAnnounce(announceFile, timeoutMs);
             if (!payload?.connectionFilePath) {
-                void vscode.window.showErrorMessage('未能从当前 console 获取 Ark connection file。请确认 ARK_CONNECTION_FILE 已设置。');
+                void vscode.window.showErrorMessage(
+                    '未能从当前 console 获取 Ark connection file。请确认 ARK_CONNECTION_FILE 已设置。',
+                );
                 return;
             }
 
@@ -522,7 +537,9 @@ export class ArkSessionManager {
             const derivedName = normalizeSessionName(path.basename(path.dirname(connectionFile)) || 'ark');
             const sessionName = payload.sessionName?.trim() || derivedName;
             const registry = sessionRegistry.loadRegistry();
-            const existing = registry.find((entry) => entry.connectionFilePath === connectionFile || entry.name === sessionName);
+            const existing = registry.find(
+                (entry) => entry.connectionFilePath === connectionFile || entry.name === sessionName,
+            );
 
             sessionRegistry.upsertSession({
                 name: sessionName,
@@ -552,7 +569,7 @@ export class ArkSessionManager {
         }
         const selected = await vscode.window.showQuickPick(
             registry.map((entry) => ({ label: entry.name, description: entry.tmuxSessionName ?? entry.mode })),
-            { placeHolder: 'Select an Ark session to stop' }
+            { placeHolder: 'Select an Ark session to stop' },
         );
         if (!selected) {
             return;
@@ -583,7 +600,7 @@ export class ArkSessionManager {
                 description: entry.tmuxSessionName ?? entry.mode,
                 detail: entry.pid ? `PID: ${entry.pid}` : 'PID: unknown',
             })),
-            { placeHolder: 'Select an Ark session to interrupt' }
+            { placeHolder: 'Select an Ark session to interrupt' },
         );
         if (!selected) {
             return;
@@ -629,7 +646,7 @@ export class ArkSessionManager {
                 description: entry.tmuxSessionName ?? entry.mode,
                 detail: entry.connectionFilePath,
             })),
-            { placeHolder: 'Select an Ark session to activate' }
+            { placeHolder: 'Select an Ark session to activate' },
         );
         if (!selected) {
             return;
@@ -780,7 +797,8 @@ export class ArkSessionManager {
         }
         const createResult = await this.runTmux(tmuxPath, ['new-session', '-d', '-s', tmuxSessionName]);
         if (createResult.status !== 0) {
-            const message = createResult.stderr || createResult.stdout || createResult.error?.message || 'Unknown error';
+            const message =
+                createResult.stderr || createResult.stdout || createResult.error?.message || 'Unknown error';
             void vscode.window.showErrorMessage(`Failed to create tmux session: ${message}`);
             return undefined;
         }
@@ -791,7 +809,7 @@ export class ArkSessionManager {
         tmuxSession: { name: string; created: boolean },
         name: string,
         connectionFile: string,
-        startupFile: string
+        startupFile: string,
     ): Promise<string | undefined> {
         const tmuxPath = this.getTmuxPath();
         const tmuxSessionName = tmuxSession.name;
@@ -860,7 +878,8 @@ export class ArkSessionManager {
             kernelCommandWithEnv,
         ]);
         if (createResult.status !== 0) {
-            const message = createResult.stderr || createResult.stdout || createResult.error?.message || 'Unknown error';
+            const message =
+                createResult.stderr || createResult.stdout || createResult.error?.message || 'Unknown error';
             void vscode.window.showErrorMessage(`Failed to create tmux window: ${message}`);
             return undefined;
         }
@@ -891,7 +910,13 @@ export class ArkSessionManager {
     }
 
     private async listTmuxWindows(sessionName: string): Promise<string[]> {
-        const result = await this.runTmux(this.getTmuxPath(), ['list-windows', '-t', sessionName, '-F', '#{window_name}']);
+        const result = await this.runTmux(this.getTmuxPath(), [
+            'list-windows',
+            '-t',
+            sessionName,
+            '-F',
+            '#{window_name}',
+        ]);
         if (result.status !== 0) {
             return [];
         }
@@ -929,9 +954,7 @@ export class ArkSessionManager {
             startupFile,
         });
 
-        const envParts: string[] = [
-            `ARK_CONNECTION_FILE=${shellEscape(connectionFile)}`,
-        ];
+        const envParts: string[] = [`ARK_CONNECTION_FILE=${shellEscape(connectionFile)}`];
 
         const arkLogLevel = getArkLogLevel();
         const rustLog = formatArkRustLog(arkLogLevel);
@@ -967,7 +990,13 @@ export class ArkSessionManager {
     }
 
     private async getFirstTmuxWindowTarget(sessionName: string): Promise<string | undefined> {
-        const result = await this.runTmux(this.getTmuxPath(), ['list-windows', '-t', sessionName, '-F', '#{window_index}']);
+        const result = await this.runTmux(this.getTmuxPath(), [
+            'list-windows',
+            '-t',
+            sessionName,
+            '-F',
+            '#{window_index}',
+        ]);
         if (result.status !== 0) {
             return undefined;
         }
