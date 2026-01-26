@@ -82,6 +82,8 @@
         type RowFilterDraft,
         ROW_HEIGHT,
         ROW_BLOCK_SIZE,
+        ROW_PREFETCH_BLOCKS,
+        ROW_REQUEST_DEBOUNCE_MS,
         COLUMN_WIDTH,
         MIN_COLUMN_WIDTH,
         ROW_LABEL_WIDTH,
@@ -186,6 +188,7 @@
 
     let tableTitleText = 'Data Explorer';
     let tableMetaText = '';
+    let rowRequestDebounceId: number | undefined = undefined;
 
     $: resolvedColumnWidths = $visibleSchema.map((column) => resolveColumnWidth($columnWidths.get(column.column_index)));
     $: columnTemplate = resolvedColumnWidths.length > 0
@@ -218,7 +221,7 @@
         onVirtualRowsChange: (rows, totalHeight) => {
             virtualRows = rows;
             virtualizerTotalHeight = totalHeight;
-            requestVisibleBlocks();
+            scheduleVisibleBlocksRequest('scroll');
         },
         log,
     });
@@ -1111,7 +1114,17 @@
         });
     }
 
-    function requestVisibleBlocks(): void {
+    function scheduleVisibleBlocksRequest(reason: string): void {
+        if (rowRequestDebounceId !== undefined) {
+            window.clearTimeout(rowRequestDebounceId);
+        }
+        rowRequestDebounceId = window.setTimeout(() => {
+            rowRequestDebounceId = undefined;
+            requestVisibleBlocks(reason);
+        }, ROW_REQUEST_DEBOUNCE_MS);
+    }
+
+    function requestVisibleBlocks(reason: string): void {
         if (!$backendState) {
             return;
         }
@@ -1123,20 +1136,68 @@
 
         const startIndex = virtualItems[0].index;
         const endIndex = virtualItems[virtualItems.length - 1].index;
+        const rowCount = $backendState.table_shape.num_rows;
+        const maxBlock = Math.max(Math.ceil(rowCount / ROW_BLOCK_SIZE) - 1, 0);
         const startBlock = Math.floor(startIndex / ROW_BLOCK_SIZE);
         const endBlock = Math.floor(endIndex / ROW_BLOCK_SIZE);
+        const prefetchStart = Math.max(0, startBlock - ROW_PREFETCH_BLOCKS);
+        const prefetchEnd = Math.min(maxBlock, endBlock + ROW_PREFETCH_BLOCKS);
 
-        for (let block = startBlock; block <= endBlock; block += 1) {
+        const ranges: Array<{ startBlock: number; endBlock: number }> = [];
+        let rangeStart: number | null = null;
+        let rangeEnd: number | null = null;
+
+        for (let block = prefetchStart; block <= prefetchEnd; block += 1) {
             if ($loadedBlocks.has(block) || $loadingBlocks.has(block)) {
+                if (rangeStart !== null && rangeEnd !== null) {
+                    ranges.push({ startBlock: rangeStart, endBlock: rangeEnd });
+                    rangeStart = null;
+                    rangeEnd = null;
+                }
                 continue;
             }
-            const blockStart = block * ROW_BLOCK_SIZE;
-            const blockEnd = Math.min($backendState.table_shape.num_rows - 1, blockStart + ROW_BLOCK_SIZE - 1);
+
+            if (rangeStart === null) {
+                rangeStart = block;
+                rangeEnd = block;
+                continue;
+            }
+
+            if (rangeEnd !== null && block === rangeEnd + 1) {
+                rangeEnd = block;
+            } else {
+                ranges.push({ startBlock: rangeStart, endBlock: rangeEnd ?? block });
+                rangeStart = block;
+                rangeEnd = block;
+            }
+        }
+
+        if (rangeStart !== null && rangeEnd !== null) {
+            ranges.push({ startBlock: rangeStart, endBlock: rangeEnd });
+        }
+
+        if (ranges.length === 0) {
+            return;
+        }
+
+        log('Requesting row blocks', {
+            reason,
+            visibleRange: { startBlock, endBlock },
+            prefetchRange: { startBlock: prefetchStart, endBlock: prefetchEnd },
+            ranges: ranges.map((range) => ({ startBlock: range.startBlock, endBlock: range.endBlock })),
+        });
+
+        for (const range of ranges) {
             loadingBlocks.update((blocks: Set<number>) => {
                 const next = new Set(blocks);
-                next.add(block);
+                for (let block = range.startBlock; block <= range.endBlock; block += 1) {
+                    next.add(block);
+                }
                 return next;
             });
+
+            const blockStart = range.startBlock * ROW_BLOCK_SIZE;
+            const blockEnd = Math.min(rowCount - 1, (range.endBlock + 1) * ROW_BLOCK_SIZE - 1);
             vscode.postMessage({
                 type: 'requestRows',
                 startIndex: blockStart,
@@ -1444,6 +1505,9 @@
         }
         if (columnVisibilityDebounceId !== undefined) {
             window.clearTimeout(columnVisibilityDebounceId);
+        }
+        if (rowRequestDebounceId !== undefined) {
+            window.clearTimeout(rowRequestDebounceId);
         }
         virtualizer.dispose();
         statsCharts.dispose();

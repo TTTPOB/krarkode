@@ -46,7 +46,7 @@ class DataExplorerPanel implements vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
     private state: BackendState | undefined;
     private schema: TableSchema | undefined;
-    private pendingRange: RowRangeRequest | undefined;
+    private pendingRanges: RowRangeRequest[] = [];
     private requestInFlight = false;
     private sortInFlight = false;
     private filterInFlight = false;
@@ -124,7 +124,7 @@ class DataExplorerPanel implements vscode.Disposable {
             const schema = await this.session.getSchema(columnIndices);
             this.schema = schema;
 
-            this.pendingRange = undefined;
+            this.pendingRanges = [];
             this.requestInFlight = false;
 
             void this.panel.webview.postMessage({
@@ -659,19 +659,38 @@ class DataExplorerPanel implements vscode.Disposable {
     }
 
     private async enqueueRowRequest(range: RowRangeRequest): Promise<void> {
-        this.pendingRange = range;
+        this.pendingRanges = this.mergeRowRanges(this.pendingRanges, range);
+        this.log(`Queued row request ${range.startIndex}-${range.endIndex}; pending=${this.pendingRanges.length}.`);
         if (this.requestInFlight) {
-            this.log(`Queued row request ${range.startIndex}-${range.endIndex}.`);
             return;
         }
 
-        while (this.pendingRange) {
-            const next = this.pendingRange;
-            this.pendingRange = undefined;
+        while (this.pendingRanges.length > 0) {
+            const next = this.pendingRanges.shift();
+            if (!next) {
+                break;
+            }
             this.requestInFlight = true;
             await this.fetchRows(next);
             this.requestInFlight = false;
         }
+    }
+
+    private mergeRowRanges(existing: RowRangeRequest[], next: RowRangeRequest): RowRangeRequest[] {
+        const merged = [...existing, next].sort((a, b) => a.startIndex - b.startIndex);
+        if (merged.length <= 1) {
+            return merged;
+        }
+        const result: RowRangeRequest[] = [];
+        for (const range of merged) {
+            const last = result[result.length - 1];
+            if (!last || range.startIndex > last.endIndex + 1) {
+                result.push({ ...range });
+                continue;
+            }
+            last.endIndex = Math.max(last.endIndex, range.endIndex);
+        }
+        return result;
     }
 
     private async fetchRows(range: RowRangeRequest): Promise<void> {

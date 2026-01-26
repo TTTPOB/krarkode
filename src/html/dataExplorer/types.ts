@@ -239,6 +239,8 @@ export type RowFilterDraft = {
 // Constants
 export const ROW_HEIGHT = 26;
 export const ROW_BLOCK_SIZE = 200;
+export const ROW_PREFETCH_BLOCKS = 1;
+export const ROW_REQUEST_DEBOUNCE_MS = 60;
 export const COLUMN_WIDTH = 160;
 export const MIN_COLUMN_WIDTH = 80;
 export const ROW_LABEL_WIDTH = 72;
