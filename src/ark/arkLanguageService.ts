@@ -27,7 +27,7 @@ import {
     type LogContext,
     type LogLevel,
 } from '../logging/logger';
-import { formatArkRustLog, formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
+import { formatArkRustLog, formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 
 interface ConnectionInfo {
@@ -503,14 +503,13 @@ export class ArkLanguageService implements vscode.Disposable {
     private buildSidecarEnv(): NodeJS.ProcessEnv {
         const env = { ...process.env };
         const logLevel = getArkLogLevel(this.config);
-        const sidecarLogLevel = formatSidecarLogLevel(logLevel);
-        if (sidecarLogLevel) {
-            env.ARK_SIDECAR_LOG = sidecarLogLevel;
-            env.RUST_LOG = sidecarLogLevel;
+        const sidecarRustLog = formatSidecarRustLog(logLevel);
+        if (sidecarRustLog) {
+            env.RUST_LOG = sidecarRustLog;
             getLogger().debug(
                 'lsp',
                 'logging',
-                this.formatLogMessage(`LSP sidecar log level set to ${sidecarLogLevel}.`, 'sidecar'),
+                this.formatLogMessage(`LSP sidecar log level set to ${sidecarRustLog}.`, 'sidecar'),
             );
         }
         return env;

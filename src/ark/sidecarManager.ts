@@ -13,7 +13,7 @@ import {
     type LogContext,
     type LogLevel,
 } from '../logging/logger';
-import { formatSidecarLogLevel, getArkLogLevel } from './arkLogLevel';
+import { formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 import * as sessionRegistry from './sessionRegistry';
 
@@ -269,14 +269,13 @@ export class ArkSidecarManager implements vscode.Disposable {
     private buildSidecarEnv(): NodeJS.ProcessEnv {
         const env = { ...process.env };
         const logLevel = getArkLogLevel(vscode.workspace.getConfiguration('krarkode.ark'));
-        const sidecarLogLevel = formatSidecarLogLevel(logLevel);
-        if (sidecarLogLevel) {
-            env.ARK_SIDECAR_LOG = sidecarLogLevel;
-            env.RUST_LOG = sidecarLogLevel;
+        const sidecarRustLog = formatSidecarRustLog(logLevel);
+        if (sidecarRustLog) {
+            env.RUST_LOG = sidecarRustLog;
             getLogger().debug(
                 'sidecar',
                 'logging',
-                this.formatLogMessage(`Sidecar log level set to ${sidecarLogLevel}.`),
+                this.formatLogMessage(`Sidecar log level set to ${sidecarRustLog}.`),
             );
         }
         return env;

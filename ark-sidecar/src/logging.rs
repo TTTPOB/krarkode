@@ -33,7 +33,5 @@ impl LogReloadHandle {
 }
 
 fn build_env_filter() -> EnvFilter {
-    EnvFilter::try_from_env("ARK_SIDECAR_LOG")
-        .or_else(|_| EnvFilter::try_from_default_env())
-        .unwrap_or_else(|_| EnvFilter::new("info"))
+    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
 }
