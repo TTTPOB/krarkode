@@ -523,8 +523,9 @@
   "scripts": {
     "clean": "pnpm exec rimraf dist",
     "build": "pnpm run compile",
-    "compile": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && node scripts/build-data-explorer.mjs && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
-    "compile:dev": "pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife --sourcemap=inline && node scripts/build-data-explorer.mjs --dev && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "compile": "node scripts/generate-data-explorer-types.mjs && pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife && node scripts/build-data-explorer.mjs && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "compile:dev": "node scripts/generate-data-explorer-types.mjs && pnpm exec tsc -p html/plotViewer/tsconfig.json && esbuild src/html/variables/variables.ts --bundle --outfile=dist/html/variables/variables.js --format=iife --sourcemap=inline && node scripts/build-data-explorer.mjs --dev && esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap",
+    "generate:data-explorer-types": "node scripts/generate-data-explorer-types.mjs",
     "typecheck": "pnpm exec tsc --noEmit",
     "watch": "esbuild ./src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --sourcemap --watch",
     "watch:data-explorer": "node scripts/build-data-explorer.mjs --watch",
@@ -558,6 +559,7 @@
     "rimraf": "^5.0.5",
     "svelte-eslint-parser": "^0.41.0",
     "svelte-preprocess": "^5.0.4",
+    "quicktype-core": "^23.2.6",
     "typescript": "^5.4.0"
   },
   "dependencies": {
