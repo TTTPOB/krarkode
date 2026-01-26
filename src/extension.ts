@@ -33,53 +33,53 @@ let activeSessionConnectionFile: string | undefined;
 export function activate(context: vscode.ExtensionContext): void {
     setExtensionContext(context);
     context.subscriptions.push(getLogger());
-    
+
     // Create sidecar manager for plot/comm watching
     sidecarManager = new ArkSidecarManager(
         () => util.resolveSidecarPath(),
-        () => util.config().get<number>('krarkode.ark.sidecarTimeoutMs') ?? 30000
+        () => util.config().get<number>('krarkode.ark.sidecarTimeoutMs') ?? 30000,
     );
     context.subscriptions.push(sidecarManager);
-    
+
     // Create plot backend connected to sidecar
     plotBackend = new ArkCommBackend(sidecarManager);
     void plotBackend.connect();
     context.subscriptions.push(plotBackend);
-    
+
     // Create HTML viewer for ShowHtmlFile events
     htmlViewer = new HtmlViewer();
     context.subscriptions.push(htmlViewer);
-    
+
     // Create plot manager for display_data plots
     plotManager = new PlotManager(plotBackend);
     context.subscriptions.push(plotManager);
-    
+
     // Connect sidecar events to HTML viewer
     context.subscriptions.push(
         sidecarManager.onDidShowHtmlFile((params) => {
             void htmlViewer?.showHtmlFile(params);
-        })
+        }),
     );
-    
+
     // Connect sidecar plot data events to plot manager
     context.subscriptions.push(
         sidecarManager.onDidReceivePlotData((params) => {
             plotManager?.addPlot(params.base64Data, params.mimeType, params.displayId);
-        })
+        }),
     );
-    
+
     // Register plot commands
     context.subscriptions.push(
         vscode.commands.registerCommand('krarkode.plot.previous', () => plotManager?.previousPlot()),
         vscode.commands.registerCommand('krarkode.plot.next', () => plotManager?.nextPlot()),
         vscode.commands.registerCommand('krarkode.plot.save', () => plotManager?.savePlot()),
         vscode.commands.registerCommand('krarkode.plot.openInBrowser', () => plotManager?.openInBrowser()),
-        vscode.commands.registerCommand('krarkode.plot.clear', () => plotManager?.clearHistory())
+        vscode.commands.registerCommand('krarkode.plot.clear', () => plotManager?.clearHistory()),
     );
-    
+
     sessionManager = new ArkSessionManager();
     sessionManager.registerCommands(context);
-    
+
     // When active session changes, attach sidecar to connection file
     sessionManager.setActiveSessionHandler((entry: ArkSessionEntry | undefined) => {
         const nextConnectionFile = entry?.connectionFilePath;
@@ -103,14 +103,14 @@ export function activate(context: vscode.ExtensionContext): void {
             void languageService.restart();
         }
     });
-    
+
     codeExecutor = new CodeExecutor();
     codeExecutor.registerCommands(context);
-    
+
     if (util.config().get<boolean>('krarkode.ark.lsp.enabled') ?? true) {
         // ArkLanguageService now auto-starts in constructor
         languageService = new ArkLanguageService();
-        
+
         context.subscriptions.push(
             vscode.commands.registerCommand('krarkode.restartArkLanguageServer', () => {
                 if (!languageService) {
@@ -118,46 +118,53 @@ export function activate(context: vscode.ExtensionContext): void {
                     return;
                 }
                 void languageService.restart();
-            })
+            }),
         );
         context.subscriptions.push(languageService);
     }
-    
+
     context.subscriptions.push(codeExecutor);
     context.subscriptions.push(sessionManager);
 
     context.subscriptions.push(
         sidecarManager.onDidChangeKernelStatus((status) => {
             sessionManager?.setKernelStatus(status);
-        })
+        }),
     );
-    
+
     // Track help comm ID
     let helpCommId: string | undefined;
 
-    helpService = new HelpService(
-        context.extensionUri,
-        (method, params) => {
-            if (helpCommId && sidecarManager) {
-                sidecarManager.sendCommMessage(helpCommId, {
-                    method,
-                    params
+    helpService = new HelpService(context.extensionUri, (method, params) => {
+        if (helpCommId && sidecarManager) {
+            sidecarManager.sendCommMessage(helpCommId, {
+                method,
+                params,
+            });
+        } else {
+            const message = 'Help communication channel not available. Start or attach an Ark session.';
+            helpManager?.showErrorBanner(message, 'Use "Krarkode: Create Ark Session" to start an R session.');
+            void vscode.window
+                .showErrorMessage(message, 'Create Ark Session', 'Open Sidecar Logs')
+                .then((selection) => {
+                    if (selection === 'Create Ark Session') {
+                        void vscode.commands.executeCommand('krarkode.createArkSession');
+                    } else if (selection === 'Open Sidecar Logs') {
+                        getLogger().show('sidecar');
+                    }
                 });
-            } else {
-                void vscode.window.showErrorMessage('Help communication channel not available.');
-            }
         }
-    );
-    
+    });
+
     helpManager = new HelpManager(context.extensionUri, helpService);
     context.subscriptions.push(helpManager);
-    
+
     context.subscriptions.push(
         vscode.commands.registerCommand('krarkode.help.open', () => {
             helpManager?.showHelp(true);
-        })
+        }),
     );
-    
+
     context.subscriptions.push(
         sidecarManager.onDidOpenHelpComm((e) => {
             helpCommId = e.commId;
@@ -165,24 +172,22 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
         sidecarManager.onDidShowHelp((e) => {
             void helpService?.showHelpContent(e.content, e.kind, e.focus);
-        })
+        }),
     );
 
     // Variables Service
     variablesService = new VariablesService(sidecarManager);
-    
+
     // Variables Manager (Webview)
     variablesManager = new VariablesManager(context.extensionUri, variablesService);
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(VariablesManager.viewType, variablesManager)
-    );
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider(VariablesManager.viewType, variablesManager));
 
     dataExplorerManager = new DataExplorerManager(context.extensionUri, sidecarManager);
     context.subscriptions.push(dataExplorerManager);
     context.subscriptions.push(
         sidecarManager.onDidOpenDataExplorerComm((e) => {
             dataExplorerManager?.open(e.commId, e.data);
-        })
+        }),
     );
 }
 

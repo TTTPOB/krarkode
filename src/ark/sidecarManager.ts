@@ -33,6 +33,8 @@ export class ArkSidecarManager implements vscode.Disposable {
     private readonly outputChannel = getLogger().createChannel('sidecar');
     private readonly disposables: vscode.Disposable[] = [];
     private variablesCommId: string | undefined;
+    private lastUserErrorMessage: string | undefined;
+    private lastUserErrorAt = 0;
 
     private readonly _onDidOpenPlotComm = new vscode.EventEmitter<{ commId: string; data: unknown }>();
     public readonly onDidOpenPlotComm = this._onDidOpenPlotComm.event;
@@ -205,6 +207,7 @@ export class ArkSidecarManager implements vscode.Disposable {
                 'error',
                 this.formatLogMessage(`Failed to spawn sidecar: ${err.message}`),
             );
+            this.notifyUserOfSidecarError('Failed to start Ark sidecar.', err.message);
         });
 
         if (proc.pid) {
@@ -251,6 +254,9 @@ export class ArkSidecarManager implements vscode.Disposable {
                     level,
                     this.formatLogMessage(`Sidecar exited with code ${code ?? 'null'}.`),
                 );
+            }
+            if (this.proc?.pid === proc.pid && this.connectionFile && code !== 0) {
+                this.notifyUserOfSidecarError('Ark sidecar exited unexpectedly.', `Exit code ${code ?? 'null'}.`);
             }
         });
     }
@@ -331,6 +337,7 @@ export class ArkSidecarManager implements vscode.Disposable {
                 'error',
                 this.formatLogMessage(`Sidecar error: ${msg.message ?? 'unknown error'}`),
             );
+            this.notifyUserOfSidecarError('Ark sidecar reported an error.', msg.message ?? 'unknown error');
             return;
         }
 
@@ -476,6 +483,26 @@ export class ArkSidecarManager implements vscode.Disposable {
             return;
         }
         getLogger().log('sidecar', LogCategory.Stderr, parsed.level, this.formatLogMessage(parsed.message));
+    }
+
+    private notifyUserOfSidecarError(message: string, detail?: string): void {
+        const now = Date.now();
+        if (message === this.lastUserErrorMessage && now - this.lastUserErrorAt < 15000) {
+            return;
+        }
+        this.lastUserErrorMessage = message;
+        this.lastUserErrorAt = now;
+        const detailSuffix = detail ? ` Detail: ${detail}` : '';
+        getLogger().debug(
+            'sidecar',
+            LogCategory.Event,
+            this.formatLogMessage(`User-facing sidecar error: ${message}${detailSuffix}`),
+        );
+        void vscode.window.showErrorMessage(message, 'Open Sidecar Logs').then((selection) => {
+            if (selection === 'Open Sidecar Logs') {
+                getLogger().show('sidecar');
+            }
+        });
     }
 }
 

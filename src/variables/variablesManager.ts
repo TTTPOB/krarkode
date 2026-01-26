@@ -9,9 +9,9 @@ export class VariablesManager implements vscode.WebviewViewProvider {
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
-        private readonly _service: VariablesService
+        private readonly _service: VariablesService,
     ) {
-        _service.onDidReceiveUpdate(e => this.updateView(e));
+        _service.onDidReceiveUpdate((e) => this.updateView(e));
     }
 
     public resolveWebviewView(
@@ -23,19 +23,17 @@ export class VariablesManager implements vscode.WebviewViewProvider {
 
         webviewView.webview.options = {
             enableScripts: true,
-            localResourceRoots: [
-                this._extensionUri
-            ]
+            localResourceRoots: [this._extensionUri],
         };
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-        webviewView.webview.onDidReceiveMessage(data => {
+        webviewView.webview.onDidReceiveMessage((data) => {
             switch (data.type) {
                 case 'ready':
                     this.updateView({
                         method: 'connection',
-                        params: { connected: this._service.isConnected() }
+                        params: { connected: this._service.isConnected() },
                     });
                     this._service.refresh();
                     break;
@@ -62,8 +60,12 @@ export class VariablesManager implements vscode.WebviewViewProvider {
 
     private _getHtmlForWebview(webview: vscode.Webview) {
         // Use 'dist' as outDir per tsconfig.json
-        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'dist', 'html', 'variables', 'variables.js'));
-        const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'src', 'html', 'variables', 'variables.css'));
+        const scriptUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'dist', 'html', 'variables', 'variables.js'),
+        );
+        const styleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'src', 'html', 'variables', 'variables.css'),
+        );
 
         const nonce = getNonce();
 
@@ -82,6 +84,7 @@ export class VariablesManager implements vscode.WebviewViewProvider {
                         <input type="text" id="filter-input" placeholder="filter">
                     </div>
                 </div>
+                <div id="error-banner" class="error-banner hidden"></div>
                 <div id="variables-list"></div>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>

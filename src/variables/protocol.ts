@@ -36,9 +36,14 @@ export interface ConnectionParams {
     connected: boolean;
 }
 
+export interface ErrorParams {
+    message?: string;
+    detail?: string;
+}
+
 export interface VariablesEvent {
-    method: 'refresh' | 'update' | 'inspect' | 'connection';
-    params: RefreshParams | UpdateParams | InspectResult | ConnectionParams;
+    method: 'refresh' | 'update' | 'inspect' | 'connection' | 'error';
+    params: RefreshParams | UpdateParams | InspectResult | ConnectionParams | ErrorParams;
 }
 
 export interface ViewParams {

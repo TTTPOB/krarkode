@@ -81,6 +81,17 @@ export class HelpManager implements vscode.Disposable {
         this.updateContent();
     }
 
+    public showErrorBanner(message: string, detail?: string, focus: boolean = true): void {
+        if (!this.panel) {
+            this.showHelp(focus);
+        }
+        this.panel?.webview.postMessage({ command: 'show-error', message, detail });
+    }
+
+    public clearErrorBanner(): void {
+        this.panel?.webview.postMessage({ command: 'clear-error' });
+    }
+
     private getViewColumn(): vscode.ViewColumn {
         const configured = util.config().get<string>('krarkode.plot.viewColumn'); // Reuse plot column preference
         return this.asViewColumn(configured, vscode.ViewColumn.Two);
@@ -209,6 +220,21 @@ export class HelpManager implements vscode.Disposable {
             background-color: var(--vscode-editorWidget-border);
             margin: 0 4px;
         }
+        .error-banner {
+            display: none;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--vscode-inputValidation-errorBorder);
+            background-color: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            font-size: 12px;
+        }
+        .error-banner.visible {
+            display: block;
+        }
+        .error-banner .error-detail {
+            margin-top: 4px;
+            opacity: 0.8;
+        }
         .content {
             flex: 1;
             overflow: auto; /* Ensure scrollable */
@@ -285,6 +311,7 @@ export class HelpManager implements vscode.Disposable {
         <div style="flex:1"></div>
         <span id="status" style="font-size: 12px; opacity: 0.7;">R Help</span>
     </div>
+    <div id="error-banner" class="error-banner"></div>
     <div class="content" id="content">
         <div class="loading">
             <div class="spinner"></div>
@@ -300,6 +327,7 @@ export class HelpManager implements vscode.Disposable {
             const btnHome = document.getElementById('btn-home');
             const btnFind = document.getElementById('btn-find');
             const status = document.getElementById('status');
+            const errorBanner = document.getElementById('error-banner');
 
             function renderWelcomePage() {
                 if (!contentDiv) return;
@@ -311,6 +339,27 @@ export class HelpManager implements vscode.Disposable {
                     </div>
                 \`;
                 if (status) status.textContent = 'R Help';
+            }
+
+            function showErrorBanner(message, detail) {
+                if (!errorBanner) return;
+                errorBanner.innerHTML = '';
+                const title = document.createElement('div');
+                title.textContent = message;
+                errorBanner.appendChild(title);
+                if (detail) {
+                    const detailEl = document.createElement('div');
+                    detailEl.className = 'error-detail';
+                    detailEl.textContent = detail;
+                    errorBanner.appendChild(detailEl);
+                }
+                errorBanner.classList.add('visible');
+            }
+
+            function clearErrorBanner() {
+                if (!errorBanner) return;
+                errorBanner.innerHTML = '';
+                errorBanner.classList.remove('visible');
             }
 
             if (btnBack) {
@@ -387,10 +436,18 @@ export class HelpManager implements vscode.Disposable {
                             }
                         }
                         if (status) status.textContent = msg.title || 'Help';
+                        clearErrorBanner();
                         break;
                     case 'show-welcome':
                         renderWelcomePage();
                         if (status) status.textContent = msg.title || 'Welcome';
+                        clearErrorBanner();
+                        break;
+                    case 'show-error':
+                        showErrorBanner(msg.message || 'Help is unavailable.', msg.detail);
+                        break;
+                    case 'clear-error':
+                        clearErrorBanner();
                         break;
                 }
             });

@@ -13,6 +13,24 @@ body {
     background-color: var(--vscode-sideBar-background);
 }
 
+.error-banner {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--vscode-inputValidation-errorBorder);
+    background-color: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    font-size: 0.9em;
+}
+
+.error-banner.hidden {
+    display: none;
+}
+
+.error-banner .error-detail {
+    margin-top: 2px;
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
 .filter-container input {
     width: 100%;
     box-sizing: border-box;

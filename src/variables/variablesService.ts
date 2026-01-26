@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
-import { ConnectionParams, InspectResult, RefreshParams, UpdateParams, VariablesEvent } from './protocol';
+import { ConnectionParams, ErrorParams, InspectResult, RefreshParams, UpdateParams, VariablesEvent } from './protocol';
 import { getLogger, LogCategory } from '../logging/logger';
 
 type VariablesMessage = {
@@ -16,6 +16,8 @@ type VariablesMessage = {
 export class VariablesService {
     private commId: string | undefined;
     private connected = false;
+    private lastErrorMessage: string | undefined;
+    private lastErrorAt = 0;
     private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Variables);
     private readonly pendingInspectPaths: string[][] = [];
     private readonly _onDidReceiveUpdate = new vscode.EventEmitter<VariablesEvent>();
@@ -51,7 +53,7 @@ export class VariablesService {
             this.log('Sidecar started; ensuring variables comm is open.');
             const commId = this.sidecarManager.ensureVariablesCommOpen();
             if (!commId) {
-                this.log('Variables comm not available after sidecar start.');
+                this.reportError('Variables connection unavailable after sidecar start.', 'No comm id returned.');
                 return;
             }
             this.commId = commId;
@@ -70,7 +72,8 @@ export class VariablesService {
         this.log(`Received comm message: ${JSON.stringify(data)}`);
 
         if (message.error) {
-            this.log(`Variables RPC error: ${JSON.stringify(message.error)}`);
+            const detail = JSON.stringify(message.error);
+            this.reportError('Variables request failed. Check the Krarkode Sidecar output for details.', detail);
         }
 
         if (method === 'refresh' || method === 'update') {
@@ -88,6 +91,7 @@ export class VariablesService {
                     method,
                     params,
                 });
+                this.clearError('refresh update received');
                 return;
             }
             if (!isUpdateParams(params)) {
@@ -98,6 +102,7 @@ export class VariablesService {
                 method,
                 params,
             });
+            this.clearError('update received');
             return;
         }
 
@@ -109,6 +114,7 @@ export class VariablesService {
                     method: 'refresh',
                     params: result as RefreshParams,
                 });
+                this.clearError('refresh result received');
                 return;
             }
 
@@ -118,6 +124,7 @@ export class VariablesService {
                     method: 'update',
                     params: result as UpdateParams,
                 });
+                this.clearError('update result received');
                 return;
             }
 
@@ -136,6 +143,7 @@ export class VariablesService {
                         length: result.length ?? 0,
                     },
                 });
+                this.clearError('inspect result received');
             }
         }
     }
@@ -155,12 +163,19 @@ export class VariablesService {
             method: 'connection',
             params,
         });
+        if (connected) {
+            this.clearError('connected');
+        }
     }
 
     private sendRpc(method: string, params?: Record<string, unknown>) {
         this.commId ??= this.sidecarManager.ensureVariablesCommOpen();
         if (!this.commId) {
             this.log(`Skipped RPC '${method}': variables comm unavailable.`);
+            this.reportError(
+                'Variables connection unavailable. Start or attach an Ark session.',
+                `RPC '${method}' skipped.`,
+            );
             return;
         }
 
@@ -199,6 +214,37 @@ export class VariablesService {
 
     public isConnected(): boolean {
         return this.connected;
+    }
+
+    private reportError(message: string, detail?: string) {
+        const now = Date.now();
+        if (message === this.lastErrorMessage && now - this.lastErrorAt < 15000) {
+            return;
+        }
+        this.lastErrorMessage = message;
+        this.lastErrorAt = now;
+        const detailForBanner = detail && detail.length > 160 ? `${detail.slice(0, 160)}…` : detail;
+        const params: ErrorParams = { message, detail: detailForBanner };
+        const detailSuffix = detail ? ` (${detail})` : '';
+        this.log(`Variables error: ${message}${detailSuffix}`);
+        this._onDidReceiveUpdate.fire({
+            method: 'error',
+            params,
+        });
+    }
+
+    private clearError(reason: string) {
+        if (!this.lastErrorMessage) {
+            return;
+        }
+        this.lastErrorMessage = undefined;
+        this.lastErrorAt = 0;
+        this.log(`Clearing variables error (${reason}).`);
+        const params: ErrorParams = {};
+        this._onDidReceiveUpdate.fire({
+            method: 'error',
+            params,
+        });
     }
 }
 

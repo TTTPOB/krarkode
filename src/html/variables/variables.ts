@@ -37,17 +37,25 @@ interface ConnectionParams {
     connected: boolean;
 }
 
+interface ErrorParams {
+    message?: string;
+    detail?: string;
+}
+
 interface VariablesEvent {
-    method: 'refresh' | 'update' | 'inspect' | 'connection';
-    params: RefreshParams | UpdateParams | InspectResult | ConnectionParams;
+    method: 'refresh' | 'update' | 'inspect' | 'connection' | 'error';
+    params: RefreshParams | UpdateParams | InspectResult | ConnectionParams | ErrorParams;
 }
 
 declare function acquireVsCodeApi(): any;
 const vscode = acquireVsCodeApi();
 
 const listElement = document.getElementById('variables-list')!;
+const errorBanner = document.getElementById('error-banner');
 let variables: Variable[] = [];
 let isConnected = false;
+let errorMessage: string | undefined;
+let errorDetail: string | undefined;
 const childrenByPath = new Map<string, Variable[]>();
 const childrenLengthByPath = new Map<string, number>();
 const expandedPaths = new Set<string>();
@@ -110,6 +118,13 @@ function handleUpdate(event: VariablesEvent) {
         childrenLengthByPath.set(key, params.length);
         loadingPaths.delete(key);
         render();
+    } else if (event.method === 'error') {
+        const params = event.params as ErrorParams;
+        if (params.message) {
+            setErrorBanner(params.message, params.detail);
+        } else {
+            clearErrorBanner();
+        }
     }
 }
 
@@ -127,7 +142,7 @@ function render() {
         const empty = document.createElement('div');
         empty.style.padding = '10px';
         empty.style.opacity = '0.7';
-        empty.textContent = 'Disconnected';
+        empty.textContent = 'No active Ark session. Run "Krarkode: Create Ark Session" to connect.';
         listElement.appendChild(empty);
         return;
     }
@@ -369,4 +384,37 @@ function isUpdateParams(value: unknown): value is UpdateParams {
         Array.isArray(value.removed) &&
         typeof value.version === 'number'
     );
+}
+
+function setErrorBanner(message: string, detail?: string) {
+    if (!errorBanner) {
+        return;
+    }
+    errorMessage = message;
+    errorDetail = detail;
+    errorBanner.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'error-title';
+    title.textContent = message;
+    errorBanner.appendChild(title);
+    if (detail) {
+        const detailText = document.createElement('div');
+        detailText.className = 'error-detail';
+        detailText.textContent = detail;
+        errorBanner.appendChild(detailText);
+    }
+    errorBanner.classList.remove('hidden');
+}
+
+function clearErrorBanner() {
+    if (!errorBanner) {
+        return;
+    }
+    if (!errorMessage && !errorDetail) {
+        return;
+    }
+    errorMessage = undefined;
+    errorDetail = undefined;
+    errorBanner.innerHTML = '';
+    errorBanner.classList.add('hidden');
 }
