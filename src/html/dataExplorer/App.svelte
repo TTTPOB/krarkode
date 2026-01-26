@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onDestroy, onMount, tick } from 'svelte';
+    import { onDestroy, onMount } from 'svelte';
     import { useVirtualizer, type VirtualRow } from './hooks/useVirtualizer';
     import { useStatsCharts } from './hooks/useStatsCharts';
     import { useVscodeMessages } from './hooks/useVscodeMessages';
@@ -8,6 +8,8 @@
     import { useRowFilterController } from './hooks/useRowFilterController';
     import { useTableLayoutController } from './hooks/useTableLayoutController';
     import { useRowDataController } from './hooks/useRowDataController';
+    import { useTableInteractionController } from './hooks/useTableInteractionController';
+    import { useWindowEventsController } from './hooks/useWindowEventsController';
     import {
         ColumnDef,
         Table,
@@ -47,7 +49,6 @@
         columnMenuPosition as columnMenuPositionStore,
         columnMenuColumnIndex as columnMenuColumnIndexStore,
         closeColumnMenu as storeCloseColumnMenu,
-        openColumnMenu as storeOpenColumnMenu,
         // Panel visibility stores
         columnVisibilityOpen as columnVisibilityOpenStore,
         rowFilterPanelOpen as rowFilterPanelOpenStore,
@@ -72,7 +73,6 @@
     import {
         type ColumnSchema,
         type InitMessage,
-        type SortState,
         type RowFilterDraft,
         ROW_HEIGHT,
         ROW_BLOCK_SIZE,
@@ -145,7 +145,6 @@
     let virtualRows: VirtualRow[] = [];
     let virtualizerTotalHeight = 0;
     let headerScrollLeft = 0;
-    let lastScrollLeft = 0;
     let tableViewportWidth = 0;
     let renderColumns: Array<{ column: ColumnSchema; schemaIndex: number }> = [];
     let leftSpacerWidth = 0;
@@ -355,7 +354,6 @@
 
     const {
         handleSearchSchemaResult,
-        getResolvedVisibleSchema,
         applySchemaUpdate,
         applyColumnSearch,
         hideColumn,
@@ -396,7 +394,7 @@
         setCodeModalOpen: (open) => {
             $codeModalOpenStore = open;
         },
-        closeColumnMenu,
+        closeColumnMenu: storeCloseColumnMenu,
     });
 
     const {
@@ -404,6 +402,60 @@
         saveRowFilter,
         removeRowFilter,
     } = rowFilterController;
+
+    const tableInteractionController = useTableInteractionController({
+        postMessage: (message) => vscode.postMessage(message),
+        activeSort,
+        columnMenuOpen: columnMenuOpenStore,
+        columnMenuPosition: columnMenuPositionStore,
+        columnMenuColumnIndex: columnMenuColumnIndexStore,
+        getColumnMenuEl: () => columnMenuEl,
+        getTableBodyEl: () => tableBodyEl,
+        setHeaderScrollLeft: updateHeaderScroll,
+        openRowFilterEditor,
+        hideColumn,
+    });
+
+    const {
+        openColumnMenu,
+        closeColumnMenu,
+        handleColumnMenuAddFilter,
+        handleColumnMenuHideColumn,
+        handleDataTableSort,
+        handleDataTableScroll,
+    } = tableInteractionController;
+
+    const windowEventsController = useWindowEventsController({
+        closeColumnMenu,
+        isPanelPinned,
+        columnMenuOpen: columnMenuOpenStore,
+        statsPanelOpen: statsPanelOpenStore,
+        columnVisibilityOpen: columnVisibilityOpenStore,
+        codeModalOpen: codeModalOpenStore,
+        rowFilterPanelOpen: rowFilterPanelOpenStore,
+        getColumnMenuEl: () => columnMenuEl,
+        getStatsPanelEl: () => statsPanelEl,
+        getStatsButtonEl: () => statsButtonEl,
+        getColumnVisibilityPanelEl: () => columnVisibilityPanelEl,
+        getColumnsButtonEl: () => columnsButtonEl,
+        getCodeModalEl: () => codeModalEl,
+        getCodeButtonEl: () => codeButtonEl,
+        getRowFilterPanelEl: () => rowFilterPanelEl,
+        getAddRowFilterButtonEl: () => addRowFilterButtonEl,
+        handleSidePanelResize,
+        handleColumnResizeMove,
+        finishSidePanelResize,
+        handleColumnResizeEnd,
+        onResize: () => statsCharts.resize(),
+    });
+
+    const {
+        handleDocumentClick,
+        handleWindowResize,
+        handleWindowKeydown,
+        handleWindowMouseMove,
+        handleWindowMouseUp,
+    } = windowEventsController;
 
     const rowDataController = useRowDataController({
         log,
@@ -511,16 +563,6 @@
         $rowFilterPanelOpenStore = false;
     }
 
-    function getNextSort(columnIndex: number): SortState | null {
-        if (!$activeSort || $activeSort.columnIndex !== columnIndex) {
-            return { columnIndex, direction: 'asc' };
-        }
-        if ($activeSort.direction === 'asc') {
-            return { columnIndex, direction: 'desc' };
-        }
-        return null;
-    }
-
     function updateVirtualizer(): void {
         virtualizer.update();
     }
@@ -598,67 +640,6 @@
         scheduleTableLayoutDiagnostics('init');
     }
 
-    function openColumnMenu(event: MouseEvent, columnIndex: number): void {
-        $columnMenuColumnIndexStore = columnIndex;
-        $columnMenuOpenStore = true;
-        void tick().then(() => {
-            const padding = 8;
-            const { innerWidth, innerHeight } = window;
-            const menuRect = columnMenuEl?.getBoundingClientRect();
-            const menuWidth = menuRect?.width ?? 160;
-            const menuHeight = menuRect?.height ?? 80;
-            const nextLeft = Math.min(event.clientX, innerWidth - menuWidth - padding);
-            const nextTop = Math.min(event.clientY, innerHeight - menuHeight - padding);
-            $columnMenuPositionStore = { 
-                x: Math.max(nextLeft, padding), 
-                y: Math.max(nextTop, padding) 
-            };
-        });
-    }
-
-    function closeColumnMenu(): void {
-        storeCloseColumnMenu();
-    }
-
-    function handleColumnMenuAddFilter(): void {
-        if ($columnMenuColumnIndexStore === null) {
-            return;
-        }
-        const selectedColumnIndex = $columnMenuColumnIndexStore;
-        closeColumnMenu();
-        openRowFilterEditor(undefined, undefined, selectedColumnIndex);
-    }
-
-    function handleColumnMenuHideColumn(): void {
-        if ($columnMenuColumnIndexStore === null) {
-            return;
-        }
-        const selectedColumnIndex = $columnMenuColumnIndexStore;
-        closeColumnMenu();
-        hideColumn(selectedColumnIndex);
-    }
-
-    function handleDataTableSort(columnIndex: number): void {
-        const nextSort = getNextSort(columnIndex);
-        activeSort.set(nextSort);
-        vscode.postMessage({
-            type: 'setSort',
-            sortKey: nextSort
-                ? { columnIndex: nextSort.columnIndex, direction: nextSort.direction }
-                : null,
-        });
-    }
-
-    function handleDataTableScroll(): void {
-        if ($columnMenuOpenStore) {
-            closeColumnMenu();
-        }
-        if (tableBodyEl && tableBodyEl.scrollLeft !== lastScrollLeft) {
-            updateHeaderScroll(tableBodyEl.scrollLeft);
-            lastScrollLeft = tableBodyEl.scrollLeft;
-        }
-    }
-
     function buildTableMetaText(): string {
         if (!$backendState) {
             return '';
@@ -680,73 +661,8 @@
         vscode.postMessage({ type: 'convertToCode', syntax: codeSyntax });
     }
 
-    function handleCodeCopy(): void {
-        if (codePreview) {
-            navigator.clipboard.writeText(codePreview);
-        }
-    }
-
     function handleExport(format: 'csv' | 'tsv' | 'html'): void {
         vscode.postMessage({ type: 'exportData', format });
-    }
-
-    function handleDocumentClick(event: MouseEvent): void {
-        const target = event.target as Node;
-        if ($columnMenuOpenStore && columnMenuEl && !columnMenuEl.contains(target)) {
-            closeColumnMenu();
-        }
-        if ($statsPanelOpenStore
-            && statsPanelEl
-            && !statsPanelEl.contains(target)
-            && statsButtonEl
-            && !statsButtonEl.contains(target)
-            && !isPanelPinned('stats-panel')) {
-            $statsPanelOpenStore = false;
-        }
-        if ($columnVisibilityOpenStore
-            && columnVisibilityPanelEl
-            && !columnVisibilityPanelEl.contains(target)
-            && columnsButtonEl
-            && !columnsButtonEl.contains(target)
-            && !isPanelPinned('column-visibility-panel')) {
-            $columnVisibilityOpenStore = false;
-        }
-        if ($codeModalOpenStore
-            && codeModalEl
-            && !codeModalEl.contains(target)
-            && codeButtonEl
-            && !codeButtonEl.contains(target)) {
-            $codeModalOpenStore = false;
-        }
-        if ($rowFilterPanelOpenStore
-            && rowFilterPanelEl
-            && !rowFilterPanelEl.contains(target)
-            && addRowFilterButtonEl
-            && !addRowFilterButtonEl.contains(target)
-            && !isPanelPinned('row-filter-panel')) {
-            $rowFilterPanelOpenStore = false;
-        }
-    }
-
-    function handleWindowResize(): void {
-        closeColumnMenu();
-        statsCharts.resize();
-    }
-
-    function handleWindowKeydown(event: KeyboardEvent): void {
-        if (event.key === 'Escape') {
-            closeColumnMenu();
-        }
-    }
-
-    function handleWindowMouseMove(event: MouseEvent): void {
-        handleSidePanelResize(event);
-        handleColumnResizeMove(event);
-    }
-
-    function handleWindowMouseUp(): void {
-        finishSidePanelResize();
-        handleColumnResizeEnd();
     }
 
     onMount(() => {
