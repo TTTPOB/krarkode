@@ -23,7 +23,6 @@ interface SidecarEvent {
         | 'display_data'
         | 'update_display_data'
         | 'error'
-        | 'httpgd_url'
         | 'comm_open'
         | 'comm_msg'
         | 'comm_close'
@@ -37,7 +36,6 @@ interface SidecarEvent {
     data?: unknown;
     display_id?: string | null;
     message?: string;
-    url?: string;
     comm_id?: string;
     status?: string;
 }
@@ -74,9 +72,6 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidClosePlotComm = new vscode.EventEmitter<{ commId: string }>();
     public readonly onDidClosePlotComm = this._onDidClosePlotComm.event;
-
-    private readonly _onDidReceiveHttpgdUrl = new vscode.EventEmitter<string>();
-    public readonly onDidReceiveHttpgdUrl = this._onDidReceiveHttpgdUrl.event;
 
     private readonly _onDidShowHtmlFile = new vscode.EventEmitter<ShowHtmlFileParams>();
     public readonly onDidShowHtmlFile = this._onDidShowHtmlFile.event;
@@ -216,7 +211,6 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidOpenPlotComm.dispose();
         this._onDidReceiveCommMessage.dispose();
         this._onDidClosePlotComm.dispose();
-        this._onDidReceiveHttpgdUrl.dispose();
         this._onDidShowHtmlFile.dispose();
         this._onDidShowHelp.dispose();
         this._onDidReceivePlotData.dispose();
@@ -370,11 +364,6 @@ export class ArkSidecarManager implements vscode.Disposable {
             return;
         }
 
-        if (msg.event === 'httpgd_url' && msg.url) {
-            this._onDidReceiveHttpgdUrl.fire(msg.url);
-            return;
-        }
-
         if (msg.event === 'kernel_status') {
             const status = typeof msg.status === 'string' ? msg.status : 'unknown';
             this.outputChannel.appendLine(this.formatLogMessage(`Kernel status update: ${status}`));
@@ -519,7 +508,6 @@ const SIDECAR_EVENTS = new Set<SidecarEvent['event']>([
     'display_data',
     'update_display_data',
     'error',
-    'httpgd_url',
     'comm_open',
     'comm_msg',
     'comm_close',

@@ -9,7 +9,7 @@ use tracing::{debug, error, info, warn};
 
 use runtimelib::{
     create_client_iopub_connection, CommId, CommMsg, CommOpen, CommClose, ExecuteRequest,
-    ExecutionState, JupyterMessage, JupyterMessageContent, KernelInfoRequest, Stdio,
+    ExecutionState, JupyterMessage, JupyterMessageContent, KernelInfoRequest,
 };
 
 use crate::connection::{
@@ -272,17 +272,7 @@ pub(crate) async fn run_plot_watcher(
                     JupyterMessageContent::UpdateDisplayData(update) => {
                         build_plot_payload("update_display_data", &update.data, Some(&update.transient))
                     }
-                    JupyterMessageContent::StreamContent(stream) => {
-                        if matches!(stream.name, Stdio::Stdout) && stream.text.starts_with("__VSCODE_R_HTTPGD_URL__=") {
-                            let url = stream.text.trim().strip_prefix("__VSCODE_R_HTTPGD_URL__=").unwrap_or("");
-                            Some(json!({
-                                "event": "httpgd_url",
-                                "url": url
-                            }).to_string())
-                        } else {
-                            None
-                        }
-                    }
+                    JupyterMessageContent::StreamContent(_) => None,
                     JupyterMessageContent::CommOpen(comm_open) => {
                         if comm_open.target_name == PLOT_COMM_TARGET {
                             Some(json!({
