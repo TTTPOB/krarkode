@@ -10,6 +10,39 @@ positron repo: posit-dev/positron, locally available at repo_ref/positron
 ark repo: posit-dev/ark, locally available at repo_ref/ark
 vscode-R repo, where we have done some ark related work before this separate krarkode repo: tttpob/vscode-R, locally available at repo_ref/vscode-R
 
+CRITICAL RULES
+1. ALWAYS use relative paths starting with repo_ref/
+✅ CORRECT:
+read filePath: "repo_ref/ark/crates/amalthea/src/socket/iopub.rs"
+grep path: "repo_ref/ark"
+bash command: "git -C repo_ref/ark log..."
+❌ WRONG (will cause permission errors):
+read filePath: "/home/tpob/playground/vscode-R/repo_ref/ark/..."
+read filePath: "/home/tpob/playground/vscode-R/repo_ref/ark/..."
+2. NEVER use cd command to navigate
+❌ WRONG:
+bash command: "cd repo_ref/ark && git log..."
+bash command: "cd /home/tpob/playground/vscode-R/repo_ref/ark && ls"
+✅ CORRECT:
+bash command: "git -C repo_ref/ark log..."
+bash command: "ls repo_ref/ark/"
+Why This Matters
+The repo_ref/ directory contains symlinks:
+- repo_ref/ark → /home/tpob/playground/vscode-R/repo_ref/ark
+- repo_ref/positron → /home/tpob/playground/vscode-R/repo_ref/positron
+- repo_ref/vscode-R → /home/tpob/playground/vscode-R
+Using absolute paths or cd breaks symlink resolution and causes permission issues.
+Quick Reference
+| Action | Command Pattern |
+|--------|-----------------|
+| Read file | read filePath: "repo_ref/ark/..." |
+| Search code | grep path: "repo_ref/ark" pattern: "..." |
+| Git operations | git -C repo_ref/ark <command> |
+| List directory | ls repo_ref/ark/ |
+| Bash in directory | bash command: "..." workdir: "repo_ref/ark" |
+Remember: Always use repo_ref/<project>/ as the prefix. Never use absolute paths or cd.
+
+
 ## Architectural Notes (Critical)
 
 ### Ark Dynamic Plots & Comm Protocol
