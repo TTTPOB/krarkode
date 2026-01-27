@@ -78,6 +78,76 @@ suite('Variables service', () => {
         assert.deepStrictEqual(methods, ['refresh', 'update']);
     });
 
+    test('filters krarkode-managed variables from refresh events', () => {
+        const sidecar = new StubSidecarManager();
+        const service = new VariablesService(sidecar as unknown as never);
+        const updates: VariablesEvent[] = [];
+        service.onDidReceiveUpdate((event) => updates.push(event));
+
+        sidecar.emitOpen('comm-1');
+        sidecar.emitCommMessage('comm-1', {
+            method: 'refresh',
+            params: {
+                variables: [
+                    { access_key: '.krarkode_announce_path', display_name: '.krarkode_announce_path' },
+                    { access_key: 'user_var', display_name: 'user_var' },
+                ],
+                length: 2,
+                version: 1,
+            },
+        });
+
+        const refreshEvent = updates.find((event) => event.method === 'refresh');
+        if (!refreshEvent || refreshEvent.method !== 'refresh') {
+            assert.fail('Expected refresh event');
+        }
+
+        const vars = (refreshEvent.params as { variables: Array<{ access_key: string }> }).variables;
+        assert.deepStrictEqual(
+            vars.map((v) => v.access_key),
+            ['user_var'],
+        );
+    });
+
+    test('filters krarkode-managed variables from update events', () => {
+        const sidecar = new StubSidecarManager();
+        const service = new VariablesService(sidecar as unknown as never);
+        const updates: VariablesEvent[] = [];
+        service.onDidReceiveUpdate((event) => updates.push(event));
+
+        sidecar.emitOpen('comm-1');
+        sidecar.emitCommMessage('comm-1', {
+            method: 'update',
+            params: {
+                assigned: [
+                    { access_key: '.krarkode_payload', display_name: '.krarkode_payload' },
+                    { access_key: 'visible', display_name: 'visible' },
+                ],
+                unevaluated: [{ access_key: '.krarkode_connection_file', display_name: '.krarkode_connection_file' }],
+                removed: [],
+                version: 2,
+            },
+        });
+
+        const updateEvent = updates.find((event) => event.method === 'update');
+        if (!updateEvent || updateEvent.method !== 'update') {
+            assert.fail('Expected update event');
+        }
+
+        const params = updateEvent.params as {
+            assigned: Array<{ access_key: string }>;
+            unevaluated: Array<{ access_key: string }>;
+        };
+        assert.deepStrictEqual(
+            params.assigned.map((v) => v.access_key),
+            ['visible'],
+        );
+        assert.deepStrictEqual(
+            params.unevaluated.map((v) => v.access_key),
+            [],
+        );
+    });
+
     test('dispatches inspect results with pending paths', () => {
         const sidecar = new StubSidecarManager();
         const service = new VariablesService(sidecar as unknown as never);

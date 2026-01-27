@@ -87,9 +87,19 @@ export class VariablesService {
                     this.log('Variables refresh params invalid.');
                     return;
                 }
+
+                const refreshParams = params as RefreshParams;
+                const filtered = filterKrarkodeManagedVariables(refreshParams.variables);
+                if (filtered.removedCount > 0) {
+                    this.log(`Filtered ${filtered.removedCount} krarkode-managed variables from refresh.`);
+                }
                 this._onDidReceiveUpdate.fire({
                     method,
-                    params,
+                    params: {
+                        ...refreshParams,
+                        variables: filtered.variables,
+                        length: filtered.variables.length,
+                    },
                 });
                 this.clearError('refresh update received');
                 return;
@@ -98,9 +108,21 @@ export class VariablesService {
                 this.log('Variables update params invalid.');
                 return;
             }
+
+            const updateParams = params as UpdateParams;
+            const filteredAssigned = filterKrarkodeManagedVariables(updateParams.assigned);
+            const filteredUnevaluated = filterKrarkodeManagedVariables(updateParams.unevaluated);
+            const totalFiltered = filteredAssigned.removedCount + filteredUnevaluated.removedCount;
+            if (totalFiltered > 0) {
+                this.log(`Filtered ${totalFiltered} krarkode-managed variables from update.`);
+            }
             this._onDidReceiveUpdate.fire({
                 method,
-                params,
+                params: {
+                    ...updateParams,
+                    assigned: filteredAssigned.variables,
+                    unevaluated: filteredUnevaluated.variables,
+                },
             });
             this.clearError('update received');
             return;
@@ -110,9 +132,18 @@ export class VariablesService {
         if (result) {
             if (isRefreshParams(result)) {
                 this.log('Dispatching refresh event.');
+                const refreshParams = result as RefreshParams;
+                const filtered = filterKrarkodeManagedVariables(refreshParams.variables);
+                if (filtered.removedCount > 0) {
+                    this.log(`Filtered ${filtered.removedCount} krarkode-managed variables from refresh result.`);
+                }
                 this._onDidReceiveUpdate.fire({
                     method: 'refresh',
-                    params: result as RefreshParams,
+                    params: {
+                        ...refreshParams,
+                        variables: filtered.variables,
+                        length: filtered.variables.length,
+                    },
                 });
                 this.clearError('refresh result received');
                 return;
@@ -120,9 +151,20 @@ export class VariablesService {
 
             if (isUpdateParams(result)) {
                 this.log('Dispatching update event.');
+                const updateParams = result as UpdateParams;
+                const filteredAssigned = filterKrarkodeManagedVariables(updateParams.assigned);
+                const filteredUnevaluated = filterKrarkodeManagedVariables(updateParams.unevaluated);
+                const totalFiltered = filteredAssigned.removedCount + filteredUnevaluated.removedCount;
+                if (totalFiltered > 0) {
+                    this.log(`Filtered ${totalFiltered} krarkode-managed variables from update result.`);
+                }
                 this._onDidReceiveUpdate.fire({
                     method: 'update',
-                    params: result as UpdateParams,
+                    params: {
+                        ...updateParams,
+                        assigned: filteredAssigned.variables,
+                        unevaluated: filteredUnevaluated.variables,
+                    },
                 });
                 this.clearError('update result received');
                 return;
@@ -134,13 +176,20 @@ export class VariablesService {
                     this.log('Inspect reply received without pending path.');
                     return;
                 }
+                const inspectResult = result as InspectResult;
+                const filteredChildren = filterKrarkodeManagedVariables(inspectResult.children);
+                if (filteredChildren.removedCount > 0) {
+                    this.log(
+                        `Filtered ${filteredChildren.removedCount} krarkode-managed variables from inspect result.`,
+                    );
+                }
                 this.log(`Dispatching inspect event for ${JSON.stringify(path)}.`);
                 this._onDidReceiveUpdate.fire({
                     method: 'inspect',
                     params: {
                         path,
-                        children: result.children ?? [],
-                        length: result.length ?? 0,
+                        children: filteredChildren.variables,
+                        length: Math.max((inspectResult.length ?? 0) - filteredChildren.removedCount, 0),
                     },
                 });
                 this.clearError('inspect result received');
@@ -281,4 +330,31 @@ function isInspectResult(value: unknown): value is InspectResult {
         Array.isArray(value.children) &&
         typeof value.length === 'number'
     );
+}
+
+const KRARKODE_MANAGED_R_PREFIX = '.krarkode_';
+
+function filterKrarkodeManagedVariables<T extends { access_key?: string; display_name?: string }>(
+    variables: T[],
+): {
+    variables: T[];
+    removedCount: number;
+} {
+    if (!Array.isArray(variables) || variables.length === 0) {
+        return { variables, removedCount: 0 };
+    }
+
+    let removedCount = 0;
+    const filtered = variables.filter((v) => {
+        const key = typeof v.access_key === 'string' ? v.access_key : undefined;
+        const name = typeof v.display_name === 'string' ? v.display_name : undefined;
+        const candidate = key ?? name;
+        const keep = !(typeof candidate === 'string' && candidate.startsWith(KRARKODE_MANAGED_R_PREFIX));
+        if (!keep) {
+            removedCount += 1;
+        }
+        return keep;
+    });
+
+    return { variables: filtered, removedCount };
 }
