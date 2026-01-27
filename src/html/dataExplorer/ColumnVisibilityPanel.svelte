@@ -157,6 +157,10 @@
         flex-direction: column;
     }
 
+    :global(body.panel-resizing) .side-panel {
+        transition: none;
+    }
+
     .side-panel.open {
         right: 0;
     }
