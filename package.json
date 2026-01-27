@@ -36,20 +36,7 @@
   ],
   "activationEvents": [
     "onLanguage:r",
-    "onLanguage:rmd",
-    "onCommand:krarkode.createArkSession",
-    "onCommand:krarkode.attachArkSession",
-    "onCommand:krarkode.openArkConsole",
-    "onCommand:krarkode.stopArkSession",
-    "onCommand:krarkode.interruptArkSession",
-    "onCommand:krarkode.showArkSessionMenu",
-    "onCommand:krarkode.switchArkSession",
-    "onCommand:krarkode.interruptActiveArkSession",
-    "onCommand:krarkode.stopActiveArkSession",
-    "onCommand:krarkode.copyArkConnectionFile",
-    "onCommand:krarkode.restartArkLanguageServer",
-    "onView:krarkode.help",
-    "onView:krarkodeVariables"
+    "onLanguage:rmd"
   ],
   "main": "./dist/extension.js",
   "contributes": {
