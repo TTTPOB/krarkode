@@ -668,86 +668,8 @@
     on:removeFilter={(e) => removeRowFilter(e.detail.index)}
 />
 
-<!-- Non-pinned panels: rendered with position:fixed, overlaying content -->
-{#if !$pinnedPanelsStore.has('column-visibility-panel')}
-    <ColumnVisibilityPanel
-        open={$columnVisibilityOpenStore}
-        pinned={false}
-        displayedColumns={columnVisibilityDisplayedColumns}
-        hiddenColumnIndices={$hiddenColumnIndices}
-        bind:searchTerm={columnVisibilitySearchTerm}
-        status={columnVisibilityStatus}
-        bind:panelEl={columnVisibilityPanelEl}
-        on:close={() => {
-            setPanelPinned('column-visibility-panel', false);
-            $columnVisibilityOpenStore = false;
-        }}
-        on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
-        on:search={(e) => {
-            columnVisibilitySearchTerm = e.detail.term;
-            applyColumnSearch();
-        }}
-        on:clear={() => {
-            columnVisibilitySearchTerm = '';
-            applyColumnSearch();
-        }}
-        on:invert={invertColumnVisibility}
-        on:toggleVisibility={(e) => toggleColumnVisibility(e.detail.columnIndex)}
-        on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
-    />
-{/if}
-
-{#if !$pinnedPanelsStore.has('row-filter-panel')}
-    <RowFilterPanel
-        open={$rowFilterPanelOpenStore}
-        pinned={false}
-        schema={$visibleSchema}
-        bind:draft={rowFilterDraft}
-        error={rowFilterError}
-        rowFilterSupport={$rowFilterSupport}
-        bind:panelEl={rowFilterPanelEl}
-        on:close={() => {
-            setPanelPinned('row-filter-panel', false);
-            $rowFilterPanelOpenStore = false;
-        }}
-        on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
-        on:save={(e) => saveRowFilter()}
-        on:cancel={() => { $rowFilterPanelOpenStore = false; }}
-        on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
-    />
-{/if}
-
-{#if !$pinnedPanelsStore.has('stats-panel')}
-    <StatsPanel
-        isOpen={$statsPanelOpenStore}
-        isPinned={false}
-        schema={$visibleSchema}
-        getColumnLabel={getColumnLabel}
-        bind:statsColumnValue
-        collapsedSections={$collapsedSectionsStore}
-        bind:statsPanelEl
-        bind:statsResultsEl
-        bind:histogramContainer
-        bind:frequencyContainer
-        on:close={() => {
-            setPanelPinned('stats-panel', false);
-            $statsPanelOpenStore = false;
-        }}
-        on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
-        on:columnChange={handleStatsColumnChange}
-        on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
-        on:binsInput={(e) => {
-            histogramBinsStore.set(e.detail.value);
-            handleHistogramBinsInput(e.detail.source);
-        }}
-        on:methodChange={handleStatsMethodChange}
-        on:limitInput={(e) => {
-            frequencyLimitStore.set(e.detail.value);
-            handleFrequencyLimitInput(e.detail.source);
-        }}
-        on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}
-    />
-{/if}
+<!-- Side panels: render a single instance each.
+     Pinning only changes layout (fixed overlay vs flex sidebar), avoiding component destroy/recreate. -->
 
 <CodeModal
     open={$codeModalOpenStore}
@@ -800,83 +722,80 @@
         on:scroll={handleDataTableScroll}
         on:startColumnResize={(e) => startColumnResize(e.detail.event, e.detail.columnIndex)}
     />
-    {#if $pinnedPanelsStore.has('column-visibility-panel') && $columnVisibilityOpenStore}
-        <ColumnVisibilityPanel
-            open={$columnVisibilityOpenStore}
-            pinned={true}
-            displayedColumns={columnVisibilityDisplayedColumns}
-            hiddenColumnIndices={$hiddenColumnIndices}
-            bind:searchTerm={columnVisibilitySearchTerm}
-            status={columnVisibilityStatus}
-            bind:panelEl={columnVisibilityPanelEl}
-            on:close={() => {
-                setPanelPinned('column-visibility-panel', false);
-                $columnVisibilityOpenStore = false;
-            }}
-            on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
-            on:search={(e) => {
-                columnVisibilitySearchTerm = e.detail.term;
-                applyColumnSearch();
-            }}
-            on:clear={() => {
-                columnVisibilitySearchTerm = '';
-                applyColumnSearch();
-            }}
-            on:invert={invertColumnVisibility}
-            on:toggleVisibility={(e) => toggleColumnVisibility(e.detail.columnIndex)}
-            on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
-        />
-    {/if}
-    {#if $pinnedPanelsStore.has('row-filter-panel') && $rowFilterPanelOpenStore}
-        <RowFilterPanel
-            open={$rowFilterPanelOpenStore}
-            pinned={true}
-            schema={$visibleSchema}
-            bind:draft={rowFilterDraft}
-            error={rowFilterError}
-            rowFilterSupport={$rowFilterSupport}
-            bind:panelEl={rowFilterPanelEl}
-            on:close={() => {
-                setPanelPinned('row-filter-panel', false);
-                $rowFilterPanelOpenStore = false;
-            }}
-            on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
-            on:save={(e) => saveRowFilter()}
-            on:cancel={() => { $rowFilterPanelOpenStore = false; }}
-            on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
-        />
-    {/if}
-    {#if $pinnedPanelsStore.has('stats-panel') && $statsPanelOpenStore}
-        <StatsPanel
-            isOpen={$statsPanelOpenStore}
-            isPinned={true}
-            schema={$visibleSchema}
-            getColumnLabel={getColumnLabel}
-            bind:statsColumnValue
-            collapsedSections={$collapsedSectionsStore}
-            bind:statsPanelEl
-            bind:statsResultsEl
-            bind:histogramContainer
-            bind:frequencyContainer
-            on:close={() => {
-                setPanelPinned('stats-panel', false);
-                $statsPanelOpenStore = false;
-            }}
-            on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
-            on:columnChange={handleStatsColumnChange}
-            on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
-            on:binsInput={(e) => {
-                histogramBinsStore.set(e.detail.value);
-                handleHistogramBinsInput(e.detail.source);
-            }}
-            on:methodChange={handleStatsMethodChange}
-            on:limitInput={(e) => {
-                frequencyLimitStore.set(e.detail.value);
-                handleFrequencyLimitInput(e.detail.source);
-            }}
-            on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}
-        />
-    {/if}
+
+    <ColumnVisibilityPanel
+        open={$columnVisibilityOpenStore}
+        pinned={$pinnedPanelsStore.has('column-visibility-panel') && $columnVisibilityOpenStore}
+        displayedColumns={columnVisibilityDisplayedColumns}
+        hiddenColumnIndices={$hiddenColumnIndices}
+        bind:searchTerm={columnVisibilitySearchTerm}
+        status={columnVisibilityStatus}
+        bind:panelEl={columnVisibilityPanelEl}
+        on:close={() => {
+            setPanelPinned('column-visibility-panel', false);
+            $columnVisibilityOpenStore = false;
+        }}
+        on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
+        on:search={(e) => {
+            columnVisibilitySearchTerm = e.detail.term;
+            applyColumnSearch();
+        }}
+        on:clear={() => {
+            columnVisibilitySearchTerm = '';
+            applyColumnSearch();
+        }}
+        on:invert={invertColumnVisibility}
+        on:toggleVisibility={(e) => toggleColumnVisibility(e.detail.columnIndex)}
+        on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
+    />
+
+    <RowFilterPanel
+        open={$rowFilterPanelOpenStore}
+        pinned={$pinnedPanelsStore.has('row-filter-panel') && $rowFilterPanelOpenStore}
+        schema={$visibleSchema}
+        bind:draft={rowFilterDraft}
+        error={rowFilterError}
+        rowFilterSupport={$rowFilterSupport}
+        bind:panelEl={rowFilterPanelEl}
+        on:close={() => {
+            setPanelPinned('row-filter-panel', false);
+            $rowFilterPanelOpenStore = false;
+        }}
+        on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
+        on:save={(e) => saveRowFilter()}
+        on:cancel={() => { $rowFilterPanelOpenStore = false; }}
+        on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
+    />
+
+    <StatsPanel
+        isOpen={$statsPanelOpenStore}
+        isPinned={$pinnedPanelsStore.has('stats-panel') && $statsPanelOpenStore}
+        schema={$visibleSchema}
+        getColumnLabel={getColumnLabel}
+        bind:statsColumnValue
+        collapsedSections={$collapsedSectionsStore}
+        bind:statsPanelEl
+        bind:statsResultsEl
+        bind:histogramContainer
+        bind:frequencyContainer
+        on:close={() => {
+            setPanelPinned('stats-panel', false);
+            $statsPanelOpenStore = false;
+        }}
+        on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
+        on:columnChange={handleStatsColumnChange}
+        on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
+        on:binsInput={(e) => {
+            histogramBinsStore.set(e.detail.value);
+            handleHistogramBinsInput(e.detail.source);
+        }}
+        on:methodChange={handleStatsMethodChange}
+        on:limitInput={(e) => {
+            frequencyLimitStore.set(e.detail.value);
+            handleFrequencyLimitInput(e.detail.source);
+        }}
+        on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}
+    />
 </div>
 
 <style>
