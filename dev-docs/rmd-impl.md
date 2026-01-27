@@ -2,9 +2,9 @@
 
 本文目标：在 krarkode 中为 R 代码块提供"可执行代码块（chunk）"的编辑器体验，支持：
 
-- `.Rmd/.rmd` 文件中的 fenced code block（```` ```{r}```` … ```` ``` ````）
+- `.Rmd/.rmd` 文件中的 fenced code block（` ```{r}` … ` ``` `）
 - `.R` 文件中的 `# %%` 风格代码块分隔符（与 RStudio 兼容）
-实现方式优先对齐 vscode-R（CodeLens + chunk 解析 + 终端执行），并与 krarkode 现有的 Ark session / CodeExecutor 复用。
+  实现方式优先对齐 vscode-R（CodeLens + chunk 解析 + 终端执行），并与 krarkode 现有的 Ark session / CodeExecutor 复用。
 
 ## 1. 范围与非目标
 

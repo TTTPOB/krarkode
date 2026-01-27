@@ -9,25 +9,16 @@
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}"
-      ],
-      "outFiles": [
-        "${workspaceFolder}/dist/**/*.js"
-      ]
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
     },
     {
       "name": "Launch Extension (--disable-extensions)",
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}",
-        "--disable-extensions"
-      ],
-      "outFiles": [
-        "${workspaceFolder}/dist/**/*.js"
-      ]
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}", "--disable-extensions"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"]
     },
     {
       "name": "Extension Tests",
@@ -38,9 +29,7 @@
         "--extensionDevelopmentPath=${workspaceFolder}",
         "--extensionTestsPath=${workspaceFolder}/out/test/suite/index"
       ],
-      "outFiles": [
-        "${workspaceFolder}/out/test/**/*.js"
-      ]
+      "outFiles": ["${workspaceFolder}/out/test/**/*.js"]
     }
   ]
 }

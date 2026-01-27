@@ -24,21 +24,21 @@ Krarkode 是面向 Ark 内核的 VS Code 扩展，目标是在 VS Code 内提供
 
 ## 重要设置
 
-| 设置项 | 说明 |
-| --- | --- |
-| `krarkode.r.rBinaryPath` | 指定 R 可执行文件路径（无法自动发现时必需）。 |
-| `krarkode.ark.path` | Ark 可执行文件路径（默认 `ark`）。 |
-| `krarkode.ark.sessionMode` | Ark 会话模式（当前仅支持 `console`）。 |
-| `krarkode.ark.console.driver` | Ark console 驱动（`tmux` 或 `external`）。 |
-| `krarkode.ark.console.commandTemplate` | Console 启动命令模板。 |
-| `krarkode.ark.kernel.commandTemplate` | Ark kernel 启动命令模板。 |
-| `krarkode.ark.kernel.startupFileTemplate` | Ark kernel 启动脚本路径模板。 |
-| `krarkode.ark.sidecarTimeoutMs` | Ark sidecar 超时时间（毫秒）。 |
-| `krarkode.ark.lsp.enabled` | 是否启用 Ark LSP。 |
-| `krarkode.ark.lspTimeoutMs` | LSP sidecar 启动超时（毫秒）。 |
-| `krarkode.plot.viewColumn` | Plot 面板位置或禁用绘图。 |
-| `krarkode.plot.maxHistory` | Plot 历史缓存数量。 |
-| `krarkode.html.viewColumn` | HTML Viewer 面板位置。 |
+| 设置项                                    | 说明                                          |
+| ----------------------------------------- | --------------------------------------------- |
+| `krarkode.r.rBinaryPath`                  | 指定 R 可执行文件路径（无法自动发现时必需）。 |
+| `krarkode.ark.path`                       | Ark 可执行文件路径（默认 `ark`）。            |
+| `krarkode.ark.sessionMode`                | Ark 会话模式（当前仅支持 `console`）。        |
+| `krarkode.ark.console.driver`             | Ark console 驱动（`tmux` 或 `external`）。    |
+| `krarkode.ark.console.commandTemplate`    | Console 启动命令模板。                        |
+| `krarkode.ark.kernel.commandTemplate`     | Ark kernel 启动命令模板。                     |
+| `krarkode.ark.kernel.startupFileTemplate` | Ark kernel 启动脚本路径模板。                 |
+| `krarkode.ark.sidecarTimeoutMs`           | Ark sidecar 超时时间（毫秒）。                |
+| `krarkode.ark.lsp.enabled`                | 是否启用 Ark LSP。                            |
+| `krarkode.ark.lspTimeoutMs`               | LSP sidecar 启动超时（毫秒）。                |
+| `krarkode.plot.viewColumn`                | Plot 面板位置或禁用绘图。                     |
+| `krarkode.plot.maxHistory`                | Plot 历史缓存数量。                           |
+| `krarkode.html.viewColumn`                | HTML Viewer 面板位置。                        |
 
 ## 授权说明
 

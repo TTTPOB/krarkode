@@ -39,15 +39,15 @@ const buildOptions = {
 
 async function build() {
     console.log(`[data-explorer] Building in ${isDev ? 'development' : 'production'} mode...`);
-    
+
     if (isWatch) {
         console.log('[data-explorer] Watch mode enabled, watching for changes...');
-        
+
         const ctx = await esbuild.context(buildOptions);
         await ctx.watch();
-        
+
         console.log('[data-explorer] Initial build complete. Watching for changes...');
-        
+
         // Keep the process alive
         process.on('SIGINT', async () => {
             console.log('\n[data-explorer] Stopping watch mode...');
@@ -56,15 +56,15 @@ async function build() {
         });
     } else {
         const result = await esbuild.build(buildOptions);
-        
+
         console.log('[data-explorer] Build complete.');
-        
+
         // Analyze bundle if requested
         if (isAnalyze && result.metafile) {
             const analysisPath = join(projectRoot, 'dist/html/dataExplorer/bundle-analysis.json');
             writeFileSync(analysisPath, JSON.stringify(result.metafile, null, 2));
             console.log(`[data-explorer] Bundle analysis written to: ${analysisPath}`);
-            
+
             // Print summary
             const text = await esbuild.analyzeMetafile(result.metafile, { verbose: false });
             console.log('\n[data-explorer] Bundle analysis:\n');

@@ -94,4 +94,19 @@ export interface UpdateDisplayDataEvent {
     display_id?: string | null;
 }
 
-export type SidecarEvent = LspPortEvent | ErrorEvent | KernelStatusEvent | AliveEvent | CommOpenEvent | UiCommOpenEvent | HelpCommOpenEvent | VariablesCommOpenEvent | DataExplorerCommOpenEvent | CommMsgEvent | CommCloseEvent | ShowHtmlFileEvent | ShowHelpEvent | DisplayDataEvent | UpdateDisplayDataEvent;
+export type SidecarEvent =
+    | LspPortEvent
+    | ErrorEvent
+    | KernelStatusEvent
+    | AliveEvent
+    | CommOpenEvent
+    | UiCommOpenEvent
+    | HelpCommOpenEvent
+    | VariablesCommOpenEvent
+    | DataExplorerCommOpenEvent
+    | CommMsgEvent
+    | CommCloseEvent
+    | ShowHtmlFileEvent
+    | ShowHelpEvent
+    | DisplayDataEvent
+    | UpdateDisplayDataEvent;

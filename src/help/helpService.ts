@@ -7,7 +7,7 @@ export interface IKrarkodeHelpService {
     readonly currentHelpEntry?: HelpEntry;
     readonly canGoBack: boolean;
     readonly canGoForward: boolean;
-    
+
     showHelpTopic(topic: string): Promise<boolean>;
     showHelpContent(content: string, kind: string, focus: boolean): Promise<void>;
     loadUrl(url: string): Promise<void>;
@@ -22,13 +22,13 @@ export class HelpService implements IKrarkodeHelpService {
     private readonly helpEntriesStack: HelpEntry[] = [];
     private currentIndex = -1;
     private baseUrl?: string;
-    
+
     private readonly _onDidChangeHelpEntry = new vscode.EventEmitter<void>();
     public readonly onDidChangeHelpEntry = this._onDidChangeHelpEntry.event;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
-        private readonly sendRpcRequest: (method: string, params: unknown) => void
+        private readonly sendRpcRequest: (method: string, params: unknown) => void,
     ) {}
 
     public get helpEntries(): HelpEntry[] {
@@ -80,7 +80,7 @@ export class HelpService implements IKrarkodeHelpService {
                 if (response.ok) {
                     const html = await response.text();
                     processedKind = 'html';
-                    
+
                     // Extract title
                     const titleMatch = html.match(/<title>(.*?)<\/title>/i);
                     if (titleMatch) {
@@ -108,17 +108,11 @@ export class HelpService implements IKrarkodeHelpService {
                 processedKind = 'html';
             }
         }
-        
-        const entry = createHelpEntry(
-            '',
-            title,
-            processedContent,
-            processedKind,
-            'help'
-        );
-        
+
+        const entry = createHelpEntry('', title, processedContent, processedKind, 'help');
+
         this.pushHelpEntry(entry);
-        
+
         if (focus) {
             vscode.commands.executeCommand('krarkode.help.open');
         }
@@ -128,7 +122,7 @@ export class HelpService implements IKrarkodeHelpService {
         // Base URL for relative links
         const baseUrl = originalUrl.substring(0, originalUrl.lastIndexOf('/') + 1);
         const baseTag = `<base href="${baseUrl}">`;
-        
+
         // CSS to match VS Code theme
         const themeStyle = `
             <style>
@@ -200,7 +194,7 @@ export class HelpService implements IKrarkodeHelpService {
         // Script to intercept clicks and handle navigation
         // Note: Scripts injected via innerHTML do not execute.
         // We handle click interception in the main webview script instead.
-        
+
         // Inject into head or body
         let processed = html;
         if (processed.includes('<head>')) {
@@ -222,13 +216,7 @@ export class HelpService implements IKrarkodeHelpService {
             await this.loadUrl(`${this.baseUrl}/doc/html/index.html`);
         } else {
             // Otherwise show the static welcome page
-            const welcomeEntry = createHelpEntry(
-                '',
-                'R Help',
-                undefined,
-                'html',
-                'welcome'
-            );
+            const welcomeEntry = createHelpEntry('', 'R Help', undefined, 'html', 'welcome');
             this.pushHelpEntry(welcomeEntry);
         }
     }
@@ -260,16 +248,16 @@ export class HelpService implements IKrarkodeHelpService {
         if (this.currentIndex < this.helpEntriesStack.length - 1) {
             this.helpEntriesStack.splice(this.currentIndex + 1);
         }
-        
+
         this.helpEntriesStack.push(entry);
-        
+
         // Limit history size
         if (this.helpEntriesStack.length > MAX_HISTORY_ENTRIES) {
             this.helpEntriesStack.shift();
         } else {
             this.currentIndex++;
         }
-        
+
         this._onDidChangeHelpEntry.fire();
     }
 

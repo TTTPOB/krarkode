@@ -233,13 +233,13 @@ async function main() {
         process.stderr.write(chunk);
     });
 
-    const sidecarProc = cp.spawn(sidecarPath, [
-        '--connection-file', connectionFile,
-        '--ip-address', ipAddress,
-        '--timeout-ms', String(timeoutMs),
-    ], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const sidecarProc = cp.spawn(
+        sidecarPath,
+        ['--connection-file', connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)],
+        {
+            stdio: ['ignore', 'pipe', 'pipe'],
+        },
+    );
 
     sidecarProc.stderr.on('data', (chunk) => {
         process.stderr.write(chunk);
@@ -274,7 +274,7 @@ async function main() {
                 processId: process.pid,
                 rootUri,
                 capabilities: {},
-            }
+            },
         });
 
         await lsp.waitFor((msg) => msg.id === 1, timeoutMs);
@@ -294,8 +294,8 @@ async function main() {
                     languageId: 'r',
                     version: 1,
                     text: rFileContents,
-                }
-            }
+                },
+            },
         });
 
         lsp.send({
