@@ -1,6 +1,8 @@
 import { builtinModules } from 'module';
 import { defineConfig } from 'vite';
 
+const external = ['vscode', ...builtinModules, ...builtinModules.map((m) => `node:${m}`)];
+
 export default defineConfig({
     build: {
         lib: {
@@ -10,8 +12,9 @@ export default defineConfig({
         },
         outDir: 'dist',
         sourcemap: true,
-        rollupOptions: {
-            external: ['vscode', ...builtinModules, ...builtinModules.map((m) => `node:${m}`)],
+        rolldownOptions: {
+            external,
+            platform: 'node',
             output: {
                 entryFileNames: '[name].js',
             },
