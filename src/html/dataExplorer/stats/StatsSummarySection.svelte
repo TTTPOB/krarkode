@@ -1,27 +1,28 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-
     type StatsRow = {
         label: string;
         value: string;
     };
 
-    export let title = 'Summary Statistics';
-    export let sectionId = 'summary';
-    export let rows: StatsRow[] = [];
-    export let emptyMessage = '';
-    export let collapsed = false;
-
-    const dispatch = createEventDispatcher<{ toggle: void }>();
-
-    function handleToggle(): void {
-        dispatch('toggle');
-    }
+    let {
+        title = 'Summary Statistics',
+        sectionId = 'summary',
+        rows = [],
+        emptyMessage = '',
+        collapsed = false,
+        onToggle,
+    }: {
+        title?: string;
+        sectionId?: string;
+        rows?: StatsRow[];
+        emptyMessage?: string;
+        collapsed?: boolean;
+        onToggle?: () => void;
+    } = $props();
 </script>
 
 <div class="stats-section collapsible" data-section={sectionId} class:is-collapsed={collapsed}>
-    <button class="section-header" type="button" data-target={`stats-${sectionId}-section`} on:click={handleToggle}>
+    <button class="section-header" type="button" data-target={`stats-${sectionId}-section`} onclick={() => onToggle?.()}>
         <span class="codicon codicon-chevron-down"></span>
         <span>{title}</span>
     </button>

@@ -1,13 +1,6 @@
-import { get, type Writable } from 'svelte/store';
+import { uiStore } from '../stores';
 
 type WindowEventsOptions = {
-    closeColumnMenu: () => void;
-    isPanelPinned: (panelId: string) => boolean;
-    columnMenuOpen: Writable<boolean>;
-    statsPanelOpen: Writable<boolean>;
-    columnVisibilityOpen: Writable<boolean>;
-    codeModalOpen: Writable<boolean>;
-    rowFilterPanelOpen: Writable<boolean>;
     getColumnMenuEl: () => HTMLDivElement | undefined;
     getStatsPanelEl: () => HTMLDivElement | undefined;
     getStatsButtonEl: () => HTMLButtonElement | undefined;
@@ -24,112 +17,112 @@ type WindowEventsOptions = {
     onResize: () => void;
 };
 
-export function useWindowEventsController(options: WindowEventsOptions) {
-    const {
-        closeColumnMenu,
-        isPanelPinned,
-        columnMenuOpen,
-        statsPanelOpen,
-        columnVisibilityOpen,
-        codeModalOpen,
-        rowFilterPanelOpen,
-        getColumnMenuEl,
-        getStatsPanelEl,
-        getStatsButtonEl,
-        getColumnVisibilityPanelEl,
-        getColumnsButtonEl,
-        getCodeModalEl,
-        getCodeButtonEl,
-        getRowFilterPanelEl,
-        getAddRowFilterButtonEl,
-        handleSidePanelResize,
-        handleColumnResizeMove,
-        finishSidePanelResize,
-        handleColumnResizeEnd,
-        onResize,
-    } = options;
+export class WindowEventsController {
+    private readonly getColumnMenuEl: () => HTMLDivElement | undefined;
+    private readonly getStatsPanelEl: () => HTMLDivElement | undefined;
+    private readonly getStatsButtonEl: () => HTMLButtonElement | undefined;
+    private readonly getColumnVisibilityPanelEl: () => HTMLDivElement | undefined;
+    private readonly getColumnsButtonEl: () => HTMLButtonElement | undefined;
+    private readonly getCodeModalEl: () => HTMLDivElement | undefined;
+    private readonly getCodeButtonEl: () => HTMLButtonElement | undefined;
+    private readonly getRowFilterPanelEl: () => HTMLDivElement | undefined;
+    private readonly getAddRowFilterButtonEl: () => HTMLButtonElement | undefined;
+    private readonly handleSidePanelResizeFn: (event: MouseEvent) => void;
+    private readonly handleColumnResizeMoveFn: (event: MouseEvent) => void;
+    private readonly finishSidePanelResizeFn: () => void;
+    private readonly handleColumnResizeEndFn: () => void;
+    private readonly onResize: () => void;
 
-    const handleDocumentClick = (event: MouseEvent): void => {
+    constructor(options: WindowEventsOptions) {
+        this.getColumnMenuEl = options.getColumnMenuEl;
+        this.getStatsPanelEl = options.getStatsPanelEl;
+        this.getStatsButtonEl = options.getStatsButtonEl;
+        this.getColumnVisibilityPanelEl = options.getColumnVisibilityPanelEl;
+        this.getColumnsButtonEl = options.getColumnsButtonEl;
+        this.getCodeModalEl = options.getCodeModalEl;
+        this.getCodeButtonEl = options.getCodeButtonEl;
+        this.getRowFilterPanelEl = options.getRowFilterPanelEl;
+        this.getAddRowFilterButtonEl = options.getAddRowFilterButtonEl;
+        this.handleSidePanelResizeFn = options.handleSidePanelResize;
+        this.handleColumnResizeMoveFn = options.handleColumnResizeMove;
+        this.finishSidePanelResizeFn = options.finishSidePanelResize;
+        this.handleColumnResizeEndFn = options.handleColumnResizeEnd;
+        this.onResize = options.onResize;
+    }
+
+    handleDocumentClick(event: MouseEvent): void {
         const target = event.target as Node;
-        const columnMenuEl = getColumnMenuEl();
-        if (get(columnMenuOpen) && columnMenuEl && !columnMenuEl.contains(target)) {
-            closeColumnMenu();
+        const columnMenuEl = this.getColumnMenuEl();
+        if (uiStore.columnMenuOpen && columnMenuEl && !columnMenuEl.contains(target)) {
+            uiStore.closeColumnMenu();
         }
-        const statsPanelEl = getStatsPanelEl();
-        const statsButtonEl = getStatsButtonEl();
+        const statsPanelEl = this.getStatsPanelEl();
+        const statsButtonEl = this.getStatsButtonEl();
         if (
-            get(statsPanelOpen) &&
+            uiStore.statsPanelOpen &&
             statsPanelEl &&
             !statsPanelEl.contains(target) &&
             statsButtonEl &&
             !statsButtonEl.contains(target) &&
-            !isPanelPinned('stats-panel')
+            !uiStore.isPanelPinned('stats-panel')
         ) {
-            statsPanelOpen.set(false);
+            uiStore.statsPanelOpen = false;
         }
-        const columnVisibilityPanelEl = getColumnVisibilityPanelEl();
-        const columnsButtonEl = getColumnsButtonEl();
+        const columnVisibilityPanelEl = this.getColumnVisibilityPanelEl();
+        const columnsButtonEl = this.getColumnsButtonEl();
         if (
-            get(columnVisibilityOpen) &&
+            uiStore.columnVisibilityOpen &&
             columnVisibilityPanelEl &&
             !columnVisibilityPanelEl.contains(target) &&
             columnsButtonEl &&
             !columnsButtonEl.contains(target) &&
-            !isPanelPinned('column-visibility-panel')
+            !uiStore.isPanelPinned('column-visibility-panel')
         ) {
-            columnVisibilityOpen.set(false);
+            uiStore.columnVisibilityOpen = false;
         }
-        const codeModalEl = getCodeModalEl();
-        const codeButtonEl = getCodeButtonEl();
+        const codeModalEl = this.getCodeModalEl();
+        const codeButtonEl = this.getCodeButtonEl();
         if (
-            get(codeModalOpen) &&
+            uiStore.codeModalOpen &&
             codeModalEl &&
             !codeModalEl.contains(target) &&
             codeButtonEl &&
             !codeButtonEl.contains(target)
         ) {
-            codeModalOpen.set(false);
+            uiStore.codeModalOpen = false;
         }
-        const rowFilterPanelEl = getRowFilterPanelEl();
-        const addRowFilterButtonEl = getAddRowFilterButtonEl();
+        const rowFilterPanelEl = this.getRowFilterPanelEl();
+        const addRowFilterButtonEl = this.getAddRowFilterButtonEl();
         if (
-            get(rowFilterPanelOpen) &&
+            uiStore.rowFilterPanelOpen &&
             rowFilterPanelEl &&
             !rowFilterPanelEl.contains(target) &&
             addRowFilterButtonEl &&
             !addRowFilterButtonEl.contains(target) &&
-            !isPanelPinned('row-filter-panel')
+            !uiStore.isPanelPinned('row-filter-panel')
         ) {
-            rowFilterPanelOpen.set(false);
+            uiStore.rowFilterPanelOpen = false;
         }
-    };
+    }
 
-    const handleWindowResize = (): void => {
-        closeColumnMenu();
-        onResize();
-    };
+    handleWindowResize(): void {
+        uiStore.closeColumnMenu();
+        this.onResize();
+    }
 
-    const handleWindowKeydown = (event: KeyboardEvent): void => {
+    handleWindowKeydown(event: KeyboardEvent): void {
         if (event.key === 'Escape') {
-            closeColumnMenu();
+            uiStore.closeColumnMenu();
         }
-    };
+    }
 
-    const handleWindowMouseMove = (event: MouseEvent): void => {
-        handleSidePanelResize(event);
-        handleColumnResizeMove(event);
-    };
+    handleWindowMouseMove(event: MouseEvent): void {
+        this.handleSidePanelResizeFn(event);
+        this.handleColumnResizeMoveFn(event);
+    }
 
-    const handleWindowMouseUp = (): void => {
-        finishSidePanelResize();
-        handleColumnResizeEnd();
-    };
-
-    return {
-        handleDocumentClick,
-        handleWindowResize,
-        handleWindowKeydown,
-        handleWindowMouseMove,
-        handleWindowMouseUp,
-    };
+    handleWindowMouseUp(): void {
+        this.finishSidePanelResizeFn();
+        this.handleColumnResizeEndFn();
+    }
 }

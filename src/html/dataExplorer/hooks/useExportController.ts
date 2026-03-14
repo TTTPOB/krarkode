@@ -1,14 +1,17 @@
+import { uiStore } from '../stores';
+
 type ExportControllerOptions = {
     postMessage: (message: unknown) => void;
-    getCodeSyntax: () => string;
-    setCodePreview: (value: string) => void;
-    setCodeSyntax: (value: string) => void;
 };
 
-export function useExportController(options: ExportControllerOptions) {
-    const { postMessage, getCodeSyntax, setCodePreview, setCodeSyntax } = options;
+export class ExportController {
+    private readonly postMessage: (message: unknown) => void;
 
-    const handleExportResult = (data: string, format: string): void => {
+    constructor(options: ExportControllerOptions) {
+        this.postMessage = options.postMessage;
+    }
+
+    handleExportResult(data: string, format: string): void {
         const blob = new Blob([data], { type: format === 'html' ? 'text/html' : 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -16,29 +19,21 @@ export function useExportController(options: ExportControllerOptions) {
         a.download = `export.${format === 'csv' ? 'csv' : format === 'tsv' ? 'tsv' : 'html'}`;
         a.click();
         URL.revokeObjectURL(url);
-    };
+    }
 
-    const handleConvertToCodeResult = (code: string): void => {
-        setCodePreview(code || '(No code generated)');
-    };
+    handleConvertToCodeResult(code: string): void {
+        uiStore.codePreview = code || '(No code generated)';
+    }
 
-    const handleSuggestCodeSyntaxResult = (syntax: string): void => {
-        setCodeSyntax(syntax);
-    };
+    handleSuggestCodeSyntaxResult(syntax: string): void {
+        uiStore.codeSyntax = syntax;
+    }
 
-    const handleCodeConvert = (): void => {
-        postMessage({ type: 'convertToCode', syntax: getCodeSyntax() });
-    };
+    handleCodeConvert(): void {
+        this.postMessage({ type: 'convertToCode', syntax: uiStore.codeSyntax });
+    }
 
-    const handleExport = (format: 'csv' | 'tsv' | 'html'): void => {
-        postMessage({ type: 'exportData', format });
-    };
-
-    return {
-        handleExportResult,
-        handleConvertToCodeResult,
-        handleSuggestCodeSyntaxResult,
-        handleCodeConvert,
-        handleExport,
-    };
+    handleExport(format: 'csv' | 'tsv' | 'html'): void {
+        this.postMessage({ type: 'exportData', format });
+    }
 }

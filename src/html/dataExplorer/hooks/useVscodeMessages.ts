@@ -1,4 +1,3 @@
-import { onMount } from 'svelte';
 import type { ColumnProfileResult, InitMessage, RowsMessage } from '../types';
 
 type VscodeMessageHandlers = {
@@ -32,55 +31,64 @@ const isRowsMessage = (message: unknown): message is RowsMessage => {
         && Array.isArray(candidate.columns);
 };
 
-export function useVscodeMessages(handlers: VscodeMessageHandlers): void {
-    const handleMessage = (event: MessageEvent): void => {
+type VscodeMessageOptions = VscodeMessageHandlers;
+
+export function createMessageHandler(options: VscodeMessageOptions): {
+    handler: (event: MessageEvent) => void;
+    attach: () => void;
+    detach: () => void;
+} {
+    const handler = (event: MessageEvent): void => {
         const message = event.data as { type?: string; [key: string]: unknown };
         switch (message.type) {
             case 'init':
                 if (isInitMessage(message)) {
-                    handlers.onInit(message);
+                    options.onInit(message);
                 } else {
-                    handlers.onError('Invalid init message.');
+                    options.onError('Invalid init message.');
                 }
                 break;
             case 'rows':
                 if (isRowsMessage(message)) {
-                    handlers.onRows(message);
+                    options.onRows(message);
                 } else {
-                    handlers.onError('Invalid rows message.');
+                    options.onError('Invalid rows message.');
                 }
                 break;
             case 'error':
-                handlers.onError(typeof message.message === 'string' ? message.message : 'Unknown error');
+                options.onError(typeof message.message === 'string' ? message.message : 'Unknown error');
                 break;
             case 'searchSchemaResult':
-                handlers.onSearchSchemaResult(message.matches as Array<number | string | Record<string, unknown>>);
+                options.onSearchSchemaResult(message.matches as Array<number | string | Record<string, unknown>>);
                 break;
             case 'exportResult':
-                handlers.onExportResult(String(message.data ?? ''), String(message.format ?? ''));
+                options.onExportResult(String(message.data ?? ''), String(message.format ?? ''));
                 break;
             case 'columnProfilesResult':
-                handlers.onColumnProfilesResult(
+                options.onColumnProfilesResult(
                     message.columnIndex as number,
                     message.profiles as ColumnProfileResult[],
                     message.errorMessage as string | undefined
                 );
                 break;
             case 'convertToCodeResult':
-                handlers.onConvertToCodeResult(String(message.code ?? ''), String(message.syntax ?? ''));
+                options.onConvertToCodeResult(String(message.code ?? ''), String(message.syntax ?? ''));
                 break;
             case 'suggestCodeSyntaxResult':
-                handlers.onSuggestCodeSyntaxResult(String(message.syntax ?? ''));
+                options.onSuggestCodeSyntaxResult(String(message.syntax ?? ''));
                 break;
             default:
                 break;
         }
     };
 
-    onMount(() => {
-        window.addEventListener('message', handleMessage);
-        return () => {
-            window.removeEventListener('message', handleMessage);
-        };
-    });
+    const attach = (): void => {
+        window.addEventListener('message', handler);
+    };
+
+    const detach = (): void => {
+        window.removeEventListener('message', handler);
+    };
+
+    return { handler, attach, detach };
 }

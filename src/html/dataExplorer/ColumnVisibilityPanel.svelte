@@ -1,27 +1,38 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher, onDestroy } from 'svelte';
+    import { onDestroy } from 'svelte';
     import type { ColumnSchema } from './types';
 
-    export let open = false;
-    export let pinned = false;
-    export let displayedColumns: ColumnSchema[] = [];
-    export let hiddenColumnIndices: Set<number> = new Set();
-    export let searchTerm = '';
-    export let status = '';
-
-    // Expose panel element for click-outside detection
-    export let panelEl: HTMLDivElement | undefined = undefined;
-
-    const dispatch = createEventDispatcher<{
-        close: void;
-        togglePin: void;
-        search: { term: string };
-        clear: void;
-        invert: void;
-        toggleVisibility: { columnIndex: number };
-        startResize: { event: MouseEvent };
-    }>();
+    let {
+        open = false,
+        pinned = false,
+        displayedColumns = [],
+        hiddenColumnIndices = new Set<number>(),
+        searchTerm = $bindable(''),
+        status = '',
+        panelEl = $bindable<HTMLDivElement | undefined>(undefined),
+        onClose,
+        onTogglePin,
+        onSearch,
+        onClear,
+        onInvert,
+        onToggleVisibility,
+        onStartResize,
+    }: {
+        open?: boolean;
+        pinned?: boolean;
+        displayedColumns?: ColumnSchema[];
+        hiddenColumnIndices?: Set<number>;
+        searchTerm?: string;
+        status?: string;
+        panelEl?: HTMLDivElement | undefined;
+        onClose?: () => void;
+        onTogglePin?: () => void;
+        onSearch?: (data: { term: string }) => void;
+        onClear?: () => void;
+        onInvert?: () => void;
+        onToggleVisibility?: (data: { columnIndex: number }) => void;
+        onStartResize?: (data: { event: MouseEvent }) => void;
+    } = $props();
 
     let searchInput: HTMLInputElement;
     let debounceId: number | undefined;
@@ -41,19 +52,21 @@
             window.clearTimeout(debounceId);
         }
         debounceId = window.setTimeout(() => {
-            dispatch('search', { term: searchTerm });
+            onSearch?.({ term: searchTerm });
         }, 250);
     }
 
     function handleKeydown(event: KeyboardEvent): void {
         if (event.key === 'Enter') {
-            dispatch('search', { term: searchTerm });
+            onSearch?.({ term: searchTerm });
         }
     }
 
-    $: if (open && searchInput) {
-        searchInput.focus();
-    }
+    $effect(() => {
+        if (open && searchInput) {
+            searchInput.focus();
+        }
+    });
 
     onDestroy(() => {
         if (debounceId !== undefined) {
@@ -73,7 +86,7 @@
         type="button"
         class="panel-resizer"
         aria-label="Resize panel"
-        on:mousedown={(event) => dispatch('startResize', { event })}
+        onmousedown={(event) => onStartResize?.({ event })}
     ></button>
     <div class="panel-header">
         <span>Column Visibility</span>
@@ -83,11 +96,11 @@
                 data-panel-id="column-visibility-panel"
                 aria-pressed={pinned}
                 title="Pin panel"
-                on:click|stopPropagation={() => dispatch('togglePin')}
+                onclick={(e) => { e.stopPropagation(); onTogglePin?.(); }}
             >
                 <span class="codicon codicon-pin"></span>
             </button>
-            <button class="close-btn" id="close-column-visibility" on:click={() => dispatch('close')}>
+            <button class="close-btn" id="close-column-visibility" onclick={() => onClose?.()}>
                 &times;
             </button>
         </div>
@@ -101,17 +114,17 @@
                 placeholder="Column name..."
                 bind:this={searchInput}
                 bind:value={searchTerm}
-                on:keydown={handleKeydown}
-                on:input={scheduleSearch}
+                onkeydown={handleKeydown}
+                oninput={scheduleSearch}
             >
         </div>
         <div class="filter-actions">
-            <button class="action" id="apply-column-visibility-filter" on:click={() => dispatch('search', { term: searchTerm })}>Apply</button>
-            <button class="action secondary" id="clear-column-visibility-filter" on:click={() => {
+            <button class="action" id="apply-column-visibility-filter" onclick={() => onSearch?.({ term: searchTerm })}>Apply</button>
+            <button class="action secondary" id="clear-column-visibility-filter" onclick={() => {
                 searchTerm = '';
-                dispatch('clear');
+                onClear?.();
             }}>Clear</button>
-            <button class="action secondary" id="invert-column-visibility" on:click={() => dispatch('invert')}>Invert</button>
+            <button class="action secondary" id="invert-column-visibility" onclick={() => onInvert?.()}>Invert</button>
         </div>
         <div class="filter-status" id="column-visibility-status">{status}</div>
         <div class="column-visibility-list" id="column-visibility-list">
@@ -130,7 +143,7 @@
                             title={hiddenColumnIndices.has(column.column_index) ? 'Show column' : 'Hide column'}
                             aria-pressed={!hiddenColumnIndices.has(column.column_index)}
                             disabled={!hiddenColumnIndices.has(column.column_index) && resolveVisibleSchema().length <= 1}
-                            on:click={() => dispatch('toggleVisibility', { columnIndex: column.column_index })}
+                            onclick={() => onToggleVisibility?.({ columnIndex: column.column_index })}
                         >
                             <span class={`codicon ${hiddenColumnIndices.has(column.column_index) ? 'codicon-eye-closed' : 'codicon-eye'}`}></span>
                         </button>

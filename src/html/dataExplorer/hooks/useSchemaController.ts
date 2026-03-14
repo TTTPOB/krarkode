@@ -1,82 +1,67 @@
-import { get, type Readable, type Writable } from 'svelte/store';
+import { dataStore, uiStore } from '../stores';
 import type { ColumnFilter, ColumnSchema, StatsMessageState } from '../types';
 import { COLUMN_WIDTH } from '../types';
-import { resolveSchemaMatches, resolveVisibleSchema } from '../utils';
-
-type SchemaStores = {
-    fullSchema: Readable<ColumnSchema[]>;
-    visibleSchema: Readable<ColumnSchema[]>;
-    columnFilterMatches: Writable<Array<number | string | Record<string, unknown>> | null>;
-    hiddenColumnIndices: Writable<Set<number>>;
-    columnWidths: Writable<Map<number, number>>;
-    rowCache: Writable<Map<number, string[]>>;
-    rowLabelCache: Writable<Map<number, string>>;
-    rowCacheVersion: Writable<number>;
-    loadedBlocks: Writable<Set<number>>;
-    loadingBlocks: Writable<Set<number>>;
-};
+import { isColumnFilterSupported as checkColumnFilterSupported, resolveSchemaMatches, resolveVisibleSchema } from '../utils';
 
 type SchemaControllerOptions = {
     log: (message: string, payload?: unknown) => void;
     postMessage: (message: unknown) => void;
-    stores: SchemaStores;
-    getColumnVisibilitySearchTerm: () => string;
-    setColumnVisibilityStatus: (value: string) => void;
-    isColumnFilterSupported: () => boolean;
-    isSetColumnFiltersSupported: () => boolean;
     setupTable: () => void;
     updateVirtualizer: () => void;
     requestInitialBlock: () => void;
     scheduleTableLayoutDiagnostics: (stage: string) => void;
-    getStatsPanelOpen: () => boolean;
-    getActiveStatsColumnIndex: () => number | null;
-    setActiveStatsColumnIndex: (value: number | null) => void;
-    setStatsColumnValue: (value: string) => void;
     setStatsMessage: (message: string, stateValue: StatsMessageState) => void;
     clearStatsContent: () => void;
 };
 
-export function useSchemaController(options: SchemaControllerOptions) {
-    const {
-        log,
-        postMessage,
-        stores,
-        getColumnVisibilitySearchTerm,
-        setColumnVisibilityStatus,
-        isColumnFilterSupported,
-        isSetColumnFiltersSupported,
-        setupTable,
-        updateVirtualizer,
-        requestInitialBlock,
-        scheduleTableLayoutDiagnostics,
-        getStatsPanelOpen,
-        getActiveStatsColumnIndex,
-        setActiveStatsColumnIndex,
-        setStatsColumnValue,
-        setStatsMessage,
-        clearStatsContent,
-    } = options;
+export class SchemaController {
+    private readonly log: (message: string, payload?: unknown) => void;
+    private readonly postMessage: (message: unknown) => void;
+    private readonly setupTable: () => void;
+    private readonly updateVirtualizer: () => void;
+    private readonly requestInitialBlock: () => void;
+    private readonly scheduleTableLayoutDiagnostics: (stage: string) => void;
+    private readonly setStatsMessage: (message: string, stateValue: StatsMessageState) => void;
+    private readonly clearStatsContent: () => void;
+    private columnVisibilityDebounceId: number | undefined;
 
-    let columnVisibilityDebounceId: number | undefined;
+    constructor(options: SchemaControllerOptions) {
+        this.log = options.log;
+        this.postMessage = options.postMessage;
+        this.setupTable = options.setupTable;
+        this.updateVirtualizer = options.updateVirtualizer;
+        this.requestInitialBlock = options.requestInitialBlock;
+        this.scheduleTableLayoutDiagnostics = options.scheduleTableLayoutDiagnostics;
+        this.setStatsMessage = options.setStatsMessage;
+        this.clearStatsContent = options.clearStatsContent;
+    }
 
-    const getResolvedVisibleSchema = (): ColumnSchema[] => {
+    private isColumnFilterSupported(): boolean {
+        return checkColumnFilterSupported(dataStore.columnFilterSupport);
+    }
+
+    private isSetColumnFiltersSupported(): boolean {
+        return dataStore.setColumnFilterSupport?.support_status !== 'unsupported';
+    }
+
+    getResolvedVisibleSchema(): ColumnSchema[] {
         return resolveVisibleSchema(
-            get(stores.fullSchema),
-            get(stores.columnFilterMatches),
-            get(stores.hiddenColumnIndices),
-            isSetColumnFiltersSupported(),
+            dataStore.fullSchema,
+            dataStore.columnFilterMatches,
+            dataStore.hiddenColumnIndices,
+            this.isSetColumnFiltersSupported(),
         );
-    };
+    }
 
-    const applySchemaUpdate = (nextSchema: ColumnSchema[]): void => {
-        stores.rowCache.set(new Map());
-        stores.rowLabelCache.set(new Map());
-        stores.loadedBlocks.set(new Set());
-        stores.loadingBlocks.set(new Set());
-        stores.rowCacheVersion.set(0);
-        const previousWidths = new Map(get(stores.columnWidths));
+    applySchemaUpdate(nextSchema: ColumnSchema[]): void {
+        dataStore.rowCache = new Map();
+        dataStore.rowLabelCache = new Map();
+        dataStore.loadedBlocks = new Set();
+        dataStore.loadingBlocks = new Set();
+        dataStore.rowCacheVersion = 0;
+        const previousWidths = new Map(dataStore.columnWidths);
         const nextWidths = new Map<number, number>();
-        get(stores.fullSchema).forEach((column) => {
+        dataStore.fullSchema.forEach((column) => {
             const width = previousWidths.get(column.column_index);
             if (width !== undefined) {
                 nextWidths.set(column.column_index, width);
@@ -87,60 +72,60 @@ export function useSchemaController(options: SchemaControllerOptions) {
                 nextWidths.set(column.column_index, COLUMN_WIDTH);
             }
         });
-        stores.columnWidths.set(nextWidths);
-        setupTable();
-        updateVirtualizer();
-        requestInitialBlock();
-        if (getStatsPanelOpen()) {
-            const activeStatsColumnIndex = getActiveStatsColumnIndex();
+        dataStore.columnWidths = nextWidths;
+        this.setupTable();
+        this.updateVirtualizer();
+        this.requestInitialBlock();
+        if (uiStore.statsPanelOpen) {
+            const activeStatsColumnIndex = uiStore.activeStatsColumnIndex;
             if (activeStatsColumnIndex !== null) {
                 const stillExists = nextSchema.some((column) => column.column_index === activeStatsColumnIndex);
                 if (!stillExists) {
-                    setActiveStatsColumnIndex(null);
-                    setStatsColumnValue('');
-                    setStatsMessage('Select a column to view statistics.', 'empty');
-                    clearStatsContent();
+                    uiStore.activeStatsColumnIndex = null;
+                    uiStore.statsColumnValue = '';
+                    this.setStatsMessage('Select a column to view statistics.', 'empty');
+                    this.clearStatsContent();
                 } else {
-                    setStatsColumnValue(String(activeStatsColumnIndex));
+                    uiStore.statsColumnValue = String(activeStatsColumnIndex);
                 }
             }
         }
-        scheduleTableLayoutDiagnostics('schema-update');
-    };
+        this.scheduleTableLayoutDiagnostics('schema-update');
+    }
 
-    const handleSearchSchemaResult = (matches: Array<number | string | Record<string, unknown>>): void => {
-        const searchTerm = getColumnVisibilitySearchTerm().trim();
+    handleSearchSchemaResult(matches: Array<number | string | Record<string, unknown>>): void {
+        const searchTerm = uiStore.columnVisibilitySearchTerm.trim();
         if (!searchTerm) {
-            stores.columnFilterMatches.set(null);
-            setColumnVisibilityStatus('Showing all columns.');
+            dataStore.columnFilterMatches = null;
+            uiStore.columnVisibilityStatus = 'Showing all columns.';
             return;
         }
-        stores.columnFilterMatches.set(matches);
-        if (!isSetColumnFiltersSupported()) {
-            applySchemaUpdate(getResolvedVisibleSchema());
+        dataStore.columnFilterMatches = matches;
+        if (!this.isSetColumnFiltersSupported()) {
+            this.applySchemaUpdate(this.getResolvedVisibleSchema());
         }
-        setColumnVisibilityStatus(`Found ${matches.length} matching columns.`);
-    };
+        uiStore.columnVisibilityStatus = `Found ${matches.length} matching columns.`;
+    }
 
-    const applyColumnSearch = (): void => {
-        if (!isColumnFilterSupported()) {
-            setColumnVisibilityStatus('Column filtering is not supported.');
-            log('Column filter unavailable; search_schema unsupported.');
+    applyColumnSearch(): void {
+        if (!this.isColumnFilterSupported()) {
+            uiStore.columnVisibilityStatus = 'Column filtering is not supported.';
+            this.log('Column filter unavailable; search_schema unsupported.');
             return;
         }
-        const searchTerm = getColumnVisibilitySearchTerm().trim();
+        const searchTerm = uiStore.columnVisibilitySearchTerm.trim();
         const sortOrder = 'original';
 
         const filters: ColumnFilter[] = [];
         if (!searchTerm) {
-            stores.columnFilterMatches.set(null);
-            setColumnVisibilityStatus('Showing all columns.');
-            if (!isSetColumnFiltersSupported()) {
-                applySchemaUpdate(getResolvedVisibleSchema());
+            dataStore.columnFilterMatches = null;
+            uiStore.columnVisibilityStatus = 'Showing all columns.';
+            if (!this.isSetColumnFiltersSupported()) {
+                this.applySchemaUpdate(this.getResolvedVisibleSchema());
             } else {
-                postMessage({ type: 'setColumnFilters', filters });
+                this.postMessage({ type: 'setColumnFilters', filters });
             }
-            log('Column search cleared');
+            this.log('Column search cleared');
             return;
         }
         if (searchTerm) {
@@ -154,74 +139,70 @@ export function useSchemaController(options: SchemaControllerOptions) {
             });
         }
 
-        log('Applying column search', { term: searchTerm, filters: filters.length });
-        setColumnVisibilityStatus('Searching...');
-        postMessage({ type: 'searchSchema', filters, sortOrder });
-        if (isSetColumnFiltersSupported()) {
-            postMessage({ type: 'setColumnFilters', filters });
+        this.log('Applying column search', { term: searchTerm, filters: filters.length });
+        uiStore.columnVisibilityStatus = 'Searching...';
+        this.postMessage({ type: 'searchSchema', filters, sortOrder });
+        if (this.isSetColumnFiltersSupported()) {
+            this.postMessage({ type: 'setColumnFilters', filters });
         }
-    };
+    }
 
-    const scheduleColumnVisibilitySearch = (): void => {
-        if (columnVisibilityDebounceId !== undefined) {
-            window.clearTimeout(columnVisibilityDebounceId);
+    scheduleColumnVisibilitySearch(): void {
+        if (this.columnVisibilityDebounceId !== undefined) {
+            window.clearTimeout(this.columnVisibilityDebounceId);
         }
-        columnVisibilityDebounceId = window.setTimeout(() => {
-            applyColumnSearch();
+        this.columnVisibilityDebounceId = window.setTimeout(() => {
+            this.applyColumnSearch();
         }, 250);
-    };
+    }
 
-    const hideColumn = (columnIndex: number): void => {
-        if (get(stores.hiddenColumnIndices).has(columnIndex)) {
+    hideColumn(columnIndex: number): void {
+        if (dataStore.hiddenColumnIndices.has(columnIndex)) {
             return;
         }
-        stores.hiddenColumnIndices.update((indices) => {
-            const nextHidden = new Set(indices);
-            nextHidden.add(columnIndex);
-            return nextHidden;
-        });
-        log('Column hidden', { columnIndex });
-        applySchemaUpdate(getResolvedVisibleSchema());
-    };
+        const nextHidden = new Set(dataStore.hiddenColumnIndices);
+        nextHidden.add(columnIndex);
+        dataStore.hiddenColumnIndices = nextHidden;
+        this.log('Column hidden', { columnIndex });
+        this.applySchemaUpdate(this.getResolvedVisibleSchema());
+    }
 
-    const showColumn = (columnIndex: number): void => {
-        if (!get(stores.hiddenColumnIndices).has(columnIndex)) {
+    showColumn(columnIndex: number): void {
+        if (!dataStore.hiddenColumnIndices.has(columnIndex)) {
             return;
         }
-        stores.hiddenColumnIndices.update((indices) => {
-            const nextHidden = new Set(indices);
-            nextHidden.delete(columnIndex);
-            return nextHidden;
-        });
-        log('Column shown', { columnIndex });
-        applySchemaUpdate(getResolvedVisibleSchema());
-    };
+        const nextHidden = new Set(dataStore.hiddenColumnIndices);
+        nextHidden.delete(columnIndex);
+        dataStore.hiddenColumnIndices = nextHidden;
+        this.log('Column shown', { columnIndex });
+        this.applySchemaUpdate(this.getResolvedVisibleSchema());
+    }
 
-    const toggleColumnVisibility = (columnIndex: number): void => {
-        if (get(stores.hiddenColumnIndices).has(columnIndex)) {
-            showColumn(columnIndex);
+    toggleColumnVisibility(columnIndex: number): void {
+        if (dataStore.hiddenColumnIndices.has(columnIndex)) {
+            this.showColumn(columnIndex);
             return;
         }
-        if (getResolvedVisibleSchema().length <= 1) {
+        if (this.getResolvedVisibleSchema().length <= 1) {
             return;
         }
-        hideColumn(columnIndex);
-    };
+        this.hideColumn(columnIndex);
+    }
 
-    const invertColumnVisibility = (): void => {
-        const fullSchema = get(stores.fullSchema);
+    invertColumnVisibility(): void {
+        const fullSchema = dataStore.fullSchema;
         if (!fullSchema.length) {
             return;
         }
 
-        const matches = get(stores.columnFilterMatches);
+        const matches = dataStore.columnFilterMatches;
         const baseSchema = matches ? resolveSchemaMatches(fullSchema, matches) : fullSchema;
         if (!baseSchema.length) {
             return;
         }
 
-        log('Inverting column visibility', { matches: baseSchema.length });
-        const nextHidden = new Set(get(stores.hiddenColumnIndices));
+        this.log('Inverting column visibility', { matches: baseSchema.length });
+        const nextHidden = new Set(dataStore.hiddenColumnIndices);
         for (const column of baseSchema) {
             const index = column.column_index;
             if (nextHidden.has(index)) {
@@ -235,26 +216,13 @@ export function useSchemaController(options: SchemaControllerOptions) {
             nextHidden.delete(fullSchema[0]?.column_index ?? 0);
         }
 
-        stores.hiddenColumnIndices.set(nextHidden);
-        applySchemaUpdate(getResolvedVisibleSchema());
-    };
+        dataStore.hiddenColumnIndices = nextHidden;
+        this.applySchemaUpdate(this.getResolvedVisibleSchema());
+    }
 
-    const dispose = (): void => {
-        if (columnVisibilityDebounceId !== undefined) {
-            window.clearTimeout(columnVisibilityDebounceId);
+    dispose(): void {
+        if (this.columnVisibilityDebounceId !== undefined) {
+            window.clearTimeout(this.columnVisibilityDebounceId);
         }
-    };
-
-    return {
-        handleSearchSchemaResult,
-        getResolvedVisibleSchema,
-        applySchemaUpdate,
-        applyColumnSearch,
-        scheduleColumnVisibilitySearch,
-        hideColumn,
-        showColumn,
-        toggleColumnVisibility,
-        invertColumnVisibility,
-        dispose,
-    };
+    }
 }

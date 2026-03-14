@@ -1,6 +1,4 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import type {
         ColumnSchema,
         RowFilter,
@@ -13,23 +11,33 @@
     } from './types';
     import { ROW_FILTER_TYPE_LABELS, ROW_FILTER_SECTION_MAP } from './types';
 
-    export let open = false;
-    export let pinned = false;
-    export let schema: ColumnSchema[] = [];
-    export let draft: RowFilterDraft;
-    export let error = '';
-    export let rowFilterSupport: SetRowFiltersFeatures | undefined = undefined;
-
-    // Expose panel element for click-outside detection
-    export let panelEl: HTMLDivElement | undefined = undefined;
-
-    const dispatch = createEventDispatcher<{
-        close: void;
-        togglePin: void;
-        save: { draft: RowFilterDraft };
-        cancel: void;
-        startResize: { event: MouseEvent };
-    }>();
+    let {
+        open = false,
+        pinned = false,
+        schema = [],
+        draft = $bindable<RowFilterDraft>(),
+        error = '',
+        rowFilterSupport = undefined,
+        panelEl = $bindable<HTMLDivElement | undefined>(undefined),
+        onClose,
+        onTogglePin,
+        onSave,
+        onCancel,
+        onStartResize,
+    }: {
+        open?: boolean;
+        pinned?: boolean;
+        schema?: ColumnSchema[];
+        draft: RowFilterDraft;
+        error?: string;
+        rowFilterSupport?: SetRowFiltersFeatures | undefined;
+        panelEl?: HTMLDivElement | undefined;
+        onClose?: () => void;
+        onTogglePin?: () => void;
+        onSave?: (data: { draft: RowFilterDraft }) => void;
+        onCancel?: () => void;
+        onStartResize?: (data: { event: MouseEvent }) => void;
+    } = $props();
 
     function getColumnLabel(column: ColumnSchema): string {
         const rawLabel = column.column_label ?? column.column_name;
@@ -68,7 +76,7 @@
         };
     }
 
-    $: rowFilterSection = ROW_FILTER_SECTION_MAP[draft.filterType] ?? 'none';
+    const rowFilterSection = $derived(ROW_FILTER_SECTION_MAP[draft.filterType] ?? 'none');
 </script>
 
 <div
@@ -82,7 +90,7 @@
         type="button"
         class="panel-resizer"
         aria-label="Resize panel"
-        on:mousedown={(event) => dispatch('startResize', { event })}
+        onmousedown={(event) => onStartResize?.({ event })}
     ></button>
     <div class="panel-header">
         <span>Row Filter</span>
@@ -92,11 +100,11 @@
                 data-panel-id="row-filter-panel"
                 aria-pressed={pinned}
                 title="Pin panel"
-                on:click|stopPropagation={() => dispatch('togglePin')}
+                onclick={(e) => { e.stopPropagation(); onTogglePin?.(); }}
             >
                 <span class="codicon codicon-pin"></span>
             </button>
-            <button class="close-btn" id="close-row-filter" on:click={() => dispatch('close')}>
+            <button class="close-btn" id="close-row-filter" onclick={() => onClose?.()}>
                 &times;
             </button>
         </div>
@@ -104,7 +112,7 @@
     <div class="panel-content">
         <div class="filter-section">
             <label for="row-filter-column">Column</label>
-            <select id="row-filter-column" value={draft.columnIndex} on:change={handleColumnChange}>
+            <select id="row-filter-column" value={draft.columnIndex} onchange={handleColumnChange}>
                 {#each schema as column}
                     <option value={column.column_index}>{getColumnLabel(column)}</option>
                 {/each}
@@ -179,8 +187,8 @@
         {/if}
         <div class="filter-status" id="row-filter-error">{error}</div>
         <div class="filter-actions">
-            <button class="action" id="save-row-filter" on:click={() => dispatch('save', { draft })}>Save</button>
-            <button class="action secondary" id="cancel-row-filter" on:click={() => dispatch('cancel')}>Cancel</button>
+            <button class="action" id="save-row-filter" onclick={() => onSave?.({ draft })}>Save</button>
+            <button class="action secondary" id="cancel-row-filter" onclick={() => onCancel?.()}>Cancel</button>
         </div>
     </div>
 </div>

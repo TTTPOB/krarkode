@@ -1,57 +1,54 @@
+import { uiStore, statsStore } from '../stores';
 import type { InitMessage } from '../types';
 
 type InitControllerOptions = {
     log: (message: string, payload?: unknown) => void;
     initializeDataStore: (state: InitMessage['state'], schema: InitMessage['schema']) => void;
-    setColumnVisibilityStatus: (value: string) => void;
-    setColumnVisibilitySearchTerm: (value: string) => void;
-    getActiveStatsColumnIndex: () => number | null;
-    setStatsMessage: (message: string, stateValue: 'empty' | 'loading' | 'error') => void;
-    clearStatsContent: () => void;
-    setCodePreview: (value: string) => void;
     applySchemaUpdate: (schema: InitMessage['schema']) => void;
     getVisibleSchema: () => InitMessage['schema'];
     applyPendingRows: () => void;
     scheduleTableLayoutDiagnostics: (stage: string) => void;
+    clearStatsContent: () => void;
 };
 
-export function useInitController(options: InitControllerOptions) {
-    const {
-        log,
-        initializeDataStore,
-        setColumnVisibilityStatus,
-        setColumnVisibilitySearchTerm,
-        getActiveStatsColumnIndex,
-        setStatsMessage,
-        clearStatsContent,
-        setCodePreview,
-        applySchemaUpdate,
-        getVisibleSchema,
-        applyPendingRows,
-        scheduleTableLayoutDiagnostics,
-    } = options;
+export class InitController {
+    private readonly log: (message: string, payload?: unknown) => void;
+    private readonly initializeDataStore: (state: InitMessage['state'], schema: InitMessage['schema']) => void;
+    private readonly applySchemaUpdate: (schema: InitMessage['schema']) => void;
+    private readonly getVisibleSchema: () => InitMessage['schema'];
+    private readonly applyPendingRows: () => void;
+    private readonly scheduleTableLayoutDiagnostics: (stage: string) => void;
+    private readonly clearStatsContent: () => void;
 
-    const handleInit = (message: InitMessage): void => {
-        initializeDataStore(message.state, message.schema ?? []);
-        setColumnVisibilityStatus('');
-        setColumnVisibilitySearchTerm('');
-        if (getActiveStatsColumnIndex() === null) {
-            setStatsMessage('Select a column to view statistics.', 'empty');
+    constructor(options: InitControllerOptions) {
+        this.log = options.log;
+        this.initializeDataStore = options.initializeDataStore;
+        this.applySchemaUpdate = options.applySchemaUpdate;
+        this.getVisibleSchema = options.getVisibleSchema;
+        this.applyPendingRows = options.applyPendingRows;
+        this.scheduleTableLayoutDiagnostics = options.scheduleTableLayoutDiagnostics;
+        this.clearStatsContent = options.clearStatsContent;
+    }
+
+    handleInit(message: InitMessage): void {
+        this.initializeDataStore(message.state, message.schema ?? []);
+        uiStore.columnVisibilityStatus = '';
+        uiStore.columnVisibilitySearchTerm = '';
+        if (uiStore.activeStatsColumnIndex === null) {
+            statsStore.messageText = 'Select a column to view statistics.';
+            statsStore.messageState = 'empty';
         } else {
-            setStatsMessage('Loading statistics...', 'loading');
+            statsStore.messageText = 'Loading statistics...';
+            statsStore.messageState = 'loading';
         }
-        clearStatsContent();
-        setCodePreview('');
-        applySchemaUpdate(getVisibleSchema());
-        applyPendingRows();
-        log('Data explorer initialized', {
+        this.clearStatsContent();
+        uiStore.codePreview = '';
+        this.applySchemaUpdate(this.getVisibleSchema());
+        this.applyPendingRows();
+        this.log('Data explorer initialized', {
             rows: message.state.table_shape.num_rows,
-            columns: getVisibleSchema().length,
+            columns: this.getVisibleSchema().length,
         });
-        scheduleTableLayoutDiagnostics('init');
-    };
-
-    return {
-        handleInit,
-    };
+        this.scheduleTableLayoutDiagnostics('init');
+    }
 }

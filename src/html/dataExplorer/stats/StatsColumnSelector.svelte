@@ -1,23 +1,22 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import type { ColumnSchema } from '../types';
 
-    export let schema: ColumnSchema[] = [];
-    export let value = '';
-    export let getColumnLabel: (column: ColumnSchema) => string =
-        (column) => column.column_label ?? column.column_name;
-
-    const dispatch = createEventDispatcher<{ change: void }>();
-
-    function handleChange(): void {
-        dispatch('change');
-    }
+    let {
+        schema = [],
+        value = $bindable(''),
+        getColumnLabel = (column: ColumnSchema) => column.column_label ?? column.column_name,
+        onChange,
+    }: {
+        schema?: ColumnSchema[];
+        value?: string;
+        getColumnLabel?: (column: ColumnSchema) => string;
+        onChange?: () => void;
+    } = $props();
 </script>
 
 <div class="stats-section">
     <label for="stats-column">Select Column</label>
-    <select id="stats-column" bind:value={value} on:change={handleChange}>
+    <select id="stats-column" bind:value={value} onchange={() => onChange?.()}>
         <option value="">Choose column...</option>
         {#each schema as column}
             <option value={String(column.column_index)}>{getColumnLabel(column)}</option>

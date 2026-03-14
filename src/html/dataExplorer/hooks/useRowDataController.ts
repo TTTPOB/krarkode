@@ -1,17 +1,10 @@
-import { get, type Readable, type Writable } from 'svelte/store';
-import type { BackendState, ColumnSchema, ColumnValue, RowsMessage } from '../types';
+import { dataStore } from '../stores';
+import type { BackendState, ColumnValue, RowsMessage } from '../types';
 import { buildRowBlockRanges, formatSpecialValue } from '../utils';
 
 type RowDataControllerOptions = {
     log: (message: string, payload?: unknown) => void;
     postMessage: (message: unknown) => void;
-    getBackendState: () => BackendState | null;
-    visibleSchema: Readable<ColumnSchema[]>;
-    rowCache: Writable<Map<number, string[]>>;
-    rowLabelCache: Writable<Map<number, string>>;
-    rowCacheVersion: Writable<number>;
-    loadedBlocks: Writable<Set<number>>;
-    loadingBlocks: Writable<Set<number>>;
     rowBlockSize: number;
     prefetchBlocks: number;
     requestDebounceMs: number;
@@ -19,70 +12,72 @@ type RowDataControllerOptions = {
     measureVirtualizer: () => void;
 };
 
-export function useRowDataController(options: RowDataControllerOptions) {
-    const {
-        log,
-        postMessage,
-        getBackendState,
-        visibleSchema,
-        rowCache,
-        rowLabelCache,
-        rowCacheVersion,
-        loadedBlocks,
-        loadingBlocks,
-        rowBlockSize,
-        prefetchBlocks,
-        requestDebounceMs,
-        getVirtualItems,
-        measureVirtualizer,
-    } = options;
+export class RowDataController {
+    private readonly log: (message: string, payload?: unknown) => void;
+    private readonly postMessage: (message: unknown) => void;
+    private readonly rowBlockSize: number;
+    private readonly prefetchBlocks: number;
+    private readonly requestDebounceMs: number;
+    private readonly getVirtualItems: () => Array<{ index: number }>;
+    private readonly measureVirtualizer: () => void;
+    private pendingRows: RowsMessage[] = [];
+    private rowRequestDebounceId: number | undefined;
 
-    let pendingRows: RowsMessage[] = [];
-    let rowRequestDebounceId: number | undefined;
+    constructor(options: RowDataControllerOptions) {
+        this.log = options.log;
+        this.postMessage = options.postMessage;
+        this.rowBlockSize = options.rowBlockSize;
+        this.prefetchBlocks = options.prefetchBlocks;
+        this.requestDebounceMs = options.requestDebounceMs;
+        this.getVirtualItems = options.getVirtualItems;
+        this.measureVirtualizer = options.measureVirtualizer;
+    }
 
-    const requestInitialBlock = (): void => {
-        const backendState = getBackendState();
+    private getBackendState(): BackendState | null {
+        return dataStore.backendState;
+    }
+
+    requestInitialBlock(): void {
+        const backendState = this.getBackendState();
         if (!backendState) {
             return;
         }
         if (backendState.table_shape.num_rows === 0) {
             return;
         }
-        const endIndex = Math.min(backendState.table_shape.num_rows - 1, rowBlockSize - 1);
-        const loaded = get(loadedBlocks);
-        const loading = get(loadingBlocks);
+        const endIndex = Math.min(backendState.table_shape.num_rows - 1, this.rowBlockSize - 1);
+        const loaded = dataStore.loadedBlocks;
+        const loading = dataStore.loadingBlocks;
         if (loaded.has(0) || loading.has(0)) {
             return;
         }
-        loadingBlocks.update((blocks) => {
-            const next = new Set(blocks);
-            next.add(0);
-            return next;
-        });
-        postMessage({
+        const nextLoading = new Set(loading);
+        nextLoading.add(0);
+        dataStore.loadingBlocks = nextLoading;
+        this.postMessage({
             type: 'requestRows',
             startIndex: 0,
             endIndex,
         });
-    };
+    }
 
-    const scheduleVisibleBlocksRequest = (reason: string): void => {
-        if (rowRequestDebounceId !== undefined) {
-            window.clearTimeout(rowRequestDebounceId);
+    scheduleVisibleBlocksRequest(reason: string): void {
+        if (this.rowRequestDebounceId !== undefined) {
+            window.clearTimeout(this.rowRequestDebounceId);
         }
-        rowRequestDebounceId = window.setTimeout(() => {
-            rowRequestDebounceId = undefined;
-            requestVisibleBlocks(reason);
-        }, requestDebounceMs);
-    };
+        this.rowRequestDebounceId = window.setTimeout(() => {
+            this.rowRequestDebounceId = undefined;
+            this.requestVisibleBlocks(reason);
+        }, this.requestDebounceMs);
+    }
 
-    const requestVisibleBlocks = (reason: string): void => {
-        const backendState = getBackendState();
+    requestVisibleBlocks(reason: string): void {
+        const backendState = this.getBackendState();
         if (!backendState) {
             return;
         }
 
-        const virtualItems = getVirtualItems();
+        const virtualItems = this.getVirtualItems();
         if (!virtualItems.length) {
             return;
         }
@@ -94,17 +89,17 @@ export function useRowDataController(options: RowDataControllerOptions) {
             startIndex,
             endIndex,
             rowCount,
-            blockSize: rowBlockSize,
-            prefetchBlocks,
-            loadedBlocks: get(loadedBlocks),
-            loadingBlocks: get(loadingBlocks),
+            blockSize: this.rowBlockSize,
+            prefetchBlocks: this.prefetchBlocks,
+            loadedBlocks: dataStore.loadedBlocks,
+            loadingBlocks: dataStore.loadingBlocks,
         });
 
         if (!rangeResult || rangeResult.ranges.length === 0) {
             return;
         }
 
-        log('Requesting row blocks', {
+        this.log('Requesting row blocks', {
             reason,
             visibleRange: rangeResult.visibleRange,
             prefetchRange: rangeResult.prefetchRange,
@@ -112,44 +107,42 @@ export function useRowDataController(options: RowDataControllerOptions) {
         });
 
         for (const range of rangeResult.ranges) {
-            loadingBlocks.update((blocks) => {
-                const next = new Set(blocks);
-                for (let block = range.startBlock; block <= range.endBlock; block += 1) {
-                    next.add(block);
-                }
-                return next;
-            });
+            const nextLoading = new Set(dataStore.loadingBlocks);
+            for (let block = range.startBlock; block <= range.endBlock; block += 1) {
+                nextLoading.add(block);
+            }
+            dataStore.loadingBlocks = nextLoading;
 
-            const blockStart = range.startBlock * rowBlockSize;
-            const blockEnd = Math.min(rowCount - 1, (range.endBlock + 1) * rowBlockSize - 1);
-            postMessage({
+            const blockStart = range.startBlock * this.rowBlockSize;
+            const blockEnd = Math.min(rowCount - 1, (range.endBlock + 1) * this.rowBlockSize - 1);
+            this.postMessage({
                 type: 'requestRows',
                 startIndex: blockStart,
                 endIndex: blockEnd,
             });
         }
-    };
+    }
 
-    const formatColumnValue = (value: ColumnValue): string => {
+    private formatColumnValue(value: ColumnValue): string {
         if (typeof value === 'number') {
             return formatSpecialValue(value);
         }
         return value ?? '';
-    };
+    }
 
-    const handleRows = (message: RowsMessage): void => {
-        const backendState = getBackendState();
-        const schema = get(visibleSchema);
+    handleRows(message: RowsMessage): void {
+        const backendState = this.getBackendState();
+        const schema = dataStore.visibleSchema;
         if (!backendState || schema.length === 0) {
-            pendingRows.push(message);
-            log('Queued rows before init', { startIndex: message.startIndex, endIndex: message.endIndex });
+            this.pendingRows.push(message);
+            this.log('Queued rows before init', { startIndex: message.startIndex, endIndex: message.endIndex });
             return;
         }
         const { startIndex, endIndex, columns, rowLabels } = message;
         const rowCount = endIndex - startIndex + 1;
         const columnCount = schema.length;
-        const nextRowCache = new Map(get(rowCache));
-        const nextRowLabelCache = new Map(get(rowLabelCache));
+        const nextRowCache = new Map(dataStore.rowCache);
+        const nextRowLabelCache = new Map(dataStore.rowLabelCache);
 
         for (let rowOffset = 0; rowOffset < rowCount; rowOffset += 1) {
             const rowIndex = startIndex + rowOffset;
@@ -158,7 +151,7 @@ export function useRowDataController(options: RowDataControllerOptions) {
             for (let columnIndex = 0; columnIndex < columnCount; columnIndex += 1) {
                 const columnValues = columns[columnIndex];
                 const value = columnValues ? columnValues[rowOffset] : '';
-                values[columnIndex] = formatColumnValue(value);
+                values[columnIndex] = this.formatColumnValue(value);
             }
 
             nextRowCache.set(rowIndex, values);
@@ -167,65 +160,54 @@ export function useRowDataController(options: RowDataControllerOptions) {
             }
         }
 
-        const startBlock = Math.floor(startIndex / rowBlockSize);
-        const endBlock = Math.floor(endIndex / rowBlockSize);
-        const nextLoadedBlocks = new Set(get(loadedBlocks));
-        const nextLoadingBlocks = new Set(get(loadingBlocks));
+        const startBlock = Math.floor(startIndex / this.rowBlockSize);
+        const endBlock = Math.floor(endIndex / this.rowBlockSize);
+        const nextLoadedBlocks = new Set(dataStore.loadedBlocks);
+        const nextLoadingBlocks = new Set(dataStore.loadingBlocks);
 
         for (let block = startBlock; block <= endBlock; block += 1) {
             nextLoadingBlocks.delete(block);
             nextLoadedBlocks.add(block);
         }
 
-        rowCache.set(nextRowCache);
-        rowLabelCache.set(nextRowLabelCache);
-        loadedBlocks.set(nextLoadedBlocks);
-        loadingBlocks.set(nextLoadingBlocks);
-        rowCacheVersion.update((version) => version + 1);
-        measureVirtualizer();
-        log('Rows rendered', { startIndex, endIndex, rows: rowCount, columns: columnCount });
-    };
+        dataStore.rowCache = nextRowCache;
+        dataStore.rowLabelCache = nextRowLabelCache;
+        dataStore.loadedBlocks = nextLoadedBlocks;
+        dataStore.loadingBlocks = nextLoadingBlocks;
+        dataStore.rowCacheVersion = dataStore.rowCacheVersion + 1;
+        this.measureVirtualizer();
+        this.log('Rows rendered', { startIndex, endIndex, rows: rowCount, columns: columnCount });
+    }
 
-    const applyPendingRows = (): void => {
-        if (pendingRows.length === 0) {
+    applyPendingRows(): void {
+        if (this.pendingRows.length === 0) {
             return;
         }
-        const queued = [...pendingRows];
-        pendingRows = [];
-        queued.forEach((rowsMessage) => handleRows(rowsMessage));
-        log('Applied pending rows', { count: queued.length });
-    };
+        const queued = [...this.pendingRows];
+        this.pendingRows = [];
+        queued.forEach((rowsMessage) => this.handleRows(rowsMessage));
+        this.log('Applied pending rows', { count: queued.length });
+    }
 
-    const getCellValue = (rowIndex: number, columnIndex: number): string => {
-        const values = get(rowCache).get(rowIndex);
+    getCellValue(rowIndex: number, columnIndex: number): string {
+        const values = dataStore.rowCache.get(rowIndex);
         if (!values) {
             return '';
         }
         return values[columnIndex] ?? '';
-    };
+    }
 
-    const getRowLabel = (rowIndex: number): string => {
-        const backendState = getBackendState();
+    getRowLabel(rowIndex: number): string {
+        const backendState = this.getBackendState();
         if (backendState?.has_row_labels) {
-            return get(rowLabelCache).get(rowIndex) ?? '';
+            return dataStore.rowLabelCache.get(rowIndex) ?? '';
         }
         return String(rowIndex + 1);
-    };
+    }
 
-    const dispose = (): void => {
-        if (rowRequestDebounceId !== undefined) {
-            window.clearTimeout(rowRequestDebounceId);
+    dispose(): void {
+        if (this.rowRequestDebounceId !== undefined) {
+            window.clearTimeout(this.rowRequestDebounceId);
         }
-    };
-
-    return {
-        requestInitialBlock,
-        scheduleVisibleBlocksRequest,
-        requestVisibleBlocks,
-        handleRows,
-        applyPendingRows,
-        getCellValue,
-        getRowLabel,
-        dispose,
-    };
+    }
 }

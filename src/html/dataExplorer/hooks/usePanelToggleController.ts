@@ -1,79 +1,59 @@
+import { uiStore } from '../stores';
+
 type PanelToggleOptions = {
     postMessage: (message: unknown) => void;
-    getCodeModalOpen: () => boolean;
-    getColumnVisibilityOpen: () => boolean;
-    getStatsPanelOpen: () => boolean;
-    getRowFilterPanelOpen: () => boolean;
-    isPanelPinned: (panelId: string) => boolean;
-    setCodeModalOpen: (value: boolean) => void;
-    setColumnVisibilityOpen: (value: boolean) => void;
-    setStatsPanelOpen: (value: boolean) => void;
-    setRowFilterPanelOpen: (value: boolean) => void;
 };
 
-export function usePanelToggleController(options: PanelToggleOptions) {
-    const {
-        postMessage,
-        getCodeModalOpen,
-        getColumnVisibilityOpen,
-        getStatsPanelOpen,
-        getRowFilterPanelOpen,
-        isPanelPinned,
-        setCodeModalOpen,
-        setColumnVisibilityOpen,
-        setStatsPanelOpen,
-        setRowFilterPanelOpen,
-    } = options;
+export class PanelToggleController {
+    private readonly postMessage: (message: unknown) => void;
+
+    constructor(options: PanelToggleOptions) {
+        this.postMessage = options.postMessage;
+    }
 
     /**
      * Close other non-pinned panels when opening a new panel.
      * Pinned panels remain open.
      */
-    const closeOtherNonPinnedPanels = (exceptPanel: string): void => {
+    closeOtherNonPinnedPanels(exceptPanel: string): void {
         // Close stats panel if not pinned and not the current one
-        if (exceptPanel !== 'stats-panel' && !isPanelPinned('stats-panel')) {
-            setStatsPanelOpen(false);
+        if (exceptPanel !== 'stats-panel' && !uiStore.isPanelPinned('stats-panel')) {
+            uiStore.statsPanelOpen = false;
         }
         // Close column visibility panel if not pinned and not the current one
-        if (exceptPanel !== 'column-visibility-panel' && !isPanelPinned('column-visibility-panel')) {
-            setColumnVisibilityOpen(false);
+        if (exceptPanel !== 'column-visibility-panel' && !uiStore.isPanelPinned('column-visibility-panel')) {
+            uiStore.columnVisibilityOpen = false;
         }
         // Close row filter panel if not pinned and not the current one
-        if (exceptPanel !== 'row-filter-panel' && !isPanelPinned('row-filter-panel')) {
-            setRowFilterPanelOpen(false);
+        if (exceptPanel !== 'row-filter-panel' && !uiStore.isPanelPinned('row-filter-panel')) {
+            uiStore.rowFilterPanelOpen = false;
         }
         // Code modal is always closed (it can't be pinned)
         if (exceptPanel !== 'code-modal') {
-            setCodeModalOpen(false);
+            uiStore.codeModalOpen = false;
         }
-    };
+    }
 
-    const openColumnVisibilityPanel = (): void => {
-        const isCurrentlyOpen = getColumnVisibilityOpen();
-        const isPinned = isPanelPinned('column-visibility-panel');
+    openColumnVisibilityPanel(): void {
+        const isCurrentlyOpen = uiStore.columnVisibilityOpen;
+        const isPinned = uiStore.isPanelPinned('column-visibility-panel');
 
         if (isPinned) {
             // If pinned, toggle closes the panel
-            setColumnVisibilityOpen(!isCurrentlyOpen);
+            uiStore.columnVisibilityOpen = !isCurrentlyOpen;
         } else {
             // If not pinned, toggle and close other non-pinned panels
-            closeOtherNonPinnedPanels('column-visibility-panel');
-            setColumnVisibilityOpen(!isCurrentlyOpen);
+            this.closeOtherNonPinnedPanels('column-visibility-panel');
+            uiStore.columnVisibilityOpen = !isCurrentlyOpen;
         }
-    };
+    }
 
-    const openCodeModal = (): void => {
-        const shouldOpen = !getCodeModalOpen();
+    openCodeModal(): void {
+        const shouldOpen = !uiStore.codeModalOpen;
         if (shouldOpen) {
-            postMessage({ type: 'suggestCodeSyntax' });
+            this.postMessage({ type: 'suggestCodeSyntax' });
         }
-        closeOtherNonPinnedPanels('code-modal');
-        setCodeModalOpen(shouldOpen);
-    };
-
-    return {
-        openColumnVisibilityPanel,
-        openCodeModal,
-        closeOtherNonPinnedPanels,
-    };
+        this.closeOtherNonPinnedPanels('code-modal');
+        uiStore.codeModalOpen = shouldOpen;
+    }
 }

@@ -1,22 +1,23 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-
-    export let frequencyVisible = false;
-    export let frequencyLimit = 0;
-    export let statsControlsEnabled = false;
-    export let frequencyFootnote = '';
-    export let collapsed = false;
-    export let frequencyContainer: HTMLDivElement | null = null;
-
-    const dispatch = createEventDispatcher<{
-        toggle: void;
-        limitInput: { source: 'slider' | 'input'; value: number };
-    }>();
-
-    function handleToggle(): void {
-        dispatch('toggle');
-    }
+    let {
+        frequencyVisible = false,
+        frequencyLimit = 0,
+        statsControlsEnabled = false,
+        frequencyFootnote = '',
+        collapsed = false,
+        frequencyContainer = $bindable<HTMLDivElement | null>(null),
+        onToggle,
+        onLimitInput,
+    }: {
+        frequencyVisible?: boolean;
+        frequencyLimit?: number;
+        statsControlsEnabled?: boolean;
+        frequencyFootnote?: string;
+        collapsed?: boolean;
+        frequencyContainer?: HTMLDivElement | null;
+        onToggle?: () => void;
+        onLimitInput?: (data: { source: 'slider' | 'input'; value: number }) => void;
+    } = $props();
 
     function readInputValue(event: Event): number {
         const target = event.currentTarget as HTMLInputElement | null;
@@ -27,12 +28,12 @@
     }
 
     function handleLimitInput(source: 'slider' | 'input', event: Event): void {
-        dispatch('limitInput', { source, value: readInputValue(event) });
+        onLimitInput?.({ source, value: readInputValue(event) });
     }
 </script>
 
 <div class="stats-section collapsible" data-section="frequency" class:is-collapsed={collapsed}>
-    <button class="section-header" type="button" data-target="stats-frequency-section" on:click={handleToggle}>
+    <button class="section-header" type="button" data-target="stats-frequency-section" onclick={() => onToggle?.()}>
         <span class="codicon codicon-chevron-down"></span>
         <span>Top Values</span>
     </button>
@@ -52,7 +53,7 @@
                 max="50"
                 value={frequencyLimit}
                 disabled={!statsControlsEnabled}
-                on:input={(event) => handleLimitInput('slider', event)}
+                oninput={(event) => handleLimitInput('slider', event)}
             >
             <input
                 type="number"
@@ -61,7 +62,7 @@
                 max="50"
                 value={frequencyLimit}
                 disabled={!statsControlsEnabled}
-                on:input={(event) => handleLimitInput('input', event)}
+                oninput={(event) => handleLimitInput('input', event)}
             >
         </div>
         <div class="stats-footnote" id="frequency-footnote" style:display={frequencyFootnote ? 'block' : 'none'}>{frequencyFootnote}</div>

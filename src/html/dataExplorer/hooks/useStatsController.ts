@@ -1,10 +1,9 @@
 import { tick } from 'svelte';
-import { get, type Writable } from 'svelte/store';
+import { uiStore, statsStore } from '../stores';
 import type {
     ColumnProfileResult,
     ColumnSchema,
     StatsMessageState,
-    StatsRow,
     ColumnHistogram,
     ColumnFrequencyTable,
 } from '../types';
@@ -29,150 +28,115 @@ import {
     mergeColumnProfiles,
 } from '../utils';
 
-type StatsStores = {
-    statsMessageText: Writable<string>;
-    statsMessageState: Writable<StatsMessageState>;
-    statsSectionsVisible: Writable<boolean>;
-    statsControlsEnabled: Writable<boolean>;
-    statsOverviewRows: Writable<StatsRow[]>;
-    statsSummaryRows: Writable<StatsRow[]>;
-    statsOverviewEmptyMessage: Writable<string>;
-    statsSummaryEmptyMessage: Writable<string>;
-    frequencyFootnote: Writable<string>;
-    histogramBins: Writable<number>;
-    histogramMethod: Writable<string>;
-    frequencyLimit: Writable<number>;
-    histogramVisible: Writable<boolean>;
-    frequencyVisible: Writable<boolean>;
-    collapsedSections: Writable<Set<string>>;
-};
-
 type StatsControllerOptions = {
     log: (message: string, payload?: unknown) => void;
     postMessage: (message: unknown) => void;
     statsCharts: StatsChartsController;
     getVisibleSchema: () => ColumnSchema[];
-    getActiveStatsColumnIndex: () => number | null;
-    setActiveStatsColumnIndex: (value: number | null) => void;
-    getStatsColumnValue: () => string;
-    setStatsColumnValue: (value: string) => void;
     getStatsResultsEl: () => HTMLDivElement | undefined;
-    getStatsPanelOpen: () => boolean;
-    setStatsPanelOpen: (value: boolean) => void;
-    setColumnVisibilityOpen: (value: boolean) => void;
-    setRowFilterPanelOpen: (value: boolean) => void;
-    setCodeModalOpen: (value: boolean) => void;
-    isPanelPinned: (panelId: string) => boolean;
-    stores: StatsStores;
 };
 
-export function useStatsController(options: StatsControllerOptions) {
-    const {
-        log,
-        postMessage,
-        statsCharts,
-        getVisibleSchema,
-        getActiveStatsColumnIndex,
-        setActiveStatsColumnIndex,
-        getStatsColumnValue,
-        setStatsColumnValue,
-        getStatsResultsEl,
-        getStatsPanelOpen,
-        setStatsPanelOpen,
-        setColumnVisibilityOpen,
-        setRowFilterPanelOpen,
-        setCodeModalOpen,
-        isPanelPinned,
-        stores,
-    } = options;
+export class StatsController {
+    private readonly log: (message: string, payload?: unknown) => void;
+    private readonly postMessage: (message: unknown) => void;
+    private readonly statsCharts: StatsChartsController;
+    private readonly getVisibleSchema: () => ColumnSchema[];
+    private readonly getStatsResultsEl: () => HTMLDivElement | undefined;
+    private statsRefreshDebounceId: number | undefined;
+    private pendingStatsScrollTop: number | null = null;
 
-    let statsRefreshDebounceId: number | undefined;
-    let pendingStatsScrollTop: number | null = null;
+    constructor(options: StatsControllerOptions) {
+        this.log = options.log;
+        this.postMessage = options.postMessage;
+        this.statsCharts = options.statsCharts;
+        this.getVisibleSchema = options.getVisibleSchema;
+        this.getStatsResultsEl = options.getStatsResultsEl;
+    }
 
-    const setStatsMessage = (message: string, stateValue: StatsMessageState): void => {
-        stores.statsMessageText.set(message);
-        stores.statsMessageState.set(stateValue);
-        stores.statsSectionsVisible.set(false);
-        stores.statsControlsEnabled.set(stateValue !== 'empty');
-    };
+    setStatsMessage(message: string, stateValue: StatsMessageState): void {
+        statsStore.messageText = message;
+        statsStore.messageState = stateValue;
+        statsStore.sectionsVisible = false;
+        statsStore.controlsEnabled = stateValue !== 'empty';
+    }
 
-    const showStatsSections = (): void => {
-        stores.statsSectionsVisible.set(true);
-        stores.statsControlsEnabled.set(true);
-    };
+    private showStatsSections(): void {
+        statsStore.sectionsVisible = true;
+        statsStore.controlsEnabled = true;
+    }
 
-    const clearHistogram = (): void => {
-        stores.histogramVisible.set(false);
-        statsCharts.clearHistogram();
-    };
+    private clearHistogram(): void {
+        statsStore.histogramVisible = false;
+        this.statsCharts.clearHistogram();
+    }
 
-    const clearFrequency = (): void => {
-        stores.frequencyVisible.set(false);
-        stores.frequencyFootnote.set('');
-        statsCharts.clearFrequency();
-    };
+    private clearFrequency(): void {
+        statsStore.frequencyVisible = false;
+        statsStore.frequencyFootnote = '';
+        this.statsCharts.clearFrequency();
+    }
 
-    const clearStatsContent = (options: { preserveScrollTop?: boolean } = {}): void => {
+    clearStatsContent(options: { preserveScrollTop?: boolean } = {}): void {
         const preserveScrollTop = options.preserveScrollTop === true;
         if (!preserveScrollTop) {
-            stores.statsOverviewRows.set([]);
-            stores.statsSummaryRows.set([]);
-            stores.statsOverviewEmptyMessage.set('No overview data.');
-            stores.statsSummaryEmptyMessage.set('No summary statistics.');
-            stores.frequencyFootnote.set('');
-            clearHistogram();
-            clearFrequency();
-            const statsResultsEl = getStatsResultsEl();
+            statsStore.overviewRows = [];
+            statsStore.summaryRows = [];
+            statsStore.overviewEmptyMessage = 'No overview data.';
+            statsStore.summaryEmptyMessage = 'No summary statistics.';
+            statsStore.frequencyFootnote = '';
+            this.clearHistogram();
+            this.clearFrequency();
+            const statsResultsEl = this.getStatsResultsEl();
             if (statsResultsEl) {
                 statsResultsEl.scrollTop = 0;
             }
         }
-    };
+    }
 
-    const syncHistogramBins = (source: 'slider' | 'input'): void => {
-        const rawValue = get(stores.histogramBins);
+    private syncHistogramBins(source: 'slider' | 'input'): void {
+        const rawValue = statsStore.histogramBins;
         const nextValue = clampNumber(rawValue, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        stores.histogramBins.set(nextValue);
-        if (get(stores.histogramMethod) !== 'fixed') {
-            const previousMethod = get(stores.histogramMethod);
-            stores.histogramMethod.set('fixed');
-            log('Histogram method forced to fixed for bins update', { previousMethod });
+        statsStore.histogramBins = nextValue;
+        if (statsStore.histogramMethod !== 'fixed') {
+            const previousMethod = statsStore.histogramMethod;
+            statsStore.histogramMethod = 'fixed';
+            this.log('Histogram method forced to fixed for bins update', { previousMethod });
         }
-        log('Histogram bins updated', { value: nextValue, source });
-        scheduleStatsRefresh('histogram-bins');
-    };
+        this.log('Histogram bins updated', { value: nextValue, source });
+        this.scheduleStatsRefresh('histogram-bins');
+    }
 
-    const syncFrequencyLimit = (source: 'slider' | 'input'): void => {
-        const rawValue = get(stores.frequencyLimit);
+    private syncFrequencyLimit(source: 'slider' | 'input'): void {
+        const rawValue = statsStore.frequencyLimit;
         const nextValue = clampNumber(rawValue, FREQUENCY_LIMIT_MIN, FREQUENCY_LIMIT_MAX, DEFAULT_FREQUENCY_LIMIT);
-        stores.frequencyLimit.set(nextValue);
-        log('Frequency limit updated', { value: nextValue, source });
-        scheduleStatsRefresh('frequency-limit');
-    };
+        statsStore.frequencyLimit = nextValue;
+        this.log('Frequency limit updated', { value: nextValue, source });
+        this.scheduleStatsRefresh('frequency-limit');
+    }
 
-    const scheduleStatsRefresh = (reason: string): void => {
-        if (getActiveStatsColumnIndex() === null) {
+    private scheduleStatsRefresh(reason: string): void {
+        if (uiStore.activeStatsColumnIndex === null) {
             return;
         }
-        if (statsRefreshDebounceId !== undefined) {
-            window.clearTimeout(statsRefreshDebounceId);
+        if (this.statsRefreshDebounceId !== undefined) {
+            window.clearTimeout(this.statsRefreshDebounceId);
         }
         const preserveScrollTop = ['histogram-bins', 'histogram-method', 'frequency-limit'].includes(reason);
-        statsRefreshDebounceId = window.setTimeout(() => {
-            requestColumnProfiles(reason, { preserveScrollTop });
+        this.statsRefreshDebounceId = window.setTimeout(() => {
+            this.requestColumnProfiles(reason, { preserveScrollTop });
         }, STATS_REFRESH_DEBOUNCE_MS);
-    };
+    }
 
-    const requestColumnProfiles = (reason: string, options: { preserveScrollTop?: boolean } = {}): void => {
-        const activeColumnIndex = getActiveStatsColumnIndex();
+    private requestColumnProfiles(reason: string, options: { preserveScrollTop?: boolean } = {}): void {
+        const activeColumnIndex = uiStore.activeStatsColumnIndex;
         if (activeColumnIndex === null) {
             return;
         }
         const preserveScrollTop = options.preserveScrollTop === true;
         const profileRequest = buildColumnProfileRequest({
-            histogramBins: get(stores.histogramBins),
-            histogramMethod: get(stores.histogramMethod),
-            frequencyLimit: get(stores.frequencyLimit),
+            histogramBins: statsStore.histogramBins,
+            histogramMethod: statsStore.histogramMethod,
+            frequencyLimit: statsStore.frequencyLimit,
             histogramBinsMin: HISTOGRAM_BINS_MIN,
             histogramBinsMax: HISTOGRAM_BINS_MAX,
             histogramBinsDefault: DEFAULT_HISTOGRAM_BINS,
@@ -184,7 +148,7 @@ export function useStatsController(options: StatsControllerOptions) {
         });
         const { profileTypes, histogramParams, frequencyParams } = profileRequest;
 
-        log('Requesting column profiles', {
+        this.log('Requesting column profiles', {
             columnIndex: activeColumnIndex,
             profileTypes,
             histogramParams,
@@ -193,47 +157,47 @@ export function useStatsController(options: StatsControllerOptions) {
         });
 
         if (preserveScrollTop) {
-            const statsResultsEl = getStatsResultsEl();
+            const statsResultsEl = this.getStatsResultsEl();
             if (statsResultsEl) {
-                pendingStatsScrollTop = statsResultsEl.scrollTop;
-                log('Preserving stats scroll position', { scrollTop: pendingStatsScrollTop, reason });
+                this.pendingStatsScrollTop = statsResultsEl.scrollTop;
+                this.log('Preserving stats scroll position', { scrollTop: this.pendingStatsScrollTop, reason });
             }
         } else {
-            pendingStatsScrollTop = null;
+            this.pendingStatsScrollTop = null;
         }
 
         if (!preserveScrollTop) {
-            setStatsMessage('Loading statistics...', 'loading');
+            this.setStatsMessage('Loading statistics...', 'loading');
         }
-        clearStatsContent({ preserveScrollTop });
-        postMessage({
+        this.clearStatsContent({ preserveScrollTop });
+        this.postMessage({
             type: 'getColumnProfiles',
             columnIndex: activeColumnIndex,
             profileTypes,
             histogramParams,
             frequencyParams,
         });
-    };
+    }
 
-    const finalizeStatsScroll = async (): Promise<void> => {
+    private async finalizeStatsScroll(): Promise<void> {
         await tick();
-        const statsResultsEl = getStatsResultsEl();
+        const statsResultsEl = this.getStatsResultsEl();
         if (!statsResultsEl) {
-            pendingStatsScrollTop = null;
+            this.pendingStatsScrollTop = null;
             return;
         }
-        if (pendingStatsScrollTop === null) {
+        if (this.pendingStatsScrollTop === null) {
             statsResultsEl.scrollTop = 0;
             return;
         }
         const maxScrollTop = Math.max(statsResultsEl.scrollHeight - statsResultsEl.clientHeight, 0);
-        const nextScrollTop = Math.min(pendingStatsScrollTop, maxScrollTop);
+        const nextScrollTop = Math.min(this.pendingStatsScrollTop, maxScrollTop);
         statsResultsEl.scrollTop = nextScrollTop;
-        pendingStatsScrollTop = null;
-    };
+        this.pendingStatsScrollTop = null;
+    }
 
-    const syncHistogramBinsFromProfile = (histogram: ColumnHistogram | undefined): void => {
-        if (!histogram || get(stores.histogramMethod) === 'fixed') {
+    private syncHistogramBinsFromProfile(histogram: ColumnHistogram | undefined): void {
+        if (!histogram || statsStore.histogramMethod === 'fixed') {
             return;
         }
         const binCount = histogram.bin_counts?.length ?? 0;
@@ -241,194 +205,172 @@ export function useStatsController(options: StatsControllerOptions) {
             return;
         }
         const nextValue = clampNumber(binCount, HISTOGRAM_BINS_MIN, HISTOGRAM_BINS_MAX, DEFAULT_HISTOGRAM_BINS);
-        if (get(stores.histogramBins) !== nextValue) {
-            stores.histogramBins.set(nextValue);
-            log('Histogram bins synced from profile', { value: nextValue, method: get(stores.histogramMethod) });
+        if (statsStore.histogramBins !== nextValue) {
+            statsStore.histogramBins = nextValue;
+            this.log('Histogram bins synced from profile', { value: nextValue, method: statsStore.histogramMethod });
         }
-    };
+    }
 
-    const renderHistogram = (histogram: ColumnHistogram | undefined, columnLabel: string): void => {
-        const rendered = statsCharts.renderHistogram(histogram, columnLabel);
-        stores.histogramVisible.set(rendered);
+    private renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): void {
+        const rendered = this.statsCharts.renderHistogram(histogram, columnLabel);
+        statsStore.histogramVisible = rendered;
         if (rendered) {
-            log('Rendering histogram', { columnLabel, bins: histogram?.bin_counts?.length ?? 0 });
+            this.log('Rendering histogram', { columnLabel, bins: histogram?.bin_counts?.length ?? 0 });
         } else {
-            clearHistogram();
+            this.clearHistogram();
         }
-    };
+    }
 
-    const renderFrequencyChart = (frequency: ColumnFrequencyTable | undefined): void => {
-        const rendered = statsCharts.renderFrequency(frequency);
-        stores.frequencyVisible.set(rendered);
+    private renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
+        const rendered = this.statsCharts.renderFrequency(frequency);
+        statsStore.frequencyVisible = rendered;
         if (rendered) {
-            log('Rendering frequency chart', { values: frequency?.values?.length ?? 0 });
+            this.log('Rendering frequency chart', { values: frequency?.values?.length ?? 0 });
         } else {
-            clearFrequency();
+            this.clearFrequency();
         }
-    };
+    }
 
-    const handleColumnProfilesResult = (
+    handleColumnProfilesResult(
         columnIndex: number,
         profiles: ColumnProfileResult[],
         errorMessage?: string,
-    ): void => {
-        const activeColumnIndex = getActiveStatsColumnIndex();
+    ): void {
+        const activeColumnIndex = uiStore.activeStatsColumnIndex;
         if (activeColumnIndex !== null && columnIndex !== activeColumnIndex) {
-            log('Ignoring stale column profiles', { columnIndex, activeStatsColumnIndex: activeColumnIndex });
+            this.log('Ignoring stale column profiles', { columnIndex, activeStatsColumnIndex: activeColumnIndex });
             return;
         }
         if (errorMessage) {
-            setStatsMessage(`Error: ${errorMessage}`, 'error');
-            clearStatsContent();
-            void finalizeStatsScroll();
+            this.setStatsMessage(`Error: ${errorMessage}`, 'error');
+            this.clearStatsContent();
+            void this.finalizeStatsScroll();
             return;
         }
 
-        log('Column profiles received', { columnIndex, profiles });
+        this.log('Column profiles received', { columnIndex, profiles });
         if (!profiles || profiles.length === 0) {
-            setStatsMessage('No statistics available for this column.', 'empty');
-            clearStatsContent();
-            void finalizeStatsScroll();
+            this.setStatsMessage('No statistics available for this column.', 'empty');
+            this.clearStatsContent();
+            void this.finalizeStatsScroll();
             return;
         }
 
         const combined = mergeColumnProfiles(profiles);
 
-        const column = getVisibleSchema().find((col) => col.column_index === columnIndex);
+        const column = this.getVisibleSchema().find((col) => col.column_index === columnIndex);
         const columnLabel = column ? getColumnLabel(column) : `Column ${columnIndex + 1}`;
         const summaryStats = combined.summary_stats;
         const histogram = combined.large_histogram ?? combined.small_histogram;
         const frequency = combined.large_frequency_table ?? combined.small_frequency_table;
         const quantiles = histogram?.quantiles ?? [];
 
-        stores.statsOverviewRows.set([
+        statsStore.overviewRows = [
             { label: 'Column', value: columnLabel },
             { label: 'Type', value: formatStatValue(summaryStats?.type_display) },
             { label: 'Null Count', value: formatStatValue(combined.null_count) },
-        ]);
-        stores.statsSummaryRows.set(buildSummaryRows(summaryStats, quantiles));
-        stores.statsOverviewEmptyMessage.set('No overview data.');
-        stores.statsSummaryEmptyMessage.set('No summary statistics.');
+        ];
+        statsStore.summaryRows = buildSummaryRows(summaryStats, quantiles);
+        statsStore.overviewEmptyMessage = 'No overview data.';
+        statsStore.summaryEmptyMessage = 'No summary statistics.';
 
-        syncHistogramBinsFromProfile(histogram);
-        renderHistogram(histogram, columnLabel);
-        renderFrequencyChart(frequency);
+        this.syncHistogramBinsFromProfile(histogram);
+        this.renderHistogram(histogram, columnLabel);
+        this.renderFrequencyChart(frequency);
         if (!frequency) {
-            stores.frequencyFootnote.set('No frequency data.');
+            statsStore.frequencyFootnote = 'No frequency data.';
         } else if (frequency.other_count !== undefined) {
-            stores.frequencyFootnote.set(`Other values: ${frequency.other_count}`);
-            log('Frequency table contains other values', { otherCount: frequency.other_count });
+            statsStore.frequencyFootnote = `Other values: ${frequency.other_count}`;
+            this.log('Frequency table contains other values', { otherCount: frequency.other_count });
         } else {
-            stores.frequencyFootnote.set('');
+            statsStore.frequencyFootnote = '';
         }
 
-        showStatsSections();
-        void finalizeStatsScroll();
-    };
+        this.showStatsSections();
+        void this.finalizeStatsScroll();
+    }
 
-    const handleStatsColumnChange = (): void => {
-        const columnIndex = parseInt(getStatsColumnValue(), 10);
+    handleStatsColumnChange(): void {
+        const columnIndex = parseInt(uiStore.statsColumnValue, 10);
         if (Number.isNaN(columnIndex)) {
-            setActiveStatsColumnIndex(null);
-            setStatsMessage('Select a column to view statistics.', 'empty');
-            clearStatsContent();
+            uiStore.activeStatsColumnIndex = null;
+            this.setStatsMessage('Select a column to view statistics.', 'empty');
+            this.clearStatsContent();
             return;
         }
-        setActiveStatsColumnIndex(columnIndex);
-        requestColumnProfiles('column-change');
-    };
+        uiStore.activeStatsColumnIndex = columnIndex;
+        this.requestColumnProfiles('column-change');
+    }
 
-    const toggleStatsSection = (sectionId: string): void => {
-        stores.collapsedSections.update((sections) => {
-            const next = new Set(sections);
-            if (next.has(sectionId)) {
-                next.delete(sectionId);
-            } else {
-                next.add(sectionId);
-            }
-            return next;
-        });
+    toggleStatsSection(sectionId: string): void {
+        uiStore.toggleSectionCollapsed(sectionId);
         requestAnimationFrame(() => {
-            statsCharts.resize();
+            this.statsCharts.resize();
         });
-    };
+    }
 
-    const handleStatsMethodChange = (): void => {
-        scheduleStatsRefresh('histogram-method');
-    };
+    handleStatsMethodChange(): void {
+        this.scheduleStatsRefresh('histogram-method');
+    }
 
-    const handleHistogramBinsInput = (source: 'slider' | 'input'): void => {
-        syncHistogramBins(source);
-    };
+    handleHistogramBinsInput(source: 'slider' | 'input'): void {
+        this.syncHistogramBins(source);
+    }
 
-    const handleFrequencyLimitInput = (source: 'slider' | 'input'): void => {
-        syncFrequencyLimit(source);
-    };
+    handleFrequencyLimitInput(source: 'slider' | 'input'): void {
+        this.syncFrequencyLimit(source);
+    }
 
-    const initializeStatsDefaults = (): void => {
-        stores.histogramBins.set(DEFAULT_HISTOGRAM_BINS);
-        stores.histogramMethod.set('freedman_diaconis');
-        stores.frequencyLimit.set(DEFAULT_FREQUENCY_LIMIT);
-        stores.statsControlsEnabled.set(false);
-    };
+    initializeStatsDefaults(): void {
+        statsStore.histogramBins = DEFAULT_HISTOGRAM_BINS;
+        statsStore.histogramMethod = 'freedman_diaconis';
+        statsStore.frequencyLimit = DEFAULT_FREQUENCY_LIMIT;
+        statsStore.controlsEnabled = false;
+    }
 
-    const openStatsPanel = (options: { columnIndex?: number; toggle?: boolean } = {}): void => {
+    openStatsPanel(options: { columnIndex?: number; toggle?: boolean } = {}): void {
         const { columnIndex, toggle = false } = options;
-        const shouldOpen = toggle ? !getStatsPanelOpen() : true;
-        const isPinned = isPanelPinned('stats-panel');
+        const shouldOpen = toggle ? !uiStore.statsPanelOpen : true;
+        const isPinned = uiStore.isPanelPinned('stats-panel');
 
         if (!isPinned) {
             // Close other non-pinned panels when opening stats panel
-            if (!isPanelPinned('column-visibility-panel')) {
-                setColumnVisibilityOpen(false);
+            if (!uiStore.isPanelPinned('column-visibility-panel')) {
+                uiStore.columnVisibilityOpen = false;
             }
-            if (!isPanelPinned('row-filter-panel')) {
-                setRowFilterPanelOpen(false);
+            if (!uiStore.isPanelPinned('row-filter-panel')) {
+                uiStore.rowFilterPanelOpen = false;
             }
             // Code modal is never pinned
-            setCodeModalOpen(false);
+            uiStore.codeModalOpen = false;
         }
 
         if (!shouldOpen) {
-            setStatsPanelOpen(false);
+            uiStore.statsPanelOpen = false;
             return;
         }
 
-        setStatsPanelOpen(true);
+        uiStore.statsPanelOpen = true;
         if (columnIndex !== undefined) {
-            setStatsColumnValue(String(columnIndex));
+            uiStore.statsColumnValue = String(columnIndex);
         }
-        const resolvedIndex = parseInt(getStatsColumnValue(), 10);
+        const resolvedIndex = parseInt(uiStore.statsColumnValue, 10);
         if (!Number.isNaN(resolvedIndex)) {
-            setActiveStatsColumnIndex(resolvedIndex);
-            requestColumnProfiles('panel-open');
+            uiStore.activeStatsColumnIndex = resolvedIndex;
+            this.requestColumnProfiles('panel-open');
         } else {
-            setActiveStatsColumnIndex(null);
-            setStatsMessage('Select a column to view statistics.', 'empty');
-            clearStatsContent();
+            uiStore.activeStatsColumnIndex = null;
+            this.setStatsMessage('Select a column to view statistics.', 'empty');
+            this.clearStatsContent();
         }
         requestAnimationFrame(() => {
-            statsCharts.resize();
+            this.statsCharts.resize();
         });
-    };
+    }
 
-    const dispose = (): void => {
-        if (statsRefreshDebounceId !== undefined) {
-            window.clearTimeout(statsRefreshDebounceId);
+    dispose(): void {
+        if (this.statsRefreshDebounceId !== undefined) {
+            window.clearTimeout(this.statsRefreshDebounceId);
         }
-    };
-
-    return {
-        initializeStatsDefaults,
-        setStatsMessage,
-        clearStatsContent,
-        openStatsPanel,
-        handleStatsColumnChange,
-        handleColumnProfilesResult,
-        handleStatsMethodChange,
-        handleHistogramBinsInput,
-        handleFrequencyLimitInput,
-        toggleStatsSection,
-        dispose,
-    };
+    }
 }

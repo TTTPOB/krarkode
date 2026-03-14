@@ -1,63 +1,77 @@
 import { type ColumnDef, type Table, createTable, getCoreRowModel } from '@tanstack/table-core';
+import { dataStore } from '../stores';
 import type { BackendState, ColumnSchema } from '../types';
 import { isColumnNamed } from '../utils';
 
 type TableSetupOptions = {
     log: (message: string, payload?: unknown) => void;
-    getBackendState: () => BackendState | null;
-    getVisibleSchema: () => ColumnSchema[];
-    getFullSchema: () => ColumnSchema[];
     getRowLabel: (rowIndex: number) => string;
     getCellValue: (rowIndex: number, columnIndex: number) => string;
     getColumnLabel: (column: ColumnSchema) => string;
 };
 
-export function useTableSetupController(options: TableSetupOptions) {
-    const { log, getBackendState, getVisibleSchema, getFullSchema, getRowLabel, getCellValue, getColumnLabel } =
-        options;
+export class TableSetupController {
+    private readonly log: (message: string, payload?: unknown) => void;
+    private readonly getRowLabel: (rowIndex: number) => string;
+    private readonly getCellValue: (rowIndex: number, columnIndex: number) => string;
+    private readonly getColumnLabel: (column: ColumnSchema) => string;
+    private tableInstance: Table<{ index: number }> | null = null;
 
-    interface RowData {
-        index: number;
+    constructor(options: TableSetupOptions) {
+        this.log = options.log;
+        this.getRowLabel = options.getRowLabel;
+        this.getCellValue = options.getCellValue;
+        this.getColumnLabel = options.getColumnLabel;
     }
 
-    let tableInstance: Table<RowData> | null = null;
+    private getBackendState(): BackendState | null {
+        return dataStore.backendState;
+    }
 
-    const buildColumnDefs = (): ColumnDef<RowData>[] => {
-        const columns: ColumnDef<RowData>[] = [];
-        const backendState = getBackendState();
+    private getVisibleSchema(): ColumnSchema[] {
+        return dataStore.visibleSchema;
+    }
+
+    private getFullSchema(): ColumnSchema[] {
+        return dataStore.fullSchema;
+    }
+
+    private buildColumnDefs(): ColumnDef<{ index: number }>[] {
+        const columns: ColumnDef<{ index: number }>[] = [];
+        const backendState = this.getBackendState();
 
         columns.push({
             id: 'row-label',
             header: backendState?.has_row_labels ? '#' : 'Row',
-            accessorFn: (row) => getRowLabel(row.index),
+            accessorFn: (row) => this.getRowLabel(row.index),
         });
 
-        const schema = getVisibleSchema();
+        const schema = this.getVisibleSchema();
         for (let i = 0; i < schema.length; i++) {
             const column = schema[i];
             const schemaIndex = i;
             columns.push({
                 id: `col-${column.column_index}`,
-                header: getColumnLabel(column),
-                accessorFn: (row) => getCellValue(row.index, schemaIndex),
+                header: this.getColumnLabel(column),
+                accessorFn: (row) => this.getCellValue(row.index, schemaIndex),
             });
         }
 
         return columns;
-    };
+    }
 
-    const setupTable = (): void => {
-        const backendState = getBackendState();
+    setupTable(): void {
+        const backendState = this.getBackendState();
         if (!backendState) {
             return;
         }
 
         const rowCount = backendState.table_shape.num_rows;
-        const rowData: RowData[] = Array.from({ length: rowCount }, (_, index) => ({ index }));
-        const columns = buildColumnDefs();
+        const rowData = Array.from({ length: rowCount }, (_, index) => ({ index }));
+        const columns = this.buildColumnDefs();
 
-        if (!tableInstance) {
-            tableInstance = createTable<RowData>({
+        if (!this.tableInstance) {
+            this.tableInstance = createTable<{ index: number }>({
                 data: rowData,
                 columns,
                 getCoreRowModel: getCoreRowModel(),
@@ -66,35 +80,30 @@ export function useTableSetupController(options: TableSetupOptions) {
                 renderFallbackValue: '',
             });
         } else {
-            tableInstance.setOptions((prev) => ({
+            this.tableInstance.setOptions((prev) => ({
                 ...prev,
                 data: rowData,
                 columns,
             }));
         }
 
-        log('Table setup complete', { rowCount, columnCount: columns.length });
-    };
+        this.log('Table setup complete', { rowCount, columnCount: columns.length });
+    }
 
-    const buildTableMetaText = (): string => {
-        const backendState = getBackendState();
+    buildTableMetaText(): string {
+        const backendState = this.getBackendState();
         if (!backendState) {
             return '';
         }
         const { num_rows } = backendState.table_shape;
-        const num_columns = getVisibleSchema().length;
+        const num_columns = this.getVisibleSchema().length;
         const { num_rows: rawRows, num_columns: rawColumns } = backendState.table_unfiltered_shape;
         const filteredText =
             num_rows !== rawRows || num_columns !== rawColumns ? ` (${rawRows}x${rawColumns} raw)` : '';
-        const unnamedCount = getFullSchema().filter((column) => !isColumnNamed(column)).length;
+        const unnamedCount = this.getFullSchema().filter((column) => !isColumnNamed(column)).length;
         const unnamedText = unnamedCount
-            ? ` - ${unnamedCount === getFullSchema().length ? 'No column names' : `${unnamedCount} unnamed columns`}`
+            ? ` - ${unnamedCount === this.getFullSchema().length ? 'No column names' : `${unnamedCount} unnamed columns`}`
             : '';
         return `${num_rows}x${num_columns}${filteredText}${unnamedText}`;
-    };
-
-    return {
-        setupTable,
-        buildTableMetaText,
-    };
+    }
 }

@@ -62,7 +62,7 @@ describe('RowFilterBar', () => {
 
     test('dispatches addFilter when + Filter button is clicked', async () => {
         const handler = vi.fn();
-        render(RowFilterBar, { props: { rowFilters: [] }, events: { addFilter: handler } });
+        render(RowFilterBar, { props: { rowFilters: [], onAddFilter: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: 'Add row filter' }));
 
@@ -72,24 +72,24 @@ describe('RowFilterBar', () => {
     test('dispatches editFilter with filter and index when chip is clicked', async () => {
         const filter = makeFilter();
         const handler = vi.fn();
-        render(RowFilterBar, { props: { rowFilters: [filter] }, events: { editFilter: handler } });
+        render(RowFilterBar, { props: { rowFilters: [filter], onEditFilter: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: /Edit filter/ }));
 
         expect(handler).toHaveBeenCalledTimes(1);
-        expect(handler.mock.calls[0][0].detail.index).toBe(0);
-        expect(handler.mock.calls[0][0].detail.filter.filter_id).toBe('f1');
+        expect(handler.mock.calls[0][0].index).toBe(0);
+        expect(handler.mock.calls[0][0].filter.filter_id).toBe('f1');
     });
 
     test('dispatches removeFilter with correct index when x button is clicked', async () => {
         const filters = [makeFilter({ filter_id: 'a' }), makeFilter({ filter_id: 'b' })];
         const handler = vi.fn();
-        render(RowFilterBar, { props: { rowFilters: filters }, events: { removeFilter: handler } });
+        render(RowFilterBar, { props: { rowFilters: filters, onRemoveFilter: handler } });
 
         const removeButtons = screen.getAllByRole('button', { name: 'Remove filter' });
         await fireEvent.click(removeButtons[1]);
 
         expect(handler).toHaveBeenCalledTimes(1);
-        expect(handler.mock.calls[0][0].detail.index).toBe(1);
+        expect(handler.mock.calls[0][0].index).toBe(1);
     });
 });

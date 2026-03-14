@@ -28,86 +28,85 @@ export type VirtualizerController = {
     dispose: () => void;
 };
 
-export function useVirtualizer(options: VirtualizerOptions): VirtualizerController {
-    const log = options.log ?? (() => undefined);
-    let rowVirtualizer: Virtualizer<HTMLDivElement, HTMLDivElement> | null = null;
-    let cleanup: (() => void) | null = null;
+export class VirtualizerManager implements VirtualizerController {
+    private readonly options: VirtualizerOptions;
+    private readonly log: (message: string, payload?: unknown) => void;
+    private rowVirtualizer: Virtualizer<HTMLDivElement, HTMLDivElement> | null = null;
+    private cleanup: (() => void) | null = null;
 
-    const refreshVirtualRows = (): void => {
-        if (!rowVirtualizer) {
+    constructor(options: VirtualizerOptions) {
+        this.options = options;
+        this.log = options.log ?? (() => undefined);
+    }
+
+    private refreshVirtualRows(): void {
+        if (!this.rowVirtualizer) {
             return;
         }
-        const rows: VirtualRow[] = rowVirtualizer.getVirtualItems().map((item) => ({
+        const rows: VirtualRow[] = this.rowVirtualizer.getVirtualItems().map((item) => ({
             index: item.index,
             start: item.start,
             size: item.size,
             key: item.key,
         }));
-        options.onVirtualRowsChange(rows, rowVirtualizer.getTotalSize());
-    };
+        this.options.onVirtualRowsChange(rows, this.rowVirtualizer.getTotalSize());
+    }
 
-    const update = (): void => {
-        const scrollElement = options.getScrollElement();
-        const rowCount = options.rowCount();
+    update(): void {
+        const scrollElement = this.options.getScrollElement();
+        const rowCount = this.options.rowCount();
         if (!scrollElement || rowCount < 0) {
             return;
         }
 
-        if (!rowVirtualizer) {
-            rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
+        if (!this.rowVirtualizer) {
+            this.rowVirtualizer = new Virtualizer<HTMLDivElement, HTMLDivElement>({
                 count: rowCount,
                 getScrollElement: () => scrollElement,
-                estimateSize: () => options.rowHeight,
-                overscan: options.overscan ?? 8,
+                estimateSize: () => this.options.rowHeight,
+                overscan: this.options.overscan ?? 8,
                 scrollToFn: elementScroll,
                 observeElementRect,
                 observeElementOffset,
                 onChange: () => {
-                    refreshVirtualRows();
+                    this.refreshVirtualRows();
                 },
             });
-            cleanup = rowVirtualizer._didMount();
-            log('Row virtualizer created', {
+            this.cleanup = this.rowVirtualizer._didMount();
+            this.log('Row virtualizer created', {
                 count: rowCount,
                 hasScrollElement: Boolean(scrollElement),
             });
         }
 
-        rowVirtualizer.setOptions({
-            ...rowVirtualizer.options,
+        this.rowVirtualizer.setOptions({
+            ...this.rowVirtualizer.options,
             count: rowCount,
         });
-        log('Row virtualizer options updated', {
+        this.log('Row virtualizer options updated', {
             count: rowCount,
             hasScrollElement: Boolean(scrollElement),
         });
-        rowVirtualizer._willUpdate();
-        rowVirtualizer.measure();
-        refreshVirtualRows();
-    };
+        this.rowVirtualizer._willUpdate();
+        this.rowVirtualizer.measure();
+        this.refreshVirtualRows();
+    }
 
-    const measure = (): void => {
-        if (!rowVirtualizer) {
+    measure(): void {
+        if (!this.rowVirtualizer) {
             return;
         }
-        rowVirtualizer.measure();
-        refreshVirtualRows();
-    };
+        this.rowVirtualizer.measure();
+        this.refreshVirtualRows();
+    }
 
-    const getVirtualItems = (): ReturnType<Virtualizer<HTMLDivElement, HTMLDivElement>['getVirtualItems']> => {
-        return rowVirtualizer?.getVirtualItems() ?? [];
-    };
+    getVirtualItems(): ReturnType<Virtualizer<HTMLDivElement, HTMLDivElement>['getVirtualItems']> {
+        return this.rowVirtualizer?.getVirtualItems() ?? [];
+    }
 
-    const dispose = (): void => {
-        cleanup?.();
-        cleanup = null;
-        rowVirtualizer = null;
-    };
-
-    return {
-        update,
-        measure,
-        getVirtualItems,
-        dispose,
-    };
+    dispose(): void {
+        this.cleanup?.();
+        this.cleanup = null;
+        this.rowVirtualizer = null;
+    }
 }

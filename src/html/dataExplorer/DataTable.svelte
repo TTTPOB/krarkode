@@ -1,6 +1,4 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import type {
         ColumnSchema,
         SortState,
@@ -20,46 +18,70 @@
     };
 
     // Props
-    export let state: BackendState | null = null;
-    export let schema: ColumnSchema[] = [];
-    export let renderColumns: RenderColumn[] = [];
-    export let columnWidths: Map<number, number> = new Map();
-    export let activeSort: SortState | null = null;
-    export let sortSupported: boolean = true;
-    export let rowFilterSupported: boolean = true;
-    export let virtualRows: VirtualRow[] = [];
-    export let virtualizerTotalHeight: number = 0;
-    export let rowCacheVersion: number = 0;
-    export let headerScrollLeft: number = 0;
-    export let leftSpacerWidth: number = 0;
-    export let rightSpacerWidth: number = 0;
-    export let getCellValue: (rowIndex: number, columnIndex: number, version?: number) => string;
-    export let getRowLabel: (rowIndex: number, version?: number) => string;
-    export let getColumnLabel: (column: ColumnSchema) => string;
-
-    // Bound elements for parent access
-    export let tableBodyEl: HTMLDivElement | undefined = undefined;
-    export let tableHeaderEl: HTMLDivElement | undefined = undefined;
-    export let bodyInnerEl: HTMLDivElement | undefined = undefined;
-
-    const dispatch = createEventDispatcher<{
-        sort: { columnIndex: number };
-        columnMenu: { event: MouseEvent; columnIndex: number };
-        openRowFilter: { columnIndex: number };
-        openStats: { columnIndex: number };
-        hideColumn: { columnIndex: number };
-        scroll: void;
-        startColumnResize: { event: MouseEvent; columnIndex: number };
-    }>();
+    let {
+        state = null,
+        schema = [],
+        renderColumns = [],
+        columnWidths = new Map<number, number>(),
+        activeSort = null,
+        sortSupported = true,
+        rowFilterSupported = true,
+        virtualRows = [],
+        virtualizerTotalHeight = 0,
+        rowCacheVersion = 0,
+        headerScrollLeft = 0,
+        leftSpacerWidth = 0,
+        rightSpacerWidth = 0,
+        getCellValue,
+        getRowLabel,
+        getColumnLabel,
+        tableBodyEl = $bindable<HTMLDivElement | undefined>(undefined),
+        tableHeaderEl = $bindable<HTMLDivElement | undefined>(undefined),
+        bodyInnerEl = $bindable<HTMLDivElement | undefined>(undefined),
+        onSort,
+        onColumnMenu,
+        onOpenRowFilter,
+        onOpenStats,
+        onHideColumn,
+        onScroll,
+        onStartColumnResize,
+    }: {
+        state?: BackendState | null;
+        schema?: ColumnSchema[];
+        renderColumns?: RenderColumn[];
+        columnWidths?: Map<number, number>;
+        activeSort?: SortState | null;
+        sortSupported?: boolean;
+        rowFilterSupported?: boolean;
+        virtualRows?: VirtualRow[];
+        virtualizerTotalHeight?: number;
+        rowCacheVersion?: number;
+        headerScrollLeft?: number;
+        leftSpacerWidth?: number;
+        rightSpacerWidth?: number;
+        getCellValue: (rowIndex: number, columnIndex: number, version?: number) => string;
+        getRowLabel: (rowIndex: number, version?: number) => string;
+        getColumnLabel: (column: ColumnSchema) => string;
+        tableBodyEl?: HTMLDivElement | undefined;
+        tableHeaderEl?: HTMLDivElement | undefined;
+        bodyInnerEl?: HTMLDivElement | undefined;
+        onSort?: (data: { columnIndex: number }) => void;
+        onColumnMenu?: (data: { event: MouseEvent; columnIndex: number }) => void;
+        onOpenRowFilter?: (data: { columnIndex: number }) => void;
+        onOpenStats?: (data: { columnIndex: number }) => void;
+        onHideColumn?: (data: { columnIndex: number }) => void;
+        onScroll?: () => void;
+        onStartColumnResize?: (data: { event: MouseEvent; columnIndex: number }) => void;
+    } = $props();
 
     // Local state
     let ignoreHeaderSortClick = false;
 
     // Computed
-    $: resolvedColumnWidths = schema.map((column) => resolveColumnWidth(columnWidths.get(column.column_index)));
-    $: renderColumnWidths = renderColumns.map((entry) => resolvedColumnWidths[entry.schemaIndex] ?? COLUMN_WIDTH);
-    $: columnTemplate = buildColumnTemplate(renderColumnWidths, leftSpacerWidth, rightSpacerWidth);
-    $: totalWidth = ROW_LABEL_WIDTH + resolvedColumnWidths.reduce((sum, width) => sum + width, 0);
+    const resolvedColumnWidths = $derived(schema.map((column) => resolveColumnWidth(columnWidths.get(column.column_index))));
+    const renderColumnWidths = $derived(renderColumns.map((entry) => resolvedColumnWidths[entry.schemaIndex] ?? COLUMN_WIDTH));
+    const columnTemplate = $derived(buildColumnTemplate(renderColumnWidths, leftSpacerWidth, rightSpacerWidth));
+    const totalWidth = $derived(ROW_LABEL_WIDTH + resolvedColumnWidths.reduce((sum, width) => sum + width, 0));
 
     function resolveColumnWidth(width: number | undefined): number {
         if (typeof width !== 'number' || !Number.isFinite(width) || width <= 0) {
@@ -102,17 +124,17 @@
         if (!sortSupported) {
             return;
         }
-        dispatch('sort', { columnIndex });
+        onSort?.({ columnIndex });
     }
 
     function handleTableScroll(): void {
-        dispatch('scroll');
+        onScroll?.();
     }
 
     function handleColumnResizeStart(event: MouseEvent, columnIndex: number): void {
         event.preventDefault();
         event.stopPropagation();
-        dispatch('startColumnResize', { event, columnIndex });
+        onStartColumnResize?.({ event, columnIndex });
     }
 
     // Called by parent when column resize ends to prevent accidental sort clicks
@@ -121,9 +143,11 @@
     }
 
     // Update body inner width when total width changes
-    $: if (bodyInnerEl) {
-        bodyInnerEl.style.width = `${totalWidth}px`;
-    }
+    $effect(() => {
+        if (bodyInnerEl) {
+            bodyInnerEl.style.width = `${totalWidth}px`;
+        }
+    });
 </script>
 
 <div class="table-container" role="table" aria-label="Data explorer table">
@@ -156,8 +180,8 @@
                         : 'none'}
                     aria-label={getColumnLabel(column)}
                     tabindex={sortSupported ? 0 : -1}
-                    on:click={(event) => sortSupported && handleHeaderSort(event, column.column_index)}
-                    on:keydown={(event) => {
+                    onclick={(event) => sortSupported && handleHeaderSort(event, column.column_index)}
+                    onkeydown={(event) => {
                         if (!sortSupported) {
                             return;
                         }
@@ -166,7 +190,7 @@
                             handleHeaderSort(event, column.column_index);
                         }
                     }}
-                    on:contextmenu|preventDefault={(event) => dispatch('columnMenu', { event, columnIndex: column.column_index })}
+                    oncontextmenu={(event) => { event.preventDefault(); onColumnMenu?.({ event, columnIndex: column.column_index }); }}
                 >
                     <div class="header-content">
                         <div class="header-label-row">
@@ -179,7 +203,7 @@
                                 title="Filter rows by this column"
                                 aria-label="Filter rows by this column"
                                 disabled={!rowFilterSupported}
-                                on:click|stopPropagation={() => dispatch('openRowFilter', { columnIndex: column.column_index })}
+                                onclick={(e) => { e.stopPropagation(); onOpenRowFilter?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-filter"></span>
                             </button>
@@ -188,7 +212,7 @@
                                 class="header-action"
                                 title="Show statistics for this column"
                                 aria-label="Show statistics for this column"
-                                on:click|stopPropagation={() => dispatch('openStats', { columnIndex: column.column_index })}
+                                onclick={(e) => { e.stopPropagation(); onOpenStats?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-graph"></span>
                             </button>
@@ -198,7 +222,7 @@
                                 title="Hide this column"
                                 aria-label="Hide this column"
                                 disabled={schema.length <= 1}
-                                on:click|stopPropagation={() => dispatch('hideColumn', { columnIndex: column.column_index })}
+                                onclick={(e) => { e.stopPropagation(); onHideColumn?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-eye-closed"></span>
                             </button>
@@ -209,15 +233,15 @@
                             type="button"
                             class="column-resizer"
                             aria-label="Resize column"
-                            on:mousedown={(event) => handleColumnResizeStart(event, column.column_index)}
-                            on:click|stopPropagation
+                            onmousedown={(event) => handleColumnResizeStart(event, column.column_index)}
+                            onclick={(e) => e.stopPropagation()}
                         ></button>
                     {/if}
                 </div>
             {/each}
         </div>
     </div>
-    <div class="table-body" id="table-body" role="rowgroup" bind:this={tableBodyEl} on:scroll={handleTableScroll}>
+    <div class="table-body" id="table-body" role="rowgroup" bind:this={tableBodyEl} onscroll={handleTableScroll}>
         <div
             class="table-body-inner"
             bind:this={bodyInnerEl}

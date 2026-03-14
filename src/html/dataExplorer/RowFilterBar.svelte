@@ -1,20 +1,22 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
     import type { RowFilter, ColumnSchema, RowFilterType } from './types';
     import { ROW_FILTER_TYPE_LABELS } from './types';
 
-    export let rowFilters: RowFilter[] = [];
-    export let visible = true;
-
-    // Expose button element for click-outside detection
-    export let addFilterButtonEl: HTMLButtonElement | undefined = undefined;
-
-    const dispatch = createEventDispatcher<{
-        addFilter: void;
-        editFilter: { filter: RowFilter; index: number };
-        removeFilter: { index: number };
-    }>();
+    let {
+        rowFilters = [],
+        visible = true,
+        addFilterButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
+        onAddFilter,
+        onEditFilter,
+        onRemoveFilter,
+    }: {
+        rowFilters?: RowFilter[];
+        visible?: boolean;
+        addFilterButtonEl?: HTMLButtonElement | undefined;
+        onAddFilter?: () => void;
+        onEditFilter?: (data: { filter: RowFilter; index: number }) => void;
+        onRemoveFilter?: (data: { index: number }) => void;
+    } = $props();
 
     function getColumnLabel(column: ColumnSchema): string {
         const rawLabel = column.column_label ?? column.column_name;
@@ -73,16 +75,16 @@
                         role="button"
                         tabindex="0"
                         aria-label={`Edit filter ${formatRowFilterChip(filter, index)}`}
-                        on:click={() => dispatch('editFilter', { filter, index })}
-                        on:keydown={(event) => {
+                        onclick={() => onEditFilter?.({ filter, index })}
+                        onkeydown={(event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                                 event.preventDefault();
-                                dispatch('editFilter', { filter, index });
+                                onEditFilter?.({ filter, index });
                             }
                         }}
                     >
                         <span>{formatRowFilterChip(filter, index)}</span>
-                        <button aria-label="Remove filter" on:click|stopPropagation={() => dispatch('removeFilter', { index })}>x</button>
+                        <button aria-label="Remove filter" onclick={(e) => { e.stopPropagation(); onRemoveFilter?.({ index }); }}>x</button>
                     </div>
                 {/each}
             {/if}
@@ -92,7 +94,7 @@
             id="add-row-filter"
             aria-label="Add row filter"
             bind:this={addFilterButtonEl}
-            on:click={() => dispatch('addFilter')}
+            onclick={() => onAddFilter?.()}
         >
             + Filter
         </button>

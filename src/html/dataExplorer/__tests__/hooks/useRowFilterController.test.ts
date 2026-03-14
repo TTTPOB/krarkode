@@ -1,6 +1,6 @@
-import { describe, test, expect, vi } from 'vitest';
-import { writable, readable, get } from 'svelte/store';
-import { useRowFilterController } from '../../hooks/useRowFilterController';
+import { describe, test, expect, vi, beforeEach } from 'vitest';
+import { RowFilterController } from '../../hooks/useRowFilterController';
+import { dataStore, uiStore } from '../../stores';
 import { createRowFilterDraft } from '../../utils/rowFilterHelpers';
 import type { ColumnSchema, RowFilter, RowFilterDraft } from '../../types';
 
@@ -26,73 +26,73 @@ function makeFilter(partial: Partial<RowFilter> = {}): RowFilter {
 }
 
 function setup(schemaColumns: ColumnSchema[] = [makeSchema()]) {
-    const visibleSchema = readable(schemaColumns);
-    const rowFilters = writable<RowFilter[]>([]);
-    const rowFilterSupport = readable(undefined);
+    // Reset stores
+    dataStore.fullSchema = schemaColumns;
+    dataStore.hiddenColumnIndices = new Set();
+    dataStore.columnFilterMatches = null;
+    dataStore.setColumnFilterSupport = undefined;
+    dataStore.rowFilters = [];
+    dataStore.rowFilterSupport = undefined;
+    uiStore.rowFilterPanelOpen = false;
+    uiStore.columnVisibilityOpen = false;
+    uiStore.statsPanelOpen = false;
+    uiStore.codeModalOpen = false;
 
     let editingRowFilterIndex: number | null = null;
     let rowFilterDraft: RowFilterDraft = createRowFilterDraft(schemaColumns);
     let rowFilterError = '';
-    let rowFilterPanelOpen = false;
-    let columnVisibilityOpen = false;
-    let statsPanelOpen = false;
-    let codeModalOpen = false;
 
     const postMessage = vi.fn();
     const log = vi.fn();
-    const closeColumnMenu = vi.fn();
 
-    const ctrl = useRowFilterController({
+    const ctrl = new RowFilterController({
         log,
         postMessage,
-        visibleSchema,
-        rowFilters,
-        rowFilterSupport,
-        isRowFilterSupported: () => true,
-        supportsRowFilterConditions: () => true,
         getEditingRowFilterIndex: () => editingRowFilterIndex,
         setEditingRowFilterIndex: (v) => { editingRowFilterIndex = v; },
         getRowFilterDraft: () => rowFilterDraft,
         setRowFilterDraft: (d) => { rowFilterDraft = d; },
         setRowFilterError: (msg) => { rowFilterError = msg; },
-        setRowFilterPanelOpen: (v) => { rowFilterPanelOpen = v; },
-        setColumnVisibilityOpen: (v) => { columnVisibilityOpen = v; },
-        setStatsPanelOpen: (v) => { statsPanelOpen = v; },
-        setCodeModalOpen: (v) => { codeModalOpen = v; },
-        closeColumnMenu,
     });
 
     const getState = () => ({
         rowFilterDraft,
         rowFilterError,
-        rowFilterPanelOpen,
-        columnVisibilityOpen,
-        statsPanelOpen,
-        codeModalOpen,
+        rowFilterPanelOpen: uiStore.rowFilterPanelOpen,
+        columnVisibilityOpen: uiStore.columnVisibilityOpen,
+        statsPanelOpen: uiStore.statsPanelOpen,
+        codeModalOpen: uiStore.codeModalOpen,
         editingRowFilterIndex,
     });
 
-    return { ctrl, rowFilters, postMessage, log, getState, set: {
+    return { ctrl, postMessage, log, getState, set: {
         rowFilterDraft: (d: RowFilterDraft) => { rowFilterDraft = d; },
         editingRowFilterIndex: (v: number | null) => { editingRowFilterIndex = v; },
-        columnVisibilityOpen: (v: boolean) => { columnVisibilityOpen = v; },
-        statsPanelOpen: (v: boolean) => { statsPanelOpen = v; },
     }};
 }
+
+beforeEach(() => {
+    uiStore.pinnedPanels = new Set();
+    uiStore.columnMenuOpen = false;
+    uiStore.columnMenuColumnIndex = null;
+    uiStore.rowFilterPanelOpen = false;
+    uiStore.columnVisibilityOpen = false;
+    uiStore.statsPanelOpen = false;
+    uiStore.codeModalOpen = false;
+    dataStore.rowFilterSupport = undefined;
+    dataStore.rowFilters = [];
+    dataStore.fullSchema = [];
+    dataStore.hiddenColumnIndices = new Set();
+    dataStore.columnFilterMatches = null;
+    dataStore.setColumnFilterSupport = undefined;
+});
 
 describe('useRowFilterController', () => {
     describe('openRowFilterEditor', () => {
         test('opens filter panel and closes other panels', () => {
-            const { ctrl, getState } = setup();
-            const { set } = setup();
-            const s2 = setup();
-            s2.set.columnVisibilityOpen(true);
-            s2.set.statsPanelOpen(true);
-
-            // Re-setup to get clean state we can control
-            const { ctrl: c, getState: gs, set: st } = setup();
-            st.columnVisibilityOpen(true);
-            st.statsPanelOpen(true);
+            const { ctrl: c, getState: gs } = setup();
+            uiStore.columnVisibilityOpen = true;
+            uiStore.statsPanelOpen = true;
 
             c.openRowFilterEditor();
 
@@ -105,35 +105,23 @@ describe('useRowFilterController', () => {
 
         test('is a no-op when row filter is not supported', () => {
             const schema = [makeSchema()];
-            const visibleSchema = readable(schema);
-            const rowFilters = writable<RowFilter[]>([]);
-            const rowFilterSupport = readable(undefined);
-            let rowFilterPanelOpen = false;
-            const postMessage = vi.fn();
+            dataStore.fullSchema = schema;
+            dataStore.rowFilterSupport = { support_status: 'unsupported' } as any;
 
-            const ctrl = useRowFilterController({
+            const postMessage = vi.fn();
+            const ctrl = new RowFilterController({
                 log: vi.fn(),
                 postMessage,
-                visibleSchema,
-                rowFilters,
-                rowFilterSupport,
-                isRowFilterSupported: () => false,
-                supportsRowFilterConditions: () => false,
                 getEditingRowFilterIndex: () => null,
                 setEditingRowFilterIndex: vi.fn(),
                 getRowFilterDraft: () => createRowFilterDraft(schema),
                 setRowFilterDraft: vi.fn(),
                 setRowFilterError: vi.fn(),
-                setRowFilterPanelOpen: (v) => { rowFilterPanelOpen = v; },
-                setColumnVisibilityOpen: vi.fn(),
-                setStatsPanelOpen: vi.fn(),
-                setCodeModalOpen: vi.fn(),
-                closeColumnMenu: vi.fn(),
             });
 
             ctrl.openRowFilterEditor();
 
-            expect(rowFilterPanelOpen).toBe(false);
+            expect(uiStore.rowFilterPanelOpen).toBe(false);
         });
 
         test('initializes draft with given column index', () => {
@@ -163,7 +151,7 @@ describe('useRowFilterController', () => {
 
     describe('saveRowFilter', () => {
         test('appends a valid compare filter and posts setRowFilters', () => {
-            const { ctrl, rowFilters, postMessage, getState, set } = setup();
+            const { ctrl, postMessage, getState, set } = setup();
             set.rowFilterDraft({
                 ...createRowFilterDraft([makeSchema()]),
                 filterType: 'compare',
@@ -173,7 +161,7 @@ describe('useRowFilterController', () => {
 
             ctrl.saveRowFilter();
 
-            const filters = get(rowFilters);
+            const filters = dataStore.rowFilters;
             expect(filters).toHaveLength(1);
             expect(filters[0].params).toEqual({ op: '>=', value: '18' });
             expect(postMessage).toHaveBeenCalledWith({
@@ -213,10 +201,10 @@ describe('useRowFilterController', () => {
 
         test('updates existing filter when editing by index', () => {
             const schema = [makeSchema()];
-            const { ctrl, rowFilters, postMessage, set } = setup(schema);
+            const { ctrl, postMessage, set } = setup(schema);
 
             // Pre-populate one filter
-            rowFilters.set([makeFilter({ filter_id: 'existing', params: { op: '=', value: 'old' } })]);
+            dataStore.rowFilters = [makeFilter({ filter_id: 'existing', params: { op: '=', value: 'old' } })];
             set.editingRowFilterIndex(0);
             set.rowFilterDraft({
                 ...createRowFilterDraft(schema),
@@ -227,7 +215,7 @@ describe('useRowFilterController', () => {
 
             ctrl.saveRowFilter();
 
-            const filters = get(rowFilters);
+            const filters = dataStore.rowFilters;
             expect(filters).toHaveLength(1);
             expect(filters[0].filter_id).toBe('existing');
             expect(filters[0].params).toEqual({ op: '>', value: 'new' });
@@ -236,16 +224,16 @@ describe('useRowFilterController', () => {
 
     describe('removeRowFilter', () => {
         test('removes filter at given index and posts setRowFilters', () => {
-            const { ctrl, rowFilters, postMessage } = setup();
-            rowFilters.set([
+            const { ctrl, postMessage } = setup();
+            dataStore.rowFilters = [
                 makeFilter({ filter_id: 'a' }),
                 makeFilter({ filter_id: 'b' }),
                 makeFilter({ filter_id: 'c' }),
-            ]);
+            ];
 
             ctrl.removeRowFilter(1);
 
-            const filters = get(rowFilters);
+            const filters = dataStore.rowFilters;
             expect(filters).toHaveLength(2);
             expect(filters.map((f) => f.filter_id)).toEqual(['a', 'c']);
             expect(postMessage).toHaveBeenCalledWith({
@@ -255,12 +243,12 @@ describe('useRowFilterController', () => {
         });
 
         test('removing the only filter results in empty list', () => {
-            const { ctrl, rowFilters, postMessage } = setup();
-            rowFilters.set([makeFilter()]);
+            const { ctrl, postMessage } = setup();
+            dataStore.rowFilters = [makeFilter()];
 
             ctrl.removeRowFilter(0);
 
-            expect(get(rowFilters)).toHaveLength(0);
+            expect(dataStore.rowFilters).toHaveLength(0);
             expect(postMessage).toHaveBeenCalledWith({ type: 'setRowFilters', filters: [] });
         });
     });

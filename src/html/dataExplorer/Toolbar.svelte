@@ -1,25 +1,30 @@
-<svelte:options runes={false} />
 <script lang="ts">
-    import { createEventDispatcher } from 'svelte';
-
-    export let title = 'Data Explorer';
-    export let meta = '';
-
-    // Expose button elements for click-outside detection
-    export let columnsButtonEl: HTMLButtonElement | undefined = undefined;
-    export let statsButtonEl: HTMLButtonElement | undefined = undefined;
-    export let codeButtonEl: HTMLButtonElement | undefined = undefined;
-
-    const dispatch = createEventDispatcher<{
-        openColumns: void;
-        openStats: void;
-        openCode: void;
-        refresh: void;
-        export: { format: 'csv' | 'tsv' | 'html' };
-    }>();
+    let {
+        title = 'Data Explorer',
+        meta = '',
+        columnsButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
+        statsButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
+        codeButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
+        onOpenColumns,
+        onOpenStats,
+        onOpenCode,
+        onRefresh,
+        onExport,
+    }: {
+        title?: string;
+        meta?: string;
+        columnsButtonEl?: HTMLButtonElement | undefined;
+        statsButtonEl?: HTMLButtonElement | undefined;
+        codeButtonEl?: HTMLButtonElement | undefined;
+        onOpenColumns?: () => void;
+        onOpenStats?: () => void;
+        onOpenCode?: () => void;
+        onRefresh?: () => void;
+        onExport?: (data: { format: 'csv' | 'tsv' | 'html' }) => void;
+    } = $props();
 
     function handleExport(format: 'csv' | 'tsv' | 'html'): void {
-        dispatch('export', { format });
+        onExport?.({ format });
     }
 </script>
 
@@ -33,7 +38,7 @@
             title="Column Visibility"
             aria-label="Toggle column visibility"
             bind:this={columnsButtonEl}
-            on:click={() => dispatch('openColumns')}
+            onclick={() => onOpenColumns?.()}
         >
             Columns
         </button>
@@ -43,16 +48,16 @@
             title="Column Statistics"
             aria-label="Toggle column statistics"
             bind:this={statsButtonEl}
-            on:click={() => dispatch('openStats')}
+            onclick={() => onOpenStats?.()}
         >
             Stats
         </button>
         <div class="dropdown">
             <button class="action" id="export-btn" aria-haspopup="menu">Export &#9662;</button>
             <div class="dropdown-content" id="export-dropdown" role="menu" aria-label="Export formats">
-                <button role="menuitem" data-format="csv" on:click={() => handleExport('csv')}>Export as CSV</button>
-                <button role="menuitem" data-format="tsv" on:click={() => handleExport('tsv')}>Export as TSV</button>
-                <button role="menuitem" data-format="html" on:click={() => handleExport('html')}>Export as HTML</button>
+                <button role="menuitem" data-format="csv" onclick={() => handleExport('csv')}>Export as CSV</button>
+                <button role="menuitem" data-format="tsv" onclick={() => handleExport('tsv')}>Export as TSV</button>
+                <button role="menuitem" data-format="html" onclick={() => handleExport('html')}>Export as HTML</button>
             </div>
         </div>
         <button
@@ -61,11 +66,11 @@
             title="Convert to Code"
             aria-label="Open code conversion"
             bind:this={codeButtonEl}
-            on:click={() => dispatch('openCode')}
+            onclick={() => onOpenCode?.()}
         >
             Code
         </button>
-        <button class="action" id="refresh-btn" aria-label="Refresh data" on:click={() => dispatch('refresh')}>
+        <button class="action" id="refresh-btn" aria-label="Refresh data" onclick={() => onRefresh?.()}>
             Refresh
         </button>
     </div>

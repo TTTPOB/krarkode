@@ -1,38 +1,33 @@
 import { tick } from 'svelte';
-import { get, type Writable } from 'svelte/store';
-import type { RowFilter, SortState } from '../types';
+import { dataStore, uiStore } from '../stores';
+import type { RowFilter } from '../types';
 
 type TableInteractionOptions = {
     postMessage: (message: unknown) => void;
-    activeSort: Writable<SortState | null>;
-    columnMenuOpen: Writable<boolean>;
-    columnMenuPosition: Writable<{ x: number; y: number }>;
-    columnMenuColumnIndex: Writable<number | null>;
     getColumnMenuEl: () => HTMLDivElement | undefined;
     getTableBodyEl: () => HTMLDivElement | undefined;
     setHeaderScrollLeft: (value: number) => void;
     openRowFilterEditor: (filter?: RowFilter, index?: number, columnIndex?: number) => void;
-    hideColumn: (columnIndex: number) => void;
 };
 
-export function useTableInteractionController(options: TableInteractionOptions) {
-    const {
-        postMessage,
-        activeSort,
-        columnMenuOpen,
-        columnMenuPosition,
-        columnMenuColumnIndex,
-        getColumnMenuEl,
-        getTableBodyEl,
-        setHeaderScrollLeft,
-        openRowFilterEditor,
-        hideColumn,
-    } = options;
+export class TableInteractionController {
+    private readonly postMessage: (message: unknown) => void;
+    private readonly getColumnMenuEl: () => HTMLDivElement | undefined;
+    private readonly getTableBodyEl: () => HTMLDivElement | undefined;
+    private readonly setHeaderScrollLeft: (value: number) => void;
+    private readonly openRowFilterEditor: (filter?: RowFilter, index?: number, columnIndex?: number) => void;
+    private lastScrollLeft = 0;
 
-    let lastScrollLeft = 0;
+    constructor(options: TableInteractionOptions) {
+        this.postMessage = options.postMessage;
+        this.getColumnMenuEl = options.getColumnMenuEl;
+        this.getTableBodyEl = options.getTableBodyEl;
+        this.setHeaderScrollLeft = options.setHeaderScrollLeft;
+        this.openRowFilterEditor = options.openRowFilterEditor;
+    }
 
-    const getNextSort = (columnIndex: number): SortState | null => {
-        const current = get(activeSort);
+    private getNextSort(columnIndex: number): { columnIndex: number; direction: 'asc' | 'desc' } | null {
+        const current = dataStore.activeSort;
         if (!current || current.columnIndex !== columnIndex) {
             return { columnIndex, direction: 'asc' };
         }
@@ -40,75 +35,65 @@ export function useTableInteractionController(options: TableInteractionOptions) 
             return { columnIndex, direction: 'desc' };
         }
         return null;
-    };
+    }
 
-    const closeColumnMenu = (): void => {
-        columnMenuOpen.set(false);
-        columnMenuColumnIndex.set(null);
-    };
+    closeColumnMenu(): void {
+        uiStore.closeColumnMenu();
+    }
 
-    const openColumnMenu = (event: MouseEvent, columnIndex: number): void => {
-        columnMenuColumnIndex.set(columnIndex);
-        columnMenuOpen.set(true);
+    openColumnMenu(event: MouseEvent, columnIndex: number): void {
+        uiStore.columnMenuColumnIndex = columnIndex;
+        uiStore.columnMenuOpen = true;
         void tick().then(() => {
             const padding = 8;
             const { innerWidth, innerHeight } = window;
-            const menuRect = getColumnMenuEl()?.getBoundingClientRect();
+            const menuRect = this.getColumnMenuEl()?.getBoundingClientRect();
             const menuWidth = menuRect?.width ?? 160;
             const menuHeight = menuRect?.height ?? 80;
             const nextLeft = Math.min(event.clientX, innerWidth - menuWidth - padding);
             const nextTop = Math.min(event.clientY, innerHeight - menuHeight - padding);
-            columnMenuPosition.set({
+            uiStore.columnMenuPosition = {
                 x: Math.max(nextLeft, padding),
                 y: Math.max(nextTop, padding),
-            });
+            };
         });
-    };
+    }
 
-    const handleColumnMenuAddFilter = (): void => {
-        const columnIndex = get(columnMenuColumnIndex);
+    handleColumnMenuAddFilter(): void {
+        const columnIndex = uiStore.columnMenuColumnIndex;
         if (columnIndex === null) {
             return;
         }
-        closeColumnMenu();
-        openRowFilterEditor(undefined, undefined, columnIndex);
-    };
+        uiStore.closeColumnMenu();
+        this.openRowFilterEditor(undefined, undefined, columnIndex);
+    }
 
-    const handleColumnMenuHideColumn = (): void => {
-        const columnIndex = get(columnMenuColumnIndex);
+    handleColumnMenuHideColumn(): void {
+        const columnIndex = uiStore.columnMenuColumnIndex;
         if (columnIndex === null) {
             return;
         }
-        closeColumnMenu();
-        hideColumn(columnIndex);
-    };
+        uiStore.closeColumnMenu();
+        dataStore.hideColumn(columnIndex);
+    }
 
-    const handleDataTableSort = (columnIndex: number): void => {
-        const nextSort = getNextSort(columnIndex);
-        activeSort.set(nextSort);
-        postMessage({
+    handleDataTableSort(columnIndex: number): void {
+        const nextSort = this.getNextSort(columnIndex);
+        dataStore.activeSort = nextSort;
+        this.postMessage({
             type: 'setSort',
             sortKey: nextSort ? { columnIndex: nextSort.columnIndex, direction: nextSort.direction } : null,
         });
-    };
+    }
 
-    const handleDataTableScroll = (): void => {
-        if (get(columnMenuOpen)) {
-            closeColumnMenu();
+    handleDataTableScroll(): void {
+        if (uiStore.columnMenuOpen) {
+            uiStore.closeColumnMenu();
         }
-        const tableBodyEl = getTableBodyEl();
-        if (tableBodyEl && tableBodyEl.scrollLeft !== lastScrollLeft) {
-            lastScrollLeft = tableBodyEl.scrollLeft;
-            setHeaderScrollLeft(tableBodyEl.scrollLeft);
+        const tableBodyEl = this.getTableBodyEl();
+        if (tableBodyEl && tableBodyEl.scrollLeft !== this.lastScrollLeft) {
+            this.lastScrollLeft = tableBodyEl.scrollLeft;
+            this.setHeaderScrollLeft(tableBodyEl.scrollLeft);
         }
-    };
-
-    return {
-        openColumnMenu,
-        closeColumnMenu,
-        handleColumnMenuAddFilter,
-        handleColumnMenuHideColumn,
-        handleDataTableSort,
-        handleDataTableScroll,
-    };
+    }
 }

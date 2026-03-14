@@ -1,20 +1,19 @@
-<svelte:options runes={false} />
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
-    import { useVirtualizer, type VirtualRow } from './hooks/useVirtualizer';
-    import { useStatsCharts } from './hooks/useStatsCharts';
-    import { useVscodeMessages } from './hooks/useVscodeMessages';
-    import { useStatsController } from './hooks/useStatsController';
-    import { useSchemaController } from './hooks/useSchemaController';
-    import { useRowFilterController } from './hooks/useRowFilterController';
-    import { useTableLayoutController } from './hooks/useTableLayoutController';
-    import { useRowDataController } from './hooks/useRowDataController';
-    import { useTableInteractionController } from './hooks/useTableInteractionController';
-    import { useWindowEventsController } from './hooks/useWindowEventsController';
-    import { useTableSetupController } from './hooks/useTableSetupController';
-    import { useInitController } from './hooks/useInitController';
-    import { usePanelToggleController } from './hooks/usePanelToggleController';
-    import { useExportController } from './hooks/useExportController';
+    import { VirtualizerManager, type VirtualRow } from './hooks/useVirtualizer';
+    import { StatsCharts } from './hooks/useStatsCharts';
+    import { createMessageHandler } from './hooks/useVscodeMessages';
+    import { StatsController } from './hooks/useStatsController';
+    import { SchemaController } from './hooks/useSchemaController';
+    import { RowFilterController } from './hooks/useRowFilterController';
+    import { TableLayoutController } from './hooks/useTableLayoutController';
+    import { RowDataController } from './hooks/useRowDataController';
+    import { TableInteractionController } from './hooks/useTableInteractionController';
+    import { WindowEventsController } from './hooks/useWindowEventsController';
+    import { TableSetupController } from './hooks/useTableSetupController';
+    import { InitController } from './hooks/useInitController';
+    import { PanelToggleController } from './hooks/usePanelToggleController';
+    import { ExportController } from './hooks/useExportController';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -22,53 +21,7 @@
     import RowFilterPanel from './RowFilterPanel.svelte';
     import StatsPanel from './StatsPanel.svelte';
     import DataTable from './DataTable.svelte';
-    import {
-        backendState,
-        fullSchema,
-        visibleSchema,
-        columnFilterMatches,
-        hiddenColumnIndices,
-        columnWidths,
-        rowCache,
-        rowLabelCache,
-        rowCacheVersion,
-        loadedBlocks,
-        loadingBlocks,
-        rowFilters,
-        activeSort,
-        rowFilterSupport,
-        columnFilterSupport,
-        setColumnFilterSupport,
-        initializeDataStore,
-        // UI stores - using $ syntax for reactive access
-        collapsedSections as collapsedSectionsStore,
-        pinnedPanels as pinnedPanelsStore,
-        setPanelPinned as storeSetPanelPinned,
-        columnMenuOpen as columnMenuOpenStore,
-        columnMenuPosition as columnMenuPositionStore,
-        columnMenuColumnIndex as columnMenuColumnIndexStore,
-        closeColumnMenu as storeCloseColumnMenu,
-        // Panel visibility stores
-        columnVisibilityOpen as columnVisibilityOpenStore,
-        rowFilterPanelOpen as rowFilterPanelOpenStore,
-        statsPanelOpen as statsPanelOpenStore,
-        codeModalOpen as codeModalOpenStore,
-        // Stats stores
-        statsMessageText as statsMessageTextStore,
-        statsMessageState as statsMessageStateStore,
-        statsSectionsVisible as statsSectionsVisibleStore,
-        statsControlsEnabled as statsControlsEnabledStore,
-        statsOverviewRows as statsOverviewRowsStore,
-        statsSummaryRows as statsSummaryRowsStore,
-        statsOverviewEmptyMessage as statsOverviewEmptyMessageStore,
-        statsSummaryEmptyMessage as statsSummaryEmptyMessageStore,
-        frequencyFootnote as frequencyFootnoteStore,
-        histogramBins as histogramBinsStore,
-        histogramMethod as histogramMethodStore,
-        frequencyLimit as frequencyLimitStore,
-        histogramVisible as histogramVisibleStore,
-        frequencyVisible as frequencyVisibleStore,
-    } from './stores';
+    import { dataStore, uiStore, statsStore } from './stores';
     import {
         type ColumnSchema,
         type RowFilterDraft,
@@ -89,11 +42,6 @@
         createRowFilterDraft,
         computeDisplayedColumns,
         resolveColumnWidth,
-        isRowFilterSupported as checkRowFilterSupported,
-        isColumnFilterSupported as checkColumnFilterSupported,
-        isSetColumnFiltersSupported as checkSetColumnFiltersSupported,
-        supportsRowFilterConditions as checkSupportsRowFilterConditions,
-        isSortSupported as checkSortSupported,
     } from './utils';
 
     const vscode = getVsCodeApi();
@@ -102,77 +50,49 @@
 
     const COLUMN_VIRTUALIZATION_THRESHOLD = 80;
 
-    let editingRowFilterIndex: number | null = null;
+    let editingRowFilterIndex: number | null = $state(null);
+    let rowFilterError = $state('');
+    let rowFilterDraft: RowFilterDraft = $state(createRowFilterDraft());
 
-    // Panel visibility now comes from stores via $columnVisibilityOpenStore, $rowFilterPanelOpenStore, etc.
-    // columnMenuOpen, columnMenuPosition, columnMenuColumnIndex now come from stores
-    // pinnedPanels now comes from store via $pinnedPanelsStore
+    // DOM element refs
+    let tableBodyEl: HTMLDivElement = $state(undefined!);
+    let tableHeaderEl: HTMLDivElement = $state(undefined!);
+    let bodyInnerEl: HTMLDivElement = $state(undefined!);
+    let dataTableComponent: DataTable = $state(undefined!);
+    let columnVisibilityPanelEl: HTMLDivElement = $state(undefined!);
+    let rowFilterPanelEl: HTMLDivElement = $state(undefined!);
+    let statsPanelEl: HTMLDivElement = $state(undefined!);
+    let codeModalEl: HTMLDivElement = $state(undefined!);
+    let columnMenuEl: HTMLDivElement = $state(undefined!);
+    let statsResultsEl: HTMLDivElement = $state(undefined!);
+    let columnsButtonEl: HTMLButtonElement = $state(undefined!);
+    let statsButtonEl: HTMLButtonElement = $state(undefined!);
+    let codeButtonEl: HTMLButtonElement = $state(undefined!);
+    let addRowFilterButtonEl: HTMLButtonElement = $state(undefined!);
+    let histogramContainer: HTMLDivElement = $state(undefined!);
+    let frequencyContainer: HTMLDivElement = $state(undefined!);
+    let tableAreaEl: HTMLDivElement = $state(undefined!);
 
-    let columnVisibilitySearchTerm = '';
-    let columnVisibilityStatus = '';
-    let columnVisibilityDisplayedColumns: ColumnSchema[] = [];
+    // Local UI state
+    let virtualRows: VirtualRow[] = $state([]);
+    let tableAreaTop = $state(0);
+    let virtualizerTotalHeight = $state(0);
+    let headerScrollLeft = $state(0);
+    let tableViewportWidth = $state(0);
+    let renderColumns: Array<{ column: ColumnSchema; schemaIndex: number }> = $state([]);
+    let leftSpacerWidth = $state(0);
+    let rightSpacerWidth = $state(0);
+    let tableMetaText = $state('');
 
-    let rowFilterError = '';
-    let rowFilterDraft: RowFilterDraft = createRowFilterDraft();
-    let activeStatsColumnIndex: number | null = null;
-    let statsColumnValue = '';
-
-    let codePreview = '';
-    let codeSyntax = 'pandas';
-
-
-    let tableBodyEl: HTMLDivElement;
-    let tableHeaderEl: HTMLDivElement;
-    let bodyInnerEl: HTMLDivElement;
-    let dataTableComponent: DataTable;
-    let columnVisibilityPanelEl: HTMLDivElement;
-    let rowFilterPanelEl: HTMLDivElement;
-    let statsPanelEl: HTMLDivElement;
-    let codeModalEl: HTMLDivElement;
-    let columnMenuEl: HTMLDivElement;
-    let statsResultsEl: HTMLDivElement;
-    let columnsButtonEl: HTMLButtonElement;
-    let statsButtonEl: HTMLButtonElement;
-    let codeButtonEl: HTMLButtonElement;
-    let addRowFilterButtonEl: HTMLButtonElement;
-    let histogramContainer: HTMLDivElement;
-    let frequencyContainer: HTMLDivElement;
-    let tableAreaEl: HTMLDivElement;
-
-
-    let virtualRows: VirtualRow[] = [];
-    let tableAreaTop = 0;
-    let virtualizerTotalHeight = 0;
-    let headerScrollLeft = 0;
-    let tableViewportWidth = 0;
-    let renderColumns: Array<{ column: ColumnSchema; schemaIndex: number }> = [];
-    let leftSpacerWidth = 0;
-    let rightSpacerWidth = 0;
-
-
-    // collapsedSections now comes from store via $collapsedSectionsStore
-
-    let tableTitleText = 'Data Explorer';
-    let tableMetaText = '';
-
-    $: resolvedColumnWidths = $visibleSchema.map((column) => resolveColumnWidth($columnWidths.get(column.column_index)));
-    $: columnTemplate = resolvedColumnWidths.length > 0
+    // Derived values
+    const resolvedColumnWidths = $derived(dataStore.visibleSchema.map((column) => resolveColumnWidth(dataStore.columnWidths.get(column.column_index))));
+    const columnTemplate = $derived(resolvedColumnWidths.length > 0
         ? `${ROW_LABEL_WIDTH}px ${resolvedColumnWidths.map((width) => `${width}px`).join(' ')}`
-        : `${ROW_LABEL_WIDTH}px`;
-    $: totalWidth = ROW_LABEL_WIDTH + resolvedColumnWidths.reduce((sum, width) => sum + width, 0);
-    $: rowFilterSection = ROW_FILTER_SECTION_MAP[rowFilterDraft.filterType] ?? 'none';
-    $: rowFilterSupported = isRowFilterSupported();
-    $: sortSupported = isSortSupported();
-    $: tableTitleText = $backendState?.display_name || 'Data Explorer';
-    // Compute displayed columns reactively based on search matches and full schema
-    $: columnVisibilityDisplayedColumns = computeDisplayedColumns($fullSchema, $columnFilterMatches, columnVisibilitySearchTerm);
-    $: tableMetaText = buildTableMetaText();
-    $: attachTableBodyObserver(tableBodyEl);
-    $: updateRenderColumnsLayout($visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
-    // Update CSS variable for popup panel positioning
-    $: if (typeof document !== 'undefined') {
-        document.body.style.setProperty('--table-area-top', `${tableAreaTop}px`);
-    }
+        : `${ROW_LABEL_WIDTH}px`);
+    const totalWidth = $derived(ROW_LABEL_WIDTH + resolvedColumnWidths.reduce((sum, width) => sum + width, 0));
+    const rowFilterSection = $derived(ROW_FILTER_SECTION_MAP[rowFilterDraft.filterType] ?? 'none');
+    const tableTitleText = $derived(dataStore.backendState?.display_name || 'Data Explorer');
+    const columnVisibilityDisplayedColumns = $derived(computeDisplayedColumns(dataStore.fullSchema, dataStore.columnFilterMatches, uiStore.columnVisibilitySearchTerm));
 
     function log(message: string, payload?: unknown): void {
         if (!debugEnabled) {
@@ -185,36 +105,31 @@
         }
     }
 
-    const virtualizer = useVirtualizer({
+    const virtualizer = new VirtualizerManager({
         getScrollElement: () => tableBodyEl ?? null,
         rowHeight: ROW_HEIGHT,
-        rowCount: () => $backendState?.table_shape.num_rows ?? 0,
+        rowCount: () => dataStore.backendState?.table_shape.num_rows ?? 0,
         onVirtualRowsChange: (rows, totalHeight) => {
             virtualRows = rows;
             virtualizerTotalHeight = totalHeight;
-            scheduleVisibleBlocksRequest('scroll');
+            rowDataController.scheduleVisibleBlocksRequest('scroll');
         },
         log,
     });
 
-    const statsCharts = useStatsCharts({
+    const statsCharts = new StatsCharts({
         getHistogramContainer: () => histogramContainer,
         getFrequencyContainer: () => frequencyContainer,
         log,
     });
 
-    const tableLayoutController = useTableLayoutController({
+    const tableLayoutController = new TableLayoutController({
         log,
-        columnWidths,
         minColumnWidth: MIN_COLUMN_WIDTH,
         columnWidthFallback: COLUMN_WIDTH,
         sidePanelMinWidth: SIDE_PANEL_MIN_WIDTH,
         sidePanelMaxWidth: SIDE_PANEL_MAX_WIDTH,
         virtualizationThreshold: COLUMN_VIRTUALIZATION_THRESHOLD,
-        getVisibleSchema: () => $visibleSchema,
-        getResolvedColumnWidths: () => resolvedColumnWidths,
-        getTotalWidth: () => totalWidth,
-        getColumnTemplate: () => columnTemplate,
         getTableHeaderEl: () => tableHeaderEl,
         getTableBodyEl: () => tableBodyEl,
         getBodyInnerEl: () => bodyInnerEl,
@@ -238,91 +153,17 @@
         onSidePanelResize: () => statsCharts.resize(),
     });
 
-    const {
-        scheduleTableLayoutDiagnostics,
-        updateRenderColumns: updateRenderColumnsLayout,
-        attachTableBodyObserver,
-        updateHeaderScroll,
-        startColumnResize,
-        handleColumnResizeMove,
-        handleColumnResizeEnd,
-        startSidePanelResize,
-        handleSidePanelResize,
-        finishSidePanelResize,
-        dispose: disposeTableLayoutController,
-    } = tableLayoutController;
-
-    const statsController = useStatsController({
+    const statsController = new StatsController({
         log,
         postMessage: (message) => vscode.postMessage(message),
         statsCharts,
-        getVisibleSchema: () => $visibleSchema,
-        getActiveStatsColumnIndex: () => activeStatsColumnIndex,
-        setActiveStatsColumnIndex: (value) => {
-            activeStatsColumnIndex = value;
-        },
-        getStatsColumnValue: () => statsColumnValue,
-        setStatsColumnValue: (value) => {
-            statsColumnValue = value;
-        },
+        getVisibleSchema: () => dataStore.visibleSchema,
         getStatsResultsEl: () => statsResultsEl,
-        getStatsPanelOpen: () => $statsPanelOpenStore,
-        setStatsPanelOpen: (value) => {
-            $statsPanelOpenStore = value;
-        },
-        setColumnVisibilityOpen: (value) => {
-            $columnVisibilityOpenStore = value;
-        },
-        setRowFilterPanelOpen: (value) => {
-            $rowFilterPanelOpenStore = value;
-        },
-        setCodeModalOpen: (value) => {
-            $codeModalOpenStore = value;
-        },
-        isPanelPinned,
-        stores: {
-            statsMessageText: statsMessageTextStore,
-            statsMessageState: statsMessageStateStore,
-            statsSectionsVisible: statsSectionsVisibleStore,
-            statsControlsEnabled: statsControlsEnabledStore,
-            statsOverviewRows: statsOverviewRowsStore,
-            statsSummaryRows: statsSummaryRowsStore,
-            statsOverviewEmptyMessage: statsOverviewEmptyMessageStore,
-            statsSummaryEmptyMessage: statsSummaryEmptyMessageStore,
-            frequencyFootnote: frequencyFootnoteStore,
-            histogramBins: histogramBinsStore,
-            histogramMethod: histogramMethodStore,
-            frequencyLimit: frequencyLimitStore,
-            histogramVisible: histogramVisibleStore,
-            frequencyVisible: frequencyVisibleStore,
-            collapsedSections: collapsedSectionsStore,
-        },
     });
 
-    const {
-        initializeStatsDefaults,
-        setStatsMessage,
-        clearStatsContent,
-        openStatsPanel,
-        handleStatsColumnChange,
-        handleColumnProfilesResult,
-        handleStatsMethodChange,
-        handleHistogramBinsInput,
-        handleFrequencyLimitInput,
-        toggleStatsSection,
-        dispose: disposeStatsController,
-    } = statsController;
-
-    const rowDataController = useRowDataController({
+    const rowDataController = new RowDataController({
         log,
         postMessage: (message) => vscode.postMessage(message),
-        getBackendState: () => $backendState,
-        visibleSchema,
-        rowCache,
-        rowLabelCache,
-        rowCacheVersion,
-        loadedBlocks,
-        loadingBlocks,
         rowBlockSize: ROW_BLOCK_SIZE,
         prefetchBlocks: ROW_PREFETCH_BLOCKS,
         requestDebounceMs: ROW_REQUEST_DEBOUNCE_MS,
@@ -330,87 +171,27 @@
         measureVirtualizer: () => virtualizer.measure(),
     });
 
-    const {
-        requestInitialBlock,
-        scheduleVisibleBlocksRequest,
-        handleRows,
-        applyPendingRows,
-        getCellValue,
-        getRowLabel,
-        dispose: disposeRowDataController,
-    } = rowDataController;
-
-    const tableSetupController = useTableSetupController({
+    const tableSetupController = new TableSetupController({
         log,
-        getBackendState: () => $backendState,
-        getVisibleSchema: () => $visibleSchema,
-        getFullSchema: () => $fullSchema,
-        getRowLabel,
-        getCellValue,
+        getRowLabel: (rowIndex, version) => rowDataController.getRowLabel(rowIndex, version),
+        getCellValue: (rowIndex, columnIndex, version) => rowDataController.getCellValue(rowIndex, columnIndex, version),
         getColumnLabel,
     });
 
-    const {
-        setupTable,
-        buildTableMetaText,
-    } = tableSetupController;
-
-    const schemaController = useSchemaController({
+    const schemaController = new SchemaController({
         log,
         postMessage: (message) => vscode.postMessage(message),
-        stores: {
-            fullSchema,
-            visibleSchema,
-            columnFilterMatches,
-            hiddenColumnIndices,
-            columnWidths,
-            rowCache,
-            rowLabelCache,
-            rowCacheVersion,
-            loadedBlocks,
-            loadingBlocks,
-        },
-        getColumnVisibilitySearchTerm: () => columnVisibilitySearchTerm,
-        setColumnVisibilityStatus: (value) => {
-            columnVisibilityStatus = value;
-        },
-        isColumnFilterSupported,
-        isSetColumnFiltersSupported,
-        setupTable,
-        updateVirtualizer,
-        requestInitialBlock,
-        scheduleTableLayoutDiagnostics,
-        getStatsPanelOpen: () => $statsPanelOpenStore,
-        getActiveStatsColumnIndex: () => activeStatsColumnIndex,
-        setActiveStatsColumnIndex: (value) => {
-            activeStatsColumnIndex = value;
-        },
-        setStatsColumnValue: (value) => {
-            statsColumnValue = value;
-        },
-        setStatsMessage,
-        clearStatsContent: () => clearStatsContent(),
+        setupTable: () => tableSetupController.setupTable(),
+        updateVirtualizer: () => virtualizer.update(),
+        requestInitialBlock: () => rowDataController.requestInitialBlock(),
+        scheduleTableLayoutDiagnostics: (stage) => tableLayoutController.scheduleTableLayoutDiagnostics(stage),
+        setStatsMessage: (message, state) => statsController.setStatsMessage(message, state),
+        clearStatsContent: () => statsController.clearStatsContent(),
     });
 
-    const {
-        handleSearchSchemaResult,
-        applySchemaUpdate,
-        applyColumnSearch,
-        hideColumn,
-        showColumn,
-        toggleColumnVisibility,
-        invertColumnVisibility,
-        dispose: disposeSchemaController,
-    } = schemaController;
-
-    const rowFilterController = useRowFilterController({
+    const rowFilterController = new RowFilterController({
         log,
         postMessage: (message) => vscode.postMessage(message),
-        visibleSchema,
-        rowFilters,
-        rowFilterSupport,
-        isRowFilterSupported,
-        supportsRowFilterConditions,
         getEditingRowFilterIndex: () => editingRowFilterIndex,
         setEditingRowFilterIndex: (value) => {
             editingRowFilterIndex = value;
@@ -422,57 +203,17 @@
         setRowFilterError: (message) => {
             rowFilterError = message;
         },
-        setRowFilterPanelOpen: (open) => {
-            $rowFilterPanelOpenStore = open;
-        },
-        setColumnVisibilityOpen: (open) => {
-            $columnVisibilityOpenStore = open;
-        },
-        setStatsPanelOpen: (open) => {
-            $statsPanelOpenStore = open;
-        },
-        setCodeModalOpen: (open) => {
-            $codeModalOpenStore = open;
-        },
-        closeColumnMenu: storeCloseColumnMenu,
     });
 
-    const {
-        openRowFilterEditor,
-        saveRowFilter,
-        removeRowFilter,
-    } = rowFilterController;
-
-    const tableInteractionController = useTableInteractionController({
+    const tableInteractionController = new TableInteractionController({
         postMessage: (message) => vscode.postMessage(message),
-        activeSort,
-        columnMenuOpen: columnMenuOpenStore,
-        columnMenuPosition: columnMenuPositionStore,
-        columnMenuColumnIndex: columnMenuColumnIndexStore,
         getColumnMenuEl: () => columnMenuEl,
         getTableBodyEl: () => tableBodyEl,
-        setHeaderScrollLeft: updateHeaderScroll,
-        openRowFilterEditor,
-        hideColumn,
+        setHeaderScrollLeft: (value) => tableLayoutController.updateHeaderScroll(value),
+        openRowFilterEditor: (filter, index, columnIndex) => rowFilterController.openRowFilterEditor(filter, index, columnIndex),
     });
 
-    const {
-        openColumnMenu,
-        closeColumnMenu,
-        handleColumnMenuAddFilter,
-        handleColumnMenuHideColumn,
-        handleDataTableSort,
-        handleDataTableScroll,
-    } = tableInteractionController;
-
-    const windowEventsController = useWindowEventsController({
-        closeColumnMenu,
-        isPanelPinned,
-        columnMenuOpen: columnMenuOpenStore,
-        statsPanelOpen: statsPanelOpenStore,
-        columnVisibilityOpen: columnVisibilityOpenStore,
-        codeModalOpen: codeModalOpenStore,
-        rowFilterPanelOpen: rowFilterPanelOpenStore,
+    const windowEventsController = new WindowEventsController({
         getColumnMenuEl: () => columnMenuEl,
         getStatsPanelEl: () => statsPanelEl,
         getStatsButtonEl: () => statsButtonEl,
@@ -482,134 +223,37 @@
         getCodeButtonEl: () => codeButtonEl,
         getRowFilterPanelEl: () => rowFilterPanelEl,
         getAddRowFilterButtonEl: () => addRowFilterButtonEl,
-        handleSidePanelResize,
-        handleColumnResizeMove,
-        finishSidePanelResize,
-        handleColumnResizeEnd,
+        handleSidePanelResize: (event) => tableLayoutController.handleSidePanelResize(event),
+        handleColumnResizeMove: (event) => tableLayoutController.handleColumnResizeMove(event),
+        finishSidePanelResize: () => tableLayoutController.finishSidePanelResize(),
+        handleColumnResizeEnd: () => tableLayoutController.handleColumnResizeEnd(),
         onResize: () => {
             statsCharts.resize();
             updateTableAreaTop();
         },
     });
 
-    const {
-        handleDocumentClick,
-        handleWindowResize,
-        handleWindowKeydown,
-        handleWindowMouseMove,
-        handleWindowMouseUp,
-    } = windowEventsController;
-
-    const initController = useInitController({
+    const initController = new InitController({
         log,
-        initializeDataStore,
-        setColumnVisibilityStatus: (value) => {
-            columnVisibilityStatus = value;
-        },
-        setColumnVisibilitySearchTerm: (value) => {
-            columnVisibilitySearchTerm = value;
-        },
-        getActiveStatsColumnIndex: () => activeStatsColumnIndex,
-        setStatsMessage,
-        clearStatsContent,
-        setCodePreview: (value) => {
-            codePreview = value;
-        },
-        applySchemaUpdate,
-        getVisibleSchema: () => $visibleSchema,
-        applyPendingRows,
-        scheduleTableLayoutDiagnostics,
+        initializeDataStore: (state, schema) => dataStore.initialize(state, schema),
+        applySchemaUpdate: (schema) => schemaController.applySchemaUpdate(schema),
+        getVisibleSchema: () => dataStore.visibleSchema,
+        applyPendingRows: () => rowDataController.applyPendingRows(),
+        scheduleTableLayoutDiagnostics: (stage) => tableLayoutController.scheduleTableLayoutDiagnostics(stage),
+        clearStatsContent: () => statsController.clearStatsContent(),
     });
 
-    const { handleInit } = initController;
-
-    const panelToggleController = usePanelToggleController({
+    const panelToggleController = new PanelToggleController({
         postMessage: (message) => vscode.postMessage(message),
-        getCodeModalOpen: () => $codeModalOpenStore,
-        getColumnVisibilityOpen: () => $columnVisibilityOpenStore,
-        getStatsPanelOpen: () => $statsPanelOpenStore,
-        getRowFilterPanelOpen: () => $rowFilterPanelOpenStore,
-        isPanelPinned,
-        setCodeModalOpen: (value) => {
-            $codeModalOpenStore = value;
-        },
-        setColumnVisibilityOpen: (value) => {
-            $columnVisibilityOpenStore = value;
-        },
-        setStatsPanelOpen: (value) => {
-            $statsPanelOpenStore = value;
-        },
-        setRowFilterPanelOpen: (value) => {
-            $rowFilterPanelOpenStore = value;
-        },
     });
 
-    const { openColumnVisibilityPanel, openCodeModal, closeOtherNonPinnedPanels } = panelToggleController;
-
-    const exportController = useExportController({
+    const exportController = new ExportController({
         postMessage: (message) => vscode.postMessage(message),
-        getCodeSyntax: () => codeSyntax,
-        setCodePreview: (value) => {
-            codePreview = value;
-        },
-        setCodeSyntax: (value) => {
-            codeSyntax = value;
-        },
-    });
-
-    const {
-        handleExportResult,
-        handleConvertToCodeResult,
-        handleSuggestCodeSyntaxResult,
-        handleCodeConvert,
-        handleExport,
-    } = exportController;
-
-    useVscodeMessages({
-        onInit: handleInit,
-        onRows: handleRows,
-        onError: (message) => {
-            tableMetaText = message;
-        },
-        onSearchSchemaResult: handleSearchSchemaResult,
-        onExportResult: handleExportResult,
-        onColumnProfilesResult: handleColumnProfilesResult,
-        onConvertToCodeResult: handleConvertToCodeResult,
-        onSuggestCodeSyntaxResult: handleSuggestCodeSyntaxResult,
     });
 
     function setPanelPinned(panelId: string, pinned: boolean): void {
-        storeSetPanelPinned(panelId, pinned);
+        uiStore.setPanelPinned(panelId, pinned);
         log('Panel pin updated', { panelId, pinned });
-    }
-
-    function isPanelPinned(panelId: string): boolean {
-        return $pinnedPanelsStore.has(panelId);
-    }
-
-    // Wrapper functions for feature support checks (use local state)
-    function isRowFilterSupported(): boolean {
-        return checkRowFilterSupported($rowFilterSupport);
-    }
-
-    function isColumnFilterSupported(): boolean {
-        return checkColumnFilterSupported($columnFilterSupport);
-    }
-
-    function isSetColumnFiltersSupported(): boolean {
-        return checkSetColumnFiltersSupported($setColumnFilterSupport);
-    }
-
-    function supportsRowFilterConditions(): boolean {
-        return checkSupportsRowFilterConditions($rowFilterSupport);
-    }
-
-    function isSortSupported(): boolean {
-        return checkSortSupported($backendState);
-    }
-
-    function updateVirtualizer(): void {
-        virtualizer.update();
     }
 
     function updateTableAreaTop(): void {
@@ -618,33 +262,69 @@
         }
     }
 
+    // Effects
+    $effect(() => {
+        tableMetaText = tableSetupController.buildTableMetaText();
+    });
+
+    $effect(() => {
+        tableLayoutController.attachTableBodyObserver(tableBodyEl);
+    });
+
+    $effect(() => {
+        tableLayoutController.updateRenderColumns(dataStore.visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
+    });
+
+    $effect(() => {
+        if (typeof document !== 'undefined') {
+            document.body.style.setProperty('--table-area-top', `${tableAreaTop}px`);
+        }
+    });
+
+    // Message handler setup
+    $effect(() => {
+        const messageHandler = createMessageHandler({
+            onInit: (msg) => initController.handleInit(msg),
+            onRows: (indices, columns, rowLabels) => rowDataController.handleRows(indices, columns, rowLabels),
+            onError: (message) => {
+                tableMetaText = message;
+            },
+            onSearchSchemaResult: (matches) => schemaController.handleSearchSchemaResult(matches),
+            onExportResult: (data, format) => exportController.handleExportResult(data, format),
+            onColumnProfilesResult: (result) => statsController.handleColumnProfilesResult(result),
+            onConvertToCodeResult: (code) => exportController.handleConvertToCodeResult(code),
+            onSuggestCodeSyntaxResult: (syntax) => exportController.handleSuggestCodeSyntaxResult(syntax),
+        });
+
+        messageHandler.attach();
+        return () => messageHandler.detach();
+    });
+
     onMount(() => {
-        initializeStatsDefaults();
-        setStatsMessage('Select a column to view statistics.', 'empty');
-        clearStatsContent();
-        document.addEventListener('click', handleDocumentClick);
+        statsController.initializeStatsDefaults();
+        statsController.setStatsMessage('Select a column to view statistics.', 'empty');
+        statsController.clearStatsContent();
+        document.addEventListener('click', (e) => windowEventsController.handleDocumentClick(e));
         vscode.postMessage({ type: 'ready' });
         log('Data explorer initialized.');
-        // Calculate table area top position after mount
         updateTableAreaTop();
     });
 
     onDestroy(() => {
-        document.removeEventListener('click', handleDocumentClick);
-        disposeStatsController();
-        disposeSchemaController();
-        disposeRowDataController();
-        disposeTableLayoutController();
+        statsController.dispose();
+        schemaController.dispose();
+        rowDataController.dispose();
+        tableLayoutController.dispose();
         virtualizer.dispose();
         statsCharts.dispose();
     });
 </script>
 
 <svelte:window
-    on:resize={handleWindowResize}
-    on:keydown={handleWindowKeydown}
-    on:mousemove={handleWindowMouseMove}
-    on:mouseup={handleWindowMouseUp}
+    onresize={() => windowEventsController.handleWindowResize()}
+    onkeydown={(e) => windowEventsController.handleWindowKeydown(e)}
+    onmousemove={(e) => windowEventsController.handleWindowMouseMove(e)}
+    onmouseup={(e) => windowEventsController.handleWindowMouseUp(e)}
 />
 
 <Toolbar
@@ -653,149 +333,149 @@
     bind:columnsButtonEl
     bind:statsButtonEl
     bind:codeButtonEl
-    on:openColumns={openColumnVisibilityPanel}
-    on:openStats={() => openStatsPanel({ toggle: true })}
-    on:openCode={openCodeModal}
-    on:refresh={() => vscode.postMessage({ type: 'refresh' })}
-    on:export={(e) => handleExport(e.detail.format)}
+    onOpenColumns={() => panelToggleController.openColumnVisibilityPanel()}
+    onOpenStats={() => statsController.openStatsPanel({ toggle: true })}
+    onOpenCode={() => panelToggleController.openCodeModal()}
+    onRefresh={() => vscode.postMessage({ type: 'refresh' })}
+    onExport={(e) => exportController.handleExport(e.format)}
 />
 
 <RowFilterBar
-    rowFilters={$rowFilters}
-    visible={rowFilterSupported}
+    rowFilters={dataStore.rowFilters}
+    visible={dataStore.isRowFilterSupported}
     bind:addFilterButtonEl={addRowFilterButtonEl}
-    on:addFilter={() => openRowFilterEditor()}
-    on:editFilter={(e) => openRowFilterEditor(e.detail.filter, e.detail.index)}
-    on:removeFilter={(e) => removeRowFilter(e.detail.index)}
+    onAddFilter={() => rowFilterController.openRowFilterEditor()}
+    onEditFilter={(e) => rowFilterController.openRowFilterEditor(e.filter, e.index)}
+    onRemoveFilter={(e) => rowFilterController.removeRowFilter(e.index)}
 />
 
 <!-- Side panels: render a single instance each.
      Pinning only changes layout (fixed overlay vs flex sidebar), avoiding component destroy/recreate. -->
 
 <CodeModal
-    open={$codeModalOpenStore}
-    bind:codePreview
-    bind:codeSyntax
+    open={uiStore.codeModalOpen}
+    bind:codePreview={uiStore.codePreview}
+    bind:codeSyntax={uiStore.codeSyntax}
     bind:codeModalEl
-    on:close={() => { $codeModalOpenStore = false; }}
-    on:convert={(e) => handleCodeConvert()}
-    on:copy={() => {}}
+    onClose={() => { uiStore.codeModalOpen = false; }}
+    onConvert={() => exportController.handleCodeConvert()}
+    onCopy={() => {}}
 />
 
 <div
     class="context-menu"
     id="column-menu"
     bind:this={columnMenuEl}
-    class:open={$columnMenuOpenStore}
-    style={`left: ${$columnMenuPositionStore.x}px; top: ${$columnMenuPositionStore.y}px;`}
+    class:open={uiStore.columnMenuOpen}
+    style={`left: ${uiStore.columnMenuPosition.x}px; top: ${uiStore.columnMenuPosition.y}px;`}
 >
-    <button class="context-menu-item" id="column-menu-add-filter" disabled={!rowFilterSupported} on:click={handleColumnMenuAddFilter}>Add Filter</button>
-    <button class="context-menu-item" id="column-menu-hide-column" disabled={$visibleSchema.length <= 1} on:click={handleColumnMenuHideColumn}>Hide Column</button>
+    <button class="context-menu-item" id="column-menu-add-filter" disabled={!dataStore.isRowFilterSupported} onclick={() => tableInteractionController.handleColumnMenuAddFilter()}>Add Filter</button>
+    <button class="context-menu-item" id="column-menu-hide-column" disabled={dataStore.visibleSchema.length <= 1} onclick={() => tableInteractionController.handleColumnMenuHideColumn()}>Hide Column</button>
 </div>
 
 <div class="table-area" bind:this={tableAreaEl}>
     <DataTable
         bind:this={dataTableComponent}
-        state={$backendState}
-        schema={$visibleSchema}
+        state={dataStore.backendState}
+        schema={dataStore.visibleSchema}
         {renderColumns}
-        columnWidths={$columnWidths}
-        activeSort={$activeSort}
-        {sortSupported}
-        {rowFilterSupported}
+        columnWidths={dataStore.columnWidths}
+        activeSort={dataStore.activeSort}
+        sortSupported={dataStore.isSortSupported}
+        rowFilterSupported={dataStore.isRowFilterSupported}
         {virtualRows}
         {virtualizerTotalHeight}
-        rowCacheVersion={$rowCacheVersion}
+        rowCacheVersion={dataStore.rowCacheVersion}
         {headerScrollLeft}
         {leftSpacerWidth}
         {rightSpacerWidth}
-        {getCellValue}
-        {getRowLabel}
+        getCellValue={(rowIndex, columnIndex, version) => rowDataController.getCellValue(rowIndex, columnIndex, version)}
+        getRowLabel={(rowIndex, version) => rowDataController.getRowLabel(rowIndex, version)}
         {getColumnLabel}
         bind:tableBodyEl
         bind:tableHeaderEl
         bind:bodyInnerEl
-        on:sort={(e) => handleDataTableSort(e.detail.columnIndex)}
-        on:columnMenu={(e) => openColumnMenu(e.detail.event, e.detail.columnIndex)}
-        on:openRowFilter={(e) => openRowFilterEditor(undefined, undefined, e.detail.columnIndex)}
-        on:openStats={(e) => openStatsPanel({ columnIndex: e.detail.columnIndex })}
-        on:hideColumn={(e) => hideColumn(e.detail.columnIndex)}
-        on:scroll={handleDataTableScroll}
-        on:startColumnResize={(e) => startColumnResize(e.detail.event, e.detail.columnIndex)}
+        onSort={(e) => tableInteractionController.handleDataTableSort(e.columnIndex)}
+        onColumnMenu={(e) => tableInteractionController.openColumnMenu(e.event, e.columnIndex)}
+        onOpenRowFilter={(e) => rowFilterController.openRowFilterEditor(undefined, undefined, e.columnIndex)}
+        onOpenStats={(e) => statsController.openStatsPanel({ columnIndex: e.columnIndex })}
+        onHideColumn={(e) => schemaController.hideColumn(e.columnIndex)}
+        onScroll={() => tableInteractionController.handleDataTableScroll()}
+        onStartColumnResize={(e) => tableLayoutController.startColumnResize(e.event, e.columnIndex)}
     />
 
     <ColumnVisibilityPanel
-        open={$columnVisibilityOpenStore}
-        pinned={$pinnedPanelsStore.has('column-visibility-panel') && $columnVisibilityOpenStore}
+        open={uiStore.columnVisibilityOpen}
+        pinned={uiStore.pinnedPanels.has('column-visibility-panel') && uiStore.columnVisibilityOpen}
         displayedColumns={columnVisibilityDisplayedColumns}
-        hiddenColumnIndices={$hiddenColumnIndices}
-        bind:searchTerm={columnVisibilitySearchTerm}
-        status={columnVisibilityStatus}
+        hiddenColumnIndices={dataStore.hiddenColumnIndices}
+        bind:searchTerm={uiStore.columnVisibilitySearchTerm}
+        status={uiStore.columnVisibilityStatus}
         bind:panelEl={columnVisibilityPanelEl}
-        on:close={() => {
+        onClose={() => {
             setPanelPinned('column-visibility-panel', false);
-            $columnVisibilityOpenStore = false;
+            uiStore.columnVisibilityOpen = false;
         }}
-        on:togglePin={() => setPanelPinned('column-visibility-panel', !isPanelPinned('column-visibility-panel'))}
-        on:search={(e) => {
-            columnVisibilitySearchTerm = e.detail.term;
-            applyColumnSearch();
+        onTogglePin={() => setPanelPinned('column-visibility-panel', !uiStore.isPanelPinned('column-visibility-panel'))}
+        onSearch={(e) => {
+            uiStore.columnVisibilitySearchTerm = e.term;
+            schemaController.applyColumnSearch();
         }}
-        on:clear={() => {
-            columnVisibilitySearchTerm = '';
-            applyColumnSearch();
+        onClear={() => {
+            uiStore.columnVisibilitySearchTerm = '';
+            schemaController.applyColumnSearch();
         }}
-        on:invert={invertColumnVisibility}
-        on:toggleVisibility={(e) => toggleColumnVisibility(e.detail.columnIndex)}
-        on:startResize={(e) => startSidePanelResize(e.detail.event, 'column-visibility-panel')}
+        onInvert={() => schemaController.invertColumnVisibility()}
+        onToggleVisibility={(e) => schemaController.toggleColumnVisibility(e.columnIndex)}
+        onStartResize={(e) => tableLayoutController.startSidePanelResize(e.event, 'column-visibility-panel')}
     />
 
     <RowFilterPanel
-        open={$rowFilterPanelOpenStore}
-        pinned={$pinnedPanelsStore.has('row-filter-panel') && $rowFilterPanelOpenStore}
-        schema={$visibleSchema}
+        open={uiStore.rowFilterPanelOpen}
+        pinned={uiStore.pinnedPanels.has('row-filter-panel') && uiStore.rowFilterPanelOpen}
+        schema={dataStore.visibleSchema}
         bind:draft={rowFilterDraft}
         error={rowFilterError}
-        rowFilterSupport={$rowFilterSupport}
+        rowFilterSupport={dataStore.rowFilterSupport}
         bind:panelEl={rowFilterPanelEl}
-        on:close={() => {
+        onClose={() => {
             setPanelPinned('row-filter-panel', false);
-            $rowFilterPanelOpenStore = false;
+            uiStore.rowFilterPanelOpen = false;
         }}
-        on:togglePin={() => setPanelPinned('row-filter-panel', !isPanelPinned('row-filter-panel'))}
-        on:save={(e) => saveRowFilter()}
-        on:cancel={() => { $rowFilterPanelOpenStore = false; }}
-        on:startResize={(e) => startSidePanelResize(e.detail.event, 'row-filter-panel')}
+        onTogglePin={() => setPanelPinned('row-filter-panel', !uiStore.isPanelPinned('row-filter-panel'))}
+        onSave={() => rowFilterController.saveRowFilter()}
+        onCancel={() => { uiStore.rowFilterPanelOpen = false; }}
+        onStartResize={(e) => tableLayoutController.startSidePanelResize(e.event, 'row-filter-panel')}
     />
 
     <StatsPanel
-        isOpen={$statsPanelOpenStore}
-        isPinned={$pinnedPanelsStore.has('stats-panel') && $statsPanelOpenStore}
-        schema={$visibleSchema}
-        getColumnLabel={getColumnLabel}
-        bind:statsColumnValue
-        collapsedSections={$collapsedSectionsStore}
+        isOpen={uiStore.statsPanelOpen}
+        isPinned={uiStore.pinnedPanels.has('stats-panel') && uiStore.statsPanelOpen}
+        schema={dataStore.visibleSchema}
+        {getColumnLabel}
+        bind:statsColumnValue={uiStore.statsColumnValue}
+        collapsedSections={uiStore.collapsedSections}
         bind:statsPanelEl
         bind:statsResultsEl
         bind:histogramContainer
         bind:frequencyContainer
-        on:close={() => {
+        onClose={() => {
             setPanelPinned('stats-panel', false);
-            $statsPanelOpenStore = false;
+            uiStore.statsPanelOpen = false;
         }}
-        on:togglePin={() => setPanelPinned('stats-panel', !isPanelPinned('stats-panel'))}
-        on:columnChange={handleStatsColumnChange}
-        on:toggleSection={(e) => toggleStatsSection(e.detail.sectionId)}
-        on:binsInput={(e) => {
-            histogramBinsStore.set(e.detail.value);
-            handleHistogramBinsInput(e.detail.source);
+        onTogglePin={() => setPanelPinned('stats-panel', !uiStore.isPanelPinned('stats-panel'))}
+        onColumnChange={() => statsController.handleStatsColumnChange()}
+        onToggleSection={(e) => statsController.toggleStatsSection(e.sectionId)}
+        onBinsInput={(e) => {
+            statsStore.histogramBins = e.value;
+            statsController.handleHistogramBinsInput(e.source);
         }}
-        on:methodChange={handleStatsMethodChange}
-        on:limitInput={(e) => {
-            frequencyLimitStore.set(e.detail.value);
-            handleFrequencyLimitInput(e.detail.source);
+        onMethodChange={() => statsController.handleStatsMethodChange()}
+        onLimitInput={(e) => {
+            statsStore.frequencyLimit = e.value;
+            statsController.handleFrequencyLimitInput(e.source);
         }}
-        on:startResize={(e) => startSidePanelResize(e.detail.event, 'stats-panel')}
+        onStartResize={(e) => tableLayoutController.startSidePanelResize(e.event, 'stats-panel')}
     />
 </div>
 

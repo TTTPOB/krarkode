@@ -22,37 +22,45 @@ export type StatsChartsController = {
     dispose: () => void;
 };
 
-export function useStatsCharts(options: StatsChartOptions): StatsChartsController {
-    const log = options.log ?? (() => undefined);
-    let histogramChart: echarts.ECharts | null = null;
-    let frequencyChart: echarts.ECharts | null = null;
+export class StatsCharts implements StatsChartsController {
+    private readonly getHistogramContainer: () => HTMLDivElement | undefined;
+    private readonly getFrequencyContainer: () => HTMLDivElement | undefined;
+    private readonly log: (message: string, payload?: unknown) => void;
+    private histogramChart: echarts.ECharts | null = null;
+    private frequencyChart: echarts.ECharts | null = null;
 
-    const ensureHistogramChart = (): echarts.ECharts | null => {
-        const container = options.getHistogramContainer();
+    constructor(options: StatsChartOptions) {
+        this.getHistogramContainer = options.getHistogramContainer;
+        this.getFrequencyContainer = options.getFrequencyContainer;
+        this.log = options.log ?? (() => undefined);
+    }
+
+    private ensureHistogramChart(): echarts.ECharts | null {
+        const container = this.getHistogramContainer();
         if (!container) {
             return null;
         }
-        if (!histogramChart) {
-            histogramChart = echarts.init(container);
-            log('Histogram chart created');
+        if (!this.histogramChart) {
+            this.histogramChart = echarts.init(container);
+            this.log('Histogram chart created');
         }
-        return histogramChart;
-    };
+        return this.histogramChart;
+    }
 
-    const ensureFrequencyChart = (): echarts.ECharts | null => {
-        const container = options.getFrequencyContainer();
+    private ensureFrequencyChart(): echarts.ECharts | null {
+        const container = this.getFrequencyContainer();
         if (!container) {
             return null;
         }
-        if (!frequencyChart) {
-            frequencyChart = echarts.init(container);
-            log('Frequency chart created');
+        if (!this.frequencyChart) {
+            this.frequencyChart = echarts.init(container);
+            this.log('Frequency chart created');
         }
-        return frequencyChart;
-    };
+        return this.frequencyChart;
+    }
 
-    const renderHistogram = (histogram: ColumnHistogram | undefined, columnLabel: string): boolean => {
-        const chart = ensureHistogramChart();
+    renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): boolean {
+        const chart = this.ensureHistogramChart();
         if (!chart) {
             return false;
         }
@@ -61,46 +69,37 @@ export function useStatsCharts(options: StatsChartOptions): StatsChartsControlle
             chart.clear();
         }
         return rendered;
-    };
+    }
 
-    const renderFrequency = (frequency: ColumnFrequencyTable | undefined): boolean => {
-        const chart = ensureFrequencyChart();
+    renderFrequency(frequency: ColumnFrequencyTable | undefined): boolean {
+        const chart = this.ensureFrequencyChart();
         if (!chart) {
             return false;
         }
-        const rendered = renderFrequencyTableChart(chart, frequency, options.getFrequencyContainer() ?? null);
+        const rendered = renderFrequencyTableChart(chart, frequency, this.getFrequencyContainer() ?? null);
         if (!rendered) {
             chart.clear();
         }
         return rendered;
-    };
+    }
 
-    const clearHistogram = (): void => {
-        histogramChart?.clear();
-    };
+    clearHistogram(): void {
+        this.histogramChart?.clear();
+    }
 
-    const clearFrequency = (): void => {
-        frequencyChart?.clear();
-    };
+    clearFrequency(): void {
+        this.frequencyChart?.clear();
+    }
 
-    const resize = (): void => {
-        histogramChart?.resize();
-        frequencyChart?.resize();
-    };
+    resize(): void {
+        this.histogramChart?.resize();
+        this.frequencyChart?.resize();
+    }
 
-    const dispose = (): void => {
-        histogramChart?.dispose();
-        frequencyChart?.dispose();
-        histogramChart = null;
-        frequencyChart = null;
-    };
-
-    return {
-        renderHistogram,
-        renderFrequency,
-        clearHistogram,
-        clearFrequency,
-        resize,
-        dispose,
-    };
+    dispose(): void {
+        this.histogramChart?.dispose();
+        this.frequencyChart?.dispose();
+        this.histogramChart = null;
+        this.frequencyChart = null;
+    }
 }

@@ -16,7 +16,7 @@ describe('Toolbar', () => {
 
     test('dispatches openColumns when Columns button is clicked', async () => {
         const handler = vi.fn();
-        render(Toolbar, { props: {}, events: { openColumns: handler } });
+        render(Toolbar, { props: { onOpenColumns: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: 'Toggle column visibility' }));
 
@@ -25,7 +25,7 @@ describe('Toolbar', () => {
 
     test('dispatches openStats when Stats button is clicked', async () => {
         const handler = vi.fn();
-        render(Toolbar, { props: {}, events: { openStats: handler } });
+        render(Toolbar, { props: { onOpenStats: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: 'Toggle column statistics' }));
 
@@ -34,7 +34,7 @@ describe('Toolbar', () => {
 
     test('dispatches openCode when Code button is clicked', async () => {
         const handler = vi.fn();
-        render(Toolbar, { props: {}, events: { openCode: handler } });
+        render(Toolbar, { props: { onOpenCode: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: 'Open code conversion' }));
 
@@ -43,7 +43,7 @@ describe('Toolbar', () => {
 
     test('dispatches refresh when Refresh button is clicked', async () => {
         const handler = vi.fn();
-        render(Toolbar, { props: {}, events: { refresh: handler } });
+        render(Toolbar, { props: { onRefresh: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: 'Refresh data' }));
 
@@ -52,11 +52,11 @@ describe('Toolbar', () => {
 
     test('dispatches export with csv format', async () => {
         const handler = vi.fn();
-        render(Toolbar, { props: {}, events: { export: handler } });
+        render(Toolbar, { props: { onExport: handler } });
 
         await fireEvent.click(screen.getByRole('menuitem', { name: 'Export as CSV' }));
 
         expect(handler).toHaveBeenCalledTimes(1);
-        expect(handler.mock.calls[0][0].detail).toEqual({ format: 'csv' });
+        expect(handler.mock.calls[0][0]).toEqual({ format: 'csv' });
     });
 });
