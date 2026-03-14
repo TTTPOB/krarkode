@@ -1,3 +1,5 @@
+import './variables.css';
+
 // Define Variable interface matching Rust/Protocol
 interface Variable {
     access_key: string;

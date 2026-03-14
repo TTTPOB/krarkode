@@ -1,3 +1,5 @@
+import './style.css';
+
 interface VsCodeApi {
     postMessage: (msg: OutMessage) => void;
     setState: (state: string) => void;

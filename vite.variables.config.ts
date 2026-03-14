@@ -9,6 +9,12 @@ export default defineConfig({
             fileName: () => 'variables.js',
         },
         outDir: 'dist/html/variables',
+        emptyOutDir: true,
         sourcemap: false,
+        rollupOptions: {
+            output: {
+                assetFileNames: 'variables[extname]',
+            },
+        },
     },
 });

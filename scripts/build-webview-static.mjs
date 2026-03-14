@@ -36,15 +36,8 @@ async function copyDir(srcDir, destDir) {
 async function buildStatic() {
     console.log('[webview-static] Copying static assets...');
 
+    // CSS for plotViewer and variables is now bundled via Vite (imported in TS entry).
     await copyDir(join(projectRoot, 'src/html/help'), join(projectRoot, 'dist/html/help'));
-    await copyFileTo(
-        join(projectRoot, 'src/html/plotViewer/style.css'),
-        join(projectRoot, 'dist/html/plotViewer/style.css'),
-    );
-    await copyFileTo(
-        join(projectRoot, 'src/html/variables/variables.css'),
-        join(projectRoot, 'dist/html/variables/variables.css'),
-    );
 
     console.log('[webview-static] Static assets copied.');
 }

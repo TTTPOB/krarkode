@@ -9,6 +9,12 @@ export default defineConfig({
             fileName: () => 'index.js',
         },
         outDir: 'dist/html/plotViewer',
+        emptyOutDir: true,
         sourcemap: false,
+        rollupOptions: {
+            output: {
+                assetFileNames: 'style[extname]',
+            },
+        },
     },
 });
