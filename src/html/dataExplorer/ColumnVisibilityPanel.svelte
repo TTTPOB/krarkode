@@ -1,3 +1,4 @@
+<svelte:options runes={false} />
 <script lang="ts">
     import { createEventDispatcher, onDestroy } from 'svelte';
     import type { ColumnSchema } from './types';

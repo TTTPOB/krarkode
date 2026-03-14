@@ -1,3 +1,4 @@
+<svelte:options runes={false} />
 <script lang="ts">
     import { createEventDispatcher } from 'svelte';
     import type { RowFilter, ColumnSchema, RowFilterType } from './types';

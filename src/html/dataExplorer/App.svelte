@@ -1,3 +1,4 @@
+<svelte:options runes={false} />
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
     import { useVirtualizer, type VirtualRow } from './hooks/useVirtualizer';

@@ -540,9 +540,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^8.57.0",
-    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/svelte": "^4.2.3",
+    "@testing-library/svelte": "^5.0.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.75.0",
@@ -551,18 +551,18 @@
     "@vscode/test-electron": "^2.4.0",
     "@vscode/vsce": "^3.2.0",
     "esbuild": "^0.25.9",
-    "esbuild-svelte": "^0.9.3",
+    "esbuild-svelte": "^0.9.4",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-svelte": "^2.41.0",
+    "eslint-plugin-svelte": "^3.0.0",
     "globals": "^15.14.0",
     "jsdom": "^28.1.0",
     "mocha": "^10.4.0",
     "prettier": "^3.3.3",
     "quicktype-core": "^23.2.6",
     "rimraf": "^5.0.5",
-    "svelte-eslint-parser": "^0.41.0",
-    "svelte-preprocess": "^5.0.4",
+    "svelte-eslint-parser": "^1.0.0",
+    "svelte-preprocess": "^6.0.0",
     "typescript": "^5.4.0",
     "vite": "^8.0.0",
     "vitest": "^4.1.0"
@@ -572,7 +572,7 @@
     "@tanstack/virtual-core": "^3.13.18",
     "@vscode/codicons": "^0.0.36",
     "echarts": "^5.6.0",
-    "svelte": "^4.2.18",
+    "svelte": "^5.0.0",
     "vscode-languageclient": "^9.0.1"
   }
 }

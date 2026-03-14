@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/svelte';
 import RowFilterBar from '../../RowFilterBar.svelte';
 import type { RowFilter } from '../../types';
@@ -61,38 +61,35 @@ describe('RowFilterBar', () => {
     });
 
     test('dispatches addFilter when + Filter button is clicked', async () => {
-        const { component } = render(RowFilterBar, { props: { rowFilters: [] } });
-        const events: CustomEvent[] = [];
-        component.$on('addFilter', (e: CustomEvent) => events.push(e));
+        const handler = vi.fn();
+        render(RowFilterBar, { props: { rowFilters: [] }, events: { addFilter: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: 'Add row filter' }));
 
-        expect(events).toHaveLength(1);
+        expect(handler).toHaveBeenCalledTimes(1);
     });
 
     test('dispatches editFilter with filter and index when chip is clicked', async () => {
         const filter = makeFilter();
-        const { component } = render(RowFilterBar, { props: { rowFilters: [filter] } });
-        const events: CustomEvent[] = [];
-        component.$on('editFilter', (e: CustomEvent) => events.push(e));
+        const handler = vi.fn();
+        render(RowFilterBar, { props: { rowFilters: [filter] }, events: { editFilter: handler } });
 
         await fireEvent.click(screen.getByRole('button', { name: /Edit filter/ }));
 
-        expect(events).toHaveLength(1);
-        expect(events[0].detail.index).toBe(0);
-        expect(events[0].detail.filter.filter_id).toBe('f1');
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler.mock.calls[0][0].detail.index).toBe(0);
+        expect(handler.mock.calls[0][0].detail.filter.filter_id).toBe('f1');
     });
 
     test('dispatches removeFilter with correct index when x button is clicked', async () => {
         const filters = [makeFilter({ filter_id: 'a' }), makeFilter({ filter_id: 'b' })];
-        const { component } = render(RowFilterBar, { props: { rowFilters: filters } });
-        const events: CustomEvent[] = [];
-        component.$on('removeFilter', (e: CustomEvent) => events.push(e));
+        const handler = vi.fn();
+        render(RowFilterBar, { props: { rowFilters: filters }, events: { removeFilter: handler } });
 
         const removeButtons = screen.getAllByRole('button', { name: 'Remove filter' });
         await fireEvent.click(removeButtons[1]);
 
-        expect(events).toHaveLength(1);
-        expect(events[0].detail.index).toBe(1);
+        expect(handler).toHaveBeenCalledTimes(1);
+        expect(handler.mock.calls[0][0].detail.index).toBe(1);
     });
 });
