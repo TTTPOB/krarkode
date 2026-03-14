@@ -3,6 +3,7 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
     "noEmit": true
   },
   "include": ["src/html"],

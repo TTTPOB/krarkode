@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getExtensionContext } from '../context';
@@ -284,7 +285,7 @@ export class PlotManager implements vscode.Disposable {
         const plot = this.plots[this.currentIndex];
         const ext = plot.mimeType === 'image/svg+xml' ? 'svg' : 'png';
 
-        const tempDir = path.join(require('os').tmpdir(), 'krarkode-plots');
+        const tempDir = path.join(os.tmpdir(), 'krarkode-plots');
         await fs.promises.mkdir(tempDir, { recursive: true });
         const tempFile = path.join(tempDir, `plot-${Date.now()}.${ext}`);
 

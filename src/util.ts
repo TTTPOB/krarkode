@@ -77,7 +77,7 @@ async function getRpathFromSystem(): Promise<string> {
 
     if (!rpath && platform === 'win32') {
         try {
-            const regKey = require('winreg');
+            const regKey = (await import('winreg')).default;
             const key = new regKey({
                 hive: regKey.HKLM,
                 key: '\\Software\\R-Core\\R',
