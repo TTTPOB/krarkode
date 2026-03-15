@@ -16,11 +16,10 @@ Initial release of krarkode, providing Positron-like R development experience in
 - **Variables Panel**: Webview-based variable inspector connected to the active Ark session.
 - **Data Explorer**: Interactive data frame/table exploration with sorting, filtering, column profiling, and pagination.
 - **HTML Output**: Display R HTML output (htmlwidgets, etc.) in dedicated panels.
-- **Test Explorer**: testthat integration with VS Code Test Explorer (opt-in via `krarkode.testing.enabled`).
 - **Doctor Command**: `Krarkode: Doctor (Check Environment)` validates R, Ark, tmux, and sidecar prerequisites with actionable error messages.
 - **Logging**: Multi-channel logging system (ark, kernel, LSP, sidecar) with configurable levels.
 
 ### Configuration
 
-- 26 settings covering R environment, Ark kernel, console driver (tmux/external), LSP, plot viewer, HTML viewer, logging, and testing.
+- 25 settings covering R environment, Ark kernel, console driver (tmux/external), LSP, plot viewer, HTML viewer, and logging.
 - Key settings: `krarkode.bracketedPaste`, `krarkode.ark.path`, `krarkode.r.rBinaryPath`, `krarkode.ark.console.driver`.
