@@ -19,7 +19,6 @@ const ASSET_SUFFIX_MAP = {
     'linux-arm64': 'linux-arm64',
     'darwin-x64': 'darwin-universal',
     'darwin-arm64': 'darwin-universal',
-    'win32-x64': 'windows-x64',
 };
 
 function detectTarget() {
@@ -30,8 +29,6 @@ function detectTarget() {
     if (platform === 'linux' && arch === 'arm64') return 'linux-arm64';
     if (platform === 'darwin' && arch === 'x64') return 'darwin-x64';
     if (platform === 'darwin' && arch === 'arm64') return 'darwin-arm64';
-    if (platform === 'win32' && arch === 'x64') return 'win32-x64';
-
     throw new Error(`Unsupported platform: ${platform}-${arch}`);
 }
 
@@ -63,19 +60,8 @@ function main() {
 
         // Extract
         const zipPath = path.join(tmpDir, assetName);
-        if (os.platform() === 'win32') {
-            execSync(
-                `powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`,
-                { stdio: 'inherit' },
-            );
-        } else {
-            execSync(`unzip -o "${zipPath}" -d "${destDir}"`, { stdio: 'inherit' });
-        }
-
-        // Ensure executable on Unix
-        if (os.platform() !== 'win32') {
-            execSync(`chmod +x "${path.join(destDir, 'ark')}"`, { stdio: 'inherit' });
-        }
+        execSync(`unzip -o "${zipPath}" -d "${destDir}"`, { stdio: 'inherit' });
+        execSync(`chmod +x "${path.join(destDir, 'ark')}"`, { stdio: 'inherit' });
 
         console.log(`[download-ark] Staged at ${destDir}/`);
     } finally {

@@ -18,7 +18,6 @@ const RUST_TARGET_MAP = {
     'linux-arm64': 'aarch64-unknown-linux-gnu',
     'darwin-x64': 'x86_64-apple-darwin',
     'darwin-arm64': 'aarch64-apple-darwin',
-    'win32-x64': 'x86_64-pc-windows-msvc',
 };
 
 function detectTarget() {
@@ -29,8 +28,6 @@ function detectTarget() {
     if (platform === 'linux' && arch === 'arm64') return 'linux-arm64';
     if (platform === 'darwin' && arch === 'x64') return 'darwin-x64';
     if (platform === 'darwin' && arch === 'arm64') return 'darwin-arm64';
-    if (platform === 'win32' && arch === 'x64') return 'win32-x64';
-
     throw new Error(`Unsupported platform: ${platform}-${arch}`);
 }
 
@@ -45,9 +42,13 @@ function main() {
         throw new Error(`Unknown target: ${target}. Valid: ${Object.keys(RUST_TARGET_MAP).join(', ')}`);
     }
 
-    const exeName = os.platform() === 'win32' ? `${EXE_NAME}.exe` : EXE_NAME;
+    const exeName = EXE_NAME;
 
     console.log(`[stage-sidecar] target=${target}  rust_target=${rustTarget}  profile=${profile}`);
+
+    // Ensure the Rust target is installed (needed for cross-compilation)
+    console.log(`[stage-sidecar] rustup target add ${rustTarget}`);
+    execSync(`rustup target add ${rustTarget}`, { stdio: 'inherit' });
 
     // Build
     const cargoArgs = ['build', '--manifest-path', 'ark-sidecar/Cargo.toml', '--target', rustTarget];
