@@ -1,46 +1,171 @@
 # Krarkode
 
-Krarkode 是面向 Ark 内核的 VS Code 扩展，目标是在 VS Code 内提供接近 Positron 的 Ark 使用体验。
+A focused VS Code extension that brings Positron-quality Ark kernel integration to vanilla VS Code.
 
-## 设计初衷
+> **v0.1.0 — Feature-complete for core R interactive workflow. Console mode only.**
 
-- Ark 已经具备独立的 Jupyter/comm 能力，因此需要一个专注 Ark 的 VS Code 扩展，而不是继续维护多后端兼容层。
-- 用更轻量的方式复用 Ark 侧的协议与工作流，把 Plot、Help、Data Explorer 等体验带回 VS Code。
-- 保持开发链路清晰：Ark 负责计算与协议，扩展负责 UI 与 VS Code 交互。
+[中文](README.cn.md)
 
-## 主要功能
+---
 
-- Ark 会话管理：创建/附加/切换/停止 Ark 会话，状态栏实时显示内核运行状态。
-- R 代码执行：运行选区、行、文件；支持常用快捷命令（nrow/length/head 等）。
-- Ark LSP：基于 Ark 的 LSP 通道提供 R 语言服务。
-- Plot/HTML 预览：接收 display_data、ShowHtmlFile 并在 Plot 或 Viewer 中展示，支持保存与浏览器打开。
-- Help 面板：在 VS Code 内浏览 Ark 帮助文档。
-- 变量与 Data Explorer：变量列表与数据探查 Webview。
+## What Is This?
 
-## 使用前提
+Previously, using R in VS Code required the [vscode-R extension](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r). It is a great extension, but it has some limitations I don't quite like: plot viewer backend format support, language server performance and correctness, data explorer experience, and more. Additionally, vscode-R's LSP server and plot viewer require separate packages to work.
 
-- 需要可执行的 `ark` 与本地 R 环境。
-- Console 模式默认使用 `tmux`，如需外部终端可通过设置切换。
+[Ark](https://github.com/posit-dev/ark) is a full-featured R kernel built by Posit. It ships with an LSP server, Jupyter comm protocol support, and a built-in plot device. However, using Ark natively in VS Code is currently not possible — it only works in [Positron](https://github.com/posit-dev/positron), the Electron-based IDE built by Posit.
 
-## 重要设置
+That is why I built Krarkode: to bring Ark's powerful R kernel experience into VS Code. This project has a strong personal bias; some design decisions serve my preferred workflow rather than being designed for generic use cases. I am (partly) a bioinformatician, mainly using R for data analysis and visualization rather than package development. I don't use R Markdown at all, so package development and R Markdown-related features are out of scope for now. My focus is on the interactive workflow: code execution, plot viewing, data exploration, and language intelligence.
 
-| 设置项                                    | 说明                                          |
-| ----------------------------------------- | --------------------------------------------- |
-| `krarkode.r.rBinaryPath`                  | 指定 R 可执行文件路径（无法自动发现时必需）。 |
-| `krarkode.ark.path`                       | Ark 可执行文件路径（默认 `ark`）。            |
-| `krarkode.ark.sessionMode`                | Ark 会话模式（当前仅支持 `console`）。        |
-| `krarkode.ark.console.driver`             | Ark console 驱动（`tmux` 或 `external`）。    |
-| `krarkode.ark.console.commandTemplate`    | Console 启动命令模板。                        |
-| `krarkode.ark.kernel.commandTemplate`     | Ark kernel 启动命令模板。                     |
-| `krarkode.ark.kernel.startupFileTemplate` | Ark kernel 启动脚本路径模板。                 |
-| `krarkode.ark.sidecarTimeoutMs`           | Ark sidecar 超时时间（毫秒）。                |
-| `krarkode.ark.lsp.enabled`                | 是否启用 Ark LSP。                            |
-| `krarkode.ark.lspTimeoutMs`               | LSP sidecar 启动超时（毫秒）。                |
-| `krarkode.plot.viewColumn`                | Plot 面板位置或禁用绘图。                     |
-| `krarkode.plot.maxHistory`                | Plot 历史缓存数量。                           |
-| `krarkode.html.viewColumn`                | HTML Viewer 面板位置。                        |
+Because my time is limited, I chose to glue multiple existing tools together instead of building everything elegantly from scratch. For example, I used the official `jupyter console` for code execution (after all, Ark is a Jupyter kernel), and `tmux` for session management. The implementation is not the most elegant, but it works. At some point in the future I might implement a proper R terminal that connects directly to Ark, but for now the `tmux`-based session management and `jupyter console` are good enough for me. This is my first somewhat "big" project — it has many rough edges, test coverage is very limited (I am a poor test writer), and most of the code was generated with the help of `Claude Code` and `Codex`. But I think I've put enough human intelligence into the design, and I won't be ashamed of the AI involvement.
 
-## 授权说明
+The name, though seemingly hard to pronounce, means I `cracked` `ark` out of Positron and put it into VS `Code`.
 
-- 本仓库代码采用 MIT License。
-- Ark 本体为 MIT License；Krarkode 仅使用其协议与二进制，不包含 Positron 源码。
+Since the Ark dev team recently announced [oak](https://github.com/posit-dev/ark/issues/1117), which extracts the LSP server from Ark, this project may evolve once oak matures.
+
+**Ark owns computation and protocol. Krarkode owns UI and VS Code glue.**
+
+See [docs/design.md](docs/design.md) for design rationale and [docs/architecture.md](docs/architecture.md) for the full system diagram.
+
+---
+
+## Features (v0.1.0)
+
+### Session Management
+- Create, attach, switch, stop, and interrupt Ark sessions
+- Status bar shows real-time kernel state: `idle` / `busy` / `starting` / `reconnecting`
+- Sessions persist across editor restarts (registry + connection file)
+
+### Code Execution
+- Run selection or current line (`Ctrl+Enter` / `Cmd+Enter`)
+- Source file with optional echo (`Ctrl+Shift+S`)
+- Run from line to end / beginning to line
+- Smart multi-line detection via Ark LSP's `statementRange` query
+- Quick-inspect: `nrow()`, `length()`, `head()`, `names()`, `View()`
+
+### Language Server
+- Full R language intelligence: completions, diagnostics, hover, go-to-definition
+- Auto-starts a background Ark instance for LSP when no interactive session is active
+
+### Plot Viewer
+- Captures `display_data` from base R graphics, ggplot2, etc.
+- History navigation, zoom controls, fit-to-window
+- Save to file, open in browser
+- Dynamic re-rendering on panel resize (via `positron.ui` comm)
+
+### Help Browser
+- R help viewer inside VS Code with back/forward/home navigation
+- `F1` at cursor looks up the function under point
+- `Ctrl+Shift+H` to open
+
+### Variables Panel
+- Real-time workspace inspector connected via `positron.variables` comm
+- Expandable tree for lists and environments
+
+### Data Explorer
+- Interactive data frame viewer launched via `View()` or the variables panel
+- Column sorting, row filtering, column statistics
+- Virtual scrolling (TanStack Virtual) for large data frames
+- Column visibility toggle
+
+### HTML Viewer
+- Displays `show_html_file` output: htmlwidgets, R Markdown, etc.
+
+### Doctor
+- `Krarkode: Doctor` command checks R binary, Ark binary, sidecar, and connection health
+
+---
+
+## Implementation Status
+
+| Feature | Status |
+|---------|--------|
+| Session management (create / attach / switch / stop) | ✅ |
+| Code execution (selection, line, file, ranges) | ✅ |
+| Smart multi-line expression detection | ✅ |
+| Ark LSP with auto background kernel | ✅ |
+| Plot viewer (history, zoom, save, dynamic resize) | ✅ |
+| Help browser (F1 lookup, navigation) | ✅ |
+| Variables panel | ✅ |
+| Data explorer (sort, filter, stats, virtual scroll) | ✅ |
+| HTML viewer | ✅ |
+| Doctor diagnostics | ✅ |
+| Console mode — tmux driver | ✅ |
+| Console mode — external terminal driver | ✅ |
+| Notebook / background session mode | ❌ not implemented |
+| Debugger integration | ❌ not implemented |
+
+---
+
+## Requirements
+
+- **Ark** binary — build from [posit-dev/ark](https://github.com/posit-dev/ark) or extract from a [Positron](https://github.com/posit-dev/positron) release
+- **R** 4.1+ with `jsonlite` (`install.packages("jsonlite")`)
+- **tmux** on `$PATH` (default console driver; configurable to external terminal)
+
+---
+
+## Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `krarkode.r.rBinaryPath` | `R` | R executable path |
+| `krarkode.ark.path` | `ark` | Ark executable path |
+| `krarkode.ark.sessionMode` | `console` | Session mode (only `console` in v0.1.0) |
+| `krarkode.ark.console.driver` | `tmux` | Console driver: `tmux` or `external` |
+| `krarkode.ark.console.commandTemplate` | — | Console launch command template |
+| `krarkode.ark.kernel.commandTemplate` | — | Ark kernel launch command template |
+| `krarkode.ark.kernel.startupFileTemplate` | — | Startup R script path template |
+| `krarkode.ark.sidecar.path` | bundled | Sidecar binary path |
+| `krarkode.ark.sidecar.timeoutMs` | `10000` | Sidecar startup timeout (ms) |
+| `krarkode.ark.lsp.enabled` | `true` | Enable Ark LSP |
+| `krarkode.ark.lsp.timeoutMs` | `15000` | LSP startup timeout (ms) |
+| `krarkode.plot.viewColumn` | `Two` | Plot panel column (or `disable`) |
+| `krarkode.plot.maxHistory` | `50` | Maximum cached plots |
+| `krarkode.html.viewColumn` | `Two` | HTML viewer panel column |
+| `krarkode.source.echo` | `false` | Echo sourced code to console |
+| `krarkode.terminal.bracketedPaste` | `true` | Use bracketed paste for terminal sends |
+
+Template variables available in command templates: `{arkPath}`, `{connectionFile}`, `{sessionMode}`, `{startupFile}`, `{sessionsDir}`, `{name}`
+
+---
+
+## Development
+
+```bash
+pnpm install
+cargo build --release --manifest-path ark-sidecar/Cargo.toml
+
+# Build
+pnpm run build
+
+# Watch (separate terminals)
+pnpm run watch:extension
+pnpm run watch:data-explorer
+
+# Quality
+pnpm run typecheck && pnpm run lint && pnpm run test:unit
+
+# Package
+pnpm run build && pnpm run package
+```
+
+Sidecar smoke test (requires pixi + R environment):
+```bash
+pixi run -- node scripts/ark-sidecar-lsp-test.js
+```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+Ark is MIT licensed. Krarkode uses only Ark's public protocol surface and binary interface; no Positron source code is included.
+
+---
+
+## Related Projects
+
+- [posit-dev/ark](https://github.com/posit-dev/ark) — The Ark R kernel this extension is built around
+- [posit-dev/positron](https://github.com/posit-dev/positron) — Positron IDE, the primary consumer of Ark; source of inspiration for the UX this extension recreates
+- [vscode-R](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r) — The most classic VS Code R extension
