@@ -71,9 +71,9 @@
         },
         "krarkode.ark.path": {
           "type": "string",
-          "default": "ark",
+          "default": "",
           "scope": "window",
-          "markdownDescription": "Ark executable path."
+          "markdownDescription": "Override the Ark executable path. Leave empty to use the bundled binary (or fall back to `ark` in PATH)."
         },
         "krarkode.ark.logLevel": {
           "type": "string",
@@ -552,7 +552,10 @@
     "typecheck": "pnpm exec tsc --noEmit",
     "lint": "pnpm exec eslint \"src/**/*.{ts,svelte}\"",
     "format": "pnpm exec prettier --write .",
+    "download:ark": "node scripts/download-ark.mjs",
+    "stage:sidecar": "node scripts/stage-sidecar.mjs",
     "package": "pnpm exec vsce package --no-dependencies",
+    "package:full": "pnpm run download:ark && pnpm run stage:sidecar && pnpm run build && pnpm exec vsce package --no-dependencies",
     "test:unit": "vitest run",
     "test:dataexplorer:bundle-smoke": "pnpm run build:dataexplorer && node scripts/data-explorer-bundle-smoke.mjs",
     "test:unit:watch": "vitest",

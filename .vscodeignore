@@ -26,8 +26,9 @@ pnpm-lock.yaml
 pixi.lock
 pixi.toml
 
-# Rust sidecar source (binary is in dist/)
+# Rust sidecar source (staged binary is in sidecar/<target>/)
 ark-sidecar/**
+# NOTE: sidecar/ and ark/ directories are NOT excluded — they contain staged binaries for the VSIX
 
 # Git and version control
 .git/**

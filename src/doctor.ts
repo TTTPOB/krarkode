@@ -32,7 +32,7 @@ export async function runDoctor(): Promise<void> {
     }
 
     // 2. Ark executable
-    const arkPath = (config.get<string>('ark.path') || '').trim() || 'ark';
+    const arkPath = util.resolveArkPath();
     const arkResolved = await resolveExecutable(arkPath);
     if (arkResolved) {
         const version = await getVersion(arkResolved, ['--version']);

@@ -178,7 +178,7 @@ export class ArkLanguageService implements vscode.Disposable {
         const connectionFile = await this.createConnectionFile();
         this.connectionFile = connectionFile;
 
-        const arkPath = (this.config.get<string>('path') || '').trim() || 'ark';
+        const arkPath = util.resolveArkPath();
         const sessionMode = (this.config.get<string>('sessionMode') || DEFAULT_SESSION_MODE).trim();
         const env = Object.assign({}, process.env, {
             ARK_CONNECTION_FILE: connectionFile,

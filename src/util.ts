@@ -224,6 +224,60 @@ export function resolveSidecarPath(): string {
     return exeName;
 }
 
+function getArkTarget(): string | undefined {
+    const platform = process.platform;
+    const arch = process.arch;
+
+    if (platform === 'win32' && arch === 'x64') {
+        return 'win32-x64';
+    }
+    if (platform === 'linux' && arch === 'x64') {
+        return 'linux-x64';
+    }
+    if (platform === 'linux' && arch === 'arm64') {
+        return 'linux-arm64';
+    }
+    if (platform === 'darwin' && arch === 'x64') {
+        return 'darwin-x64';
+    }
+    if (platform === 'darwin' && arch === 'arm64') {
+        return 'darwin-arm64';
+    }
+
+    return undefined;
+}
+
+/**
+ * Resolve the Ark executable path.
+ * Priority: user config → bundled binary (ark/<target>/ark) → PATH fallback.
+ */
+export function resolveArkPath(): string {
+    const config = vscode.workspace.getConfiguration('krarkode.ark');
+    const configured = config.get<string>('path')?.trim();
+    if (configured) {
+        logDebug(`Using configured ark path: ${configured}`);
+        return configured;
+    }
+
+    const exeName = process.platform === 'win32' ? 'ark.exe' : 'ark';
+    const context = getExtensionContext();
+
+    const target = getArkTarget();
+    if (target) {
+        const packagedPath = context.asAbsolutePath(path.join('ark', target, exeName));
+        logDebug(`Checking packaged ark path: ${packagedPath}`);
+        if (fs.existsSync(packagedPath)) {
+            logDebug(`Using packaged ark path: ${packagedPath}`);
+            return packagedPath;
+        }
+    } else {
+        logDebug(`Unsupported ark platform: ${process.platform}-${process.arch}`);
+    }
+
+    logDebug(`Falling back to ark in PATH: ${exeName}`);
+    return exeName;
+}
+
 function getCurrentWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {

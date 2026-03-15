@@ -23,7 +23,6 @@ interface ArkAnnouncePayload {
 
 const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
 const DEFAULT_SESSION_MODE: ArkSessionMode = 'console';
-const DEFAULT_ARK_PATH = 'ark';
 const DEFAULT_TMUX_PATH = 'tmux';
 const DEFAULT_TMUX_SESSION_NAME = 'krarkode-ark';
 
@@ -339,7 +338,7 @@ export class ArkSessionManager {
     }
 
     private getArkPath(): string {
-        return (util.config().get<string>('krarkode.ark.path') || '').trim() || DEFAULT_ARK_PATH;
+        return util.resolveArkPath();
     }
 
     private getSessionMode(): ArkSessionMode {

@@ -119,6 +119,11 @@ jobs:
           fi
           mkdir -p "sidecar/${{ matrix.target }}"
           cp "ark-sidecar/target/${{ matrix.rust_target }}/release/${exe}" "sidecar/${{ matrix.target }}/${exe}"
+      - name: Download Ark binary
+        shell: bash
+        run: node scripts/download-ark.mjs --target ${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ github.token }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Package VSIX
