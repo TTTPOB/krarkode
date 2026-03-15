@@ -75,28 +75,6 @@ async function getRpathFromSystem(): Promise<string> {
 
     rpath ||= getRfromEnvPath(platform);
 
-    if (!rpath && platform === 'win32') {
-        try {
-            const regKey = (await import('winreg')).default;
-            const key = new regKey({
-                hive: regKey.HKLM,
-                key: '\\Software\\R-Core\\R',
-            });
-            const item = await new Promise((resolve, reject) =>
-                key.get('InstallPath', (err: Error | null, result: { value: string }) => {
-                    if (err === null) {
-                        resolve(result);
-                    } else {
-                        reject(err);
-                    }
-                }),
-            );
-            rpath = path.join((item as { value: string }).value, 'bin', 'R.exe');
-        } catch (e) {
-            rpath = '';
-        }
-    }
-
     return rpath;
 }
 
