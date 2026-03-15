@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
+import { getLogger } from './logging/logger';
 import * as util from './util';
 
 interface CheckResult {
@@ -82,7 +83,7 @@ export async function runDoctor(): Promise<void> {
     const bracketedPaste = config.get<boolean>('bracketedPaste') ?? true;
 
     // Format output
-    const output = vscode.window.createOutputChannel('Krarkode Doctor');
+    const output = getLogger().createChannel('doctor');
     output.clear();
     output.appendLine('=== Krarkode Doctor ===');
     output.appendLine('');
