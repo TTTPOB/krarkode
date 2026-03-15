@@ -281,26 +281,22 @@
         }
     });
 
-    // Message handler setup
-    $effect(() => {
-        const messageHandler = createMessageHandler({
-            onInit: (msg) => initController.handleInit(msg),
-            onRows: (message) => rowDataController.handleRows(message),
-            onError: (message) => {
-                tableMetaText = message;
-            },
-            onSearchSchemaResult: (matches) => schemaController.handleSearchSchemaResult(matches),
-            onExportResult: (data, format) => exportController.handleExportResult(data, format),
-            onColumnProfilesResult: (result) => statsController.handleColumnProfilesResult(result),
-            onConvertToCodeResult: (code) => exportController.handleConvertToCodeResult(code),
-            onSuggestCodeSyntaxResult: (syntax) => exportController.handleSuggestCodeSyntaxResult(syntax),
-        });
-
-        messageHandler.attach();
-        return () => messageHandler.detach();
+    const messageHandler = createMessageHandler({
+        onInit: (msg) => initController.handleInit(msg),
+        onRows: (message) => rowDataController.handleRows(message),
+        onError: (message) => {
+            tableMetaText = message;
+        },
+        onSearchSchemaResult: (matches) => schemaController.handleSearchSchemaResult(matches),
+        onExportResult: (data, format) => exportController.handleExportResult(data, format),
+        onColumnProfilesResult: (columnIndex, profiles, errorMessage) =>
+            statsController.handleColumnProfilesResult(columnIndex, profiles, errorMessage),
+        onConvertToCodeResult: (code) => exportController.handleConvertToCodeResult(code),
+        onSuggestCodeSyntaxResult: (syntax) => exportController.handleSuggestCodeSyntaxResult(syntax),
     });
 
     onMount(() => {
+        messageHandler.attach();
         statsController.initializeStatsDefaults();
         statsController.setStatsMessage('Select a column to view statistics.', 'empty');
         statsController.clearStatsContent();
@@ -308,6 +304,8 @@
         vscode.postMessage({ type: 'ready' });
         log('Data explorer initialized.');
         updateTableAreaTop();
+
+        return () => messageHandler.detach();
     });
 
     onDestroy(() => {

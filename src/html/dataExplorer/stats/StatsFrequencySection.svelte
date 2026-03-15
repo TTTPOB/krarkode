@@ -5,7 +5,7 @@
         statsControlsEnabled = false,
         frequencyFootnote = '',
         collapsed = false,
-        frequencyContainer = $bindable<HTMLDivElement | null>(null),
+        frequencyContainer = $bindable<HTMLDivElement | undefined>(),
         onToggle,
         onLimitInput,
     }: {
@@ -14,7 +14,7 @@
         statsControlsEnabled?: boolean;
         frequencyFootnote?: string;
         collapsed?: boolean;
-        frequencyContainer?: HTMLDivElement | null;
+        frequencyContainer?: HTMLDivElement | undefined;
         onToggle?: () => void;
         onLimitInput?: (data: { source: 'slider' | 'input'; value: number }) => void;
     } = $props();

@@ -2,9 +2,9 @@
     let {
         title = 'Data Explorer',
         meta = '',
-        columnsButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
-        statsButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
-        codeButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
+        columnsButtonEl = $bindable<HTMLButtonElement | undefined>(),
+        statsButtonEl = $bindable<HTMLButtonElement | undefined>(),
+        codeButtonEl = $bindable<HTMLButtonElement | undefined>(),
         onOpenColumns,
         onOpenStats,
         onOpenCode,

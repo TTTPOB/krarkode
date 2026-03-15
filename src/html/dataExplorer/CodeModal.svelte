@@ -3,7 +3,7 @@
         open = false,
         codePreview = $bindable(''),
         codeSyntax = $bindable('pandas'),
-        codeModalEl = $bindable<HTMLDivElement | undefined>(undefined),
+        codeModalEl = $bindable<HTMLDivElement | undefined>(),
         onClose,
         onConvert,
         onCopy,

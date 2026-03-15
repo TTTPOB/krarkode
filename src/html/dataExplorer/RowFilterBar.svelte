@@ -5,7 +5,7 @@
     let {
         rowFilters = [],
         visible = true,
-        addFilterButtonEl = $bindable<HTMLButtonElement | undefined>(undefined),
+        addFilterButtonEl = $bindable<HTMLButtonElement | undefined>(),
         onAddFilter,
         onEditFilter,
         onRemoveFilter,

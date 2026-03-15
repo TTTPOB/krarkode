@@ -18,7 +18,7 @@
         draft = $bindable<RowFilterDraft>(),
         error = '',
         rowFilterSupport = undefined,
-        panelEl = $bindable<HTMLDivElement | undefined>(undefined),
+        panelEl = $bindable<HTMLDivElement | undefined>(),
         onClose,
         onTogglePin,
         onSave,

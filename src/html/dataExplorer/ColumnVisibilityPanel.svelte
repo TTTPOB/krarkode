@@ -9,7 +9,7 @@
         hiddenColumnIndices = new Set<number>(),
         searchTerm = $bindable(''),
         status = '',
-        panelEl = $bindable<HTMLDivElement | undefined>(undefined),
+        panelEl = $bindable<HTMLDivElement | undefined>(),
         onClose,
         onTogglePin,
         onSearch,

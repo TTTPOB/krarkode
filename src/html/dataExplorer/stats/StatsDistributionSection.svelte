@@ -5,7 +5,7 @@
         histogramMethod = 'freedman_diaconis',
         statsControlsEnabled = false,
         collapsed = false,
-        histogramContainer = $bindable<HTMLDivElement | null>(null),
+        histogramContainer = $bindable<HTMLDivElement | undefined>(),
         onToggle,
         onBinsInput,
         onMethodChange,
@@ -15,7 +15,7 @@
         histogramMethod?: string;
         statsControlsEnabled?: boolean;
         collapsed?: boolean;
-        histogramContainer?: HTMLDivElement | null;
+        histogramContainer?: HTMLDivElement | undefined;
         onToggle?: () => void;
         onBinsInput?: (data: { source: 'slider' | 'input'; value: number }) => void;
         onMethodChange?: () => void;
