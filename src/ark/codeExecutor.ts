@@ -321,7 +321,24 @@ export class CodeExecutor implements vscode.Disposable {
             void vscode.window.showWarningMessage('未找到可用的终端，请先打开一个 Jupyter console。');
             return;
         }
-        terminal.sendText(text, execute);
+
+        const useBracketedPaste = util.config().get<boolean>('krarkode.bracketedPaste') ?? true;
+        if (useBracketedPaste && process.platform !== 'win32') {
+            // Wrap with ANSI bracketed paste escape sequences so the terminal
+            // treats the entire block as a single paste operation.
+            terminal.sendText(`\x1b[200~${text}\x1b[201~`, execute);
+        } else {
+            // Line-by-line fallback with configurable delay
+            const sendDelay = util.config().get<number>('krarkode.rtermSendDelay') ?? 8;
+            const lines = text.split('\n');
+            for (const [i, line] of lines.entries()) {
+                if (i > 0 && sendDelay > 0) {
+                    await new Promise((resolve) => setTimeout(resolve, sendDelay));
+                }
+                const isLast = i === lines.length - 1;
+                terminal.sendText(line, isLast ? execute : true);
+            }
+        }
 
         sessionRegistry.updateSessionAttachment(entry.name, new Date().toISOString());
         sessionRegistry.setActiveSessionName(entry.name);

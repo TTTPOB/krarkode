@@ -215,6 +215,18 @@
           "scope": "window",
           "markdownDescription": "Echo code when sourcing files."
         },
+        "krarkode.bracketedPaste": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "markdownDescription": "Use bracketed paste mode when sending code to the terminal. Wraps multi-line code with ANSI escape sequences so the terminal treats it as a single paste. Disable if your terminal does not support it."
+        },
+        "krarkode.rtermSendDelay": {
+          "type": "integer",
+          "default": 8,
+          "scope": "window",
+          "markdownDescription": "Delay in milliseconds between sending each line to the terminal. Only used when `#krarkode.bracketedPaste#` is disabled."
+        },
         "krarkode.testing.enabled": {
           "type": "boolean",
           "default": false,
