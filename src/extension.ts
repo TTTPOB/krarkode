@@ -112,7 +112,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
     });
 
-    codeExecutor = new CodeExecutor();
+    codeExecutor = new CodeExecutor(() => languageService?.getClient());
     codeExecutor.registerCommands(context);
 
     if (util.config().get<boolean>('krarkode.ark.lsp.enabled') ?? true) {

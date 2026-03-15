@@ -87,6 +87,14 @@ export class ArkLanguageService implements vscode.Disposable {
         void this.startLanguageService();
     }
 
+    /**
+     * Get the underlying LanguageClient instance for sending custom requests.
+     * Returns undefined if the client is not started.
+     */
+    public getClient(): LanguageClient | undefined {
+        return this.client;
+    }
+
     public async restartWithSessionPaths(_rPath?: string, _libPaths?: string[]): Promise<void> {
         await this.restart();
     }

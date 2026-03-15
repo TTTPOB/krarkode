@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
+import type { LanguageClient } from 'vscode-languageclient/node';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import type { ArkSessionEntry } from './sessionRegistry';
 import { getLogger, LogCategory } from '../logging/logger';
+import { getStatementRange } from './statementRange';
 
 /**
  * Get selected text or word under cursor.
@@ -34,9 +36,12 @@ export interface SelectionInfo {
 /**
  * Get the current selection info for execution.
  * If there's an active selection, return that text.
- * Otherwise, return the current line and move cursor to next line.
+ * Otherwise, query the LSP for the complete statement range at the cursor.
+ * Falls back to the current line if the LSP is unavailable.
  */
-export function getSelection(): SelectionInfo | undefined {
+export async function getSelection(
+    lspClient?: LanguageClient,
+): Promise<SelectionInfo | undefined> {
     const textEditor = vscode.window.activeTextEditor;
     if (!textEditor) {
         return undefined;
@@ -48,7 +53,27 @@ export function getSelection(): SelectionInfo | undefined {
             linesDownToMoveCursor: 0,
         };
     }
-    // Get the current line
+
+    // Try LSP statementRange for smart multi-line expression detection
+    if (lspClient) {
+        const result = await getStatementRange(lspClient, textEditor.document, selection.active);
+        if (result) {
+            const text = result.code ?? textEditor.document.getText(result.range);
+            const linesDown = result.range.end.line + 1 - selection.active.line;
+            getLogger().log(
+                'ark',
+                LogCategory.Exec,
+                'debug',
+                `statementRange: lines ${result.range.start.line + 1}-${result.range.end.line + 1}, cursor advance ${linesDown}`,
+            );
+            return {
+                selectedText: text,
+                linesDownToMoveCursor: linesDown,
+            };
+        }
+    }
+
+    // Fallback: current line only
     const line = textEditor.document.lineAt(selection.active.line);
     return {
         selectedText: line.text,
@@ -96,8 +121,11 @@ export async function saveDocument(doc: vscode.TextDocument): Promise<boolean> {
  */
 export class CodeExecutor implements vscode.Disposable {
     private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Exec);
+    private readonly getClient: () => LanguageClient | undefined;
 
-    constructor() {}
+    constructor(getClient?: () => LanguageClient | undefined) {
+        this.getClient = getClient ?? (() => undefined);
+    }
 
     dispose(): void {
         this.outputChannel.dispose();
@@ -256,7 +284,7 @@ export class CodeExecutor implements vscode.Disposable {
      * Run selection with cursor movement handling.
      */
     private async runSelectionInArk(moveCursor: boolean): Promise<void> {
-        const selectionInfo = getSelection();
+        const selectionInfo = await getSelection(this.getClient());
         if (!selectionInfo) {
             return;
         }
