@@ -46,7 +46,7 @@
         {
           "id": "krarkode-activity-bar",
           "title": "Ark",
-          "icon": "$(symbol-r)"
+          "icon": "resources/variables-icon.svg"
         }
       ]
     },
