@@ -56,7 +56,7 @@
           "id": "krarkodeVariables",
           "name": "Variables",
           "type": "webview",
-          "icon": "$(symbol-r)"
+          "icon": "resources/variables-icon.svg"
         }
       ]
     },
