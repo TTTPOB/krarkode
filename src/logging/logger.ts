@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-export type LogChannelId = 'ark' | 'ark-kernel' | 'lsp' | 'sidecar';
+export type LogChannelId = 'runtime' | 'ui' | 'ark-kernel' | 'lsp' | 'sidecar' | 'doctor';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
@@ -36,10 +36,12 @@ type WriteOptions = {
 };
 
 const CHANNELS: Record<LogChannelId, { name: string; configKey: string }> = {
-    ark: { name: 'Krarkode', configKey: 'channels.ark' },
-    'ark-kernel': { name: 'Krarkode Ark Kernel', configKey: 'channels.arkKernel' },
+    runtime: { name: 'Krarkode Runtime', configKey: 'channels.runtime' },
+    ui: { name: 'Krarkode UI', configKey: 'channels.ui' },
+    'ark-kernel': { name: 'Krarkode Kernel', configKey: 'channels.arkKernel' },
     lsp: { name: 'Krarkode LSP', configKey: 'channels.lsp' },
     sidecar: { name: 'Krarkode Sidecar', configKey: 'channels.sidecar' },
+    doctor: { name: 'Krarkode Doctor', configKey: 'channels.doctor' },
 };
 
 const DEFAULT_CHANNEL_SETTING: LogChannelSetting = 'error';
@@ -178,7 +180,7 @@ function isDebugOverrideEnabled(): boolean {
     return value === '1' || value === 'true';
 }
 
-export function isDebugLoggingEnabled(channelId: LogChannelId = 'ark'): boolean {
+export function isDebugLoggingEnabled(channelId: LogChannelId = 'runtime'): boolean {
     const setting = getChannelSetting(channelId);
     if (setting === 'none') {
         return false;
@@ -349,7 +351,7 @@ export class LoggerService implements vscode.Disposable {
         }
         const channel = vscode.window.createOutputChannel(CHANNELS[channelId].name, { log: true });
         this.channels.set(channelId, channel);
-        this.debug('ark', LogCategory.Logging, `Created output channel ${CHANNELS[channelId].name}.`);
+        this.debug('runtime', LogCategory.Logging, `Created output channel ${CHANNELS[channelId].name}.`);
         return channel;
     }
 
@@ -389,7 +391,7 @@ export class LoggerService implements vscode.Disposable {
                 this.channels.delete(channelId);
             }
         }
-        this.debug('ark', LogCategory.Logging, 'Logging channel settings refreshed.');
+        this.debug('runtime', LogCategory.Logging, 'Logging channel settings refreshed.');
     }
 }
 
