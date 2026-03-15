@@ -171,6 +171,29 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('krarkode.help.open', () => {
             helpManager?.showHelp(true);
         }),
+        vscode.commands.registerCommand('krarkode.help.showAtCursor', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                return;
+            }
+            const selection = editor.selection;
+            let topic: string | undefined;
+            if (!selection.isEmpty) {
+                topic = editor.document.getText(selection).trim();
+            } else {
+                const wordRange = editor.document.getWordRangeAtPosition(selection.active);
+                if (wordRange) {
+                    topic = editor.document.getText(wordRange).trim();
+                }
+            }
+            if (!topic) {
+                void vscode.window.showWarningMessage('No word found at cursor position.');
+                return;
+            }
+            util.logDebug(`Looking up help for topic: ${topic}`);
+            helpManager?.showHelp(true);
+            await helpService?.showHelpTopic(topic);
+        }),
     );
 
     context.subscriptions.push(
