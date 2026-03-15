@@ -159,7 +159,7 @@ class DataExplorerPanel implements vscode.Disposable {
                 const logMessage = typeof message.message === 'string' ? message.message : 'Webview log message.';
                 const payload = message.payload;
                 const detail = payload !== undefined ? JSON.stringify(payload) : undefined;
-                logWebviewMessage('ark', LogCategory.DataExplorer, logMessage, detail);
+                logWebviewMessage('ui', LogCategory.DataExplorer, logMessage, detail);
                 return;
             }
             case 'ready':
@@ -751,7 +751,7 @@ class DataExplorerPanel implements vscode.Disposable {
             vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
         );
         const nonce = getNonce();
-        const debugEnabled = isDebugLoggingEnabled();
+        const debugEnabled = isDebugLoggingEnabled('ui');
 
         return `<!DOCTYPE html>
             <html lang="en">
@@ -801,7 +801,7 @@ class DataExplorerPanel implements vscode.Disposable {
 
 export class DataExplorerManager implements vscode.Disposable {
     private readonly panels = new Map<string, DataExplorerPanel>();
-    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.DataExplorer);
+    private readonly outputChannel = getLogger().createChannel('ui', LogCategory.DataExplorer);
 
     constructor(
         private readonly extensionUri: vscode.Uri,

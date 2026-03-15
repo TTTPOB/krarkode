@@ -97,7 +97,7 @@ export class ArkCommBackend implements IPlotBackend {
         { resolve: (result: { data: string; mime_type: string }) => void; reject: (err: unknown) => void }
     >();
 
-    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.PlotComm);
+    private readonly outputChannel = getLogger().createChannel('ui', LogCategory.PlotComm);
 
     private uiCommId: string | undefined;
 

@@ -61,7 +61,7 @@ export async function getSelection(
             const text = result.code ?? textEditor.document.getText(result.range);
             const linesDown = result.range.end.line + 1 - selection.active.line;
             getLogger().log(
-                'ark',
+                'runtime',
                 LogCategory.Exec,
                 'debug',
                 `statementRange: lines ${result.range.start.line + 1}-${result.range.end.line + 1}, cursor advance ${linesDown}`,
@@ -120,7 +120,7 @@ export async function saveDocument(doc: vscode.TextDocument): Promise<boolean> {
  * It sends code to the active terminal where the Ark/Jupyter console is running.
  */
 export class CodeExecutor implements vscode.Disposable {
-    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Exec);
+    private readonly outputChannel = getLogger().createChannel('runtime', LogCategory.Exec);
     private readonly getClient: () => LanguageClient | undefined;
 
     constructor(getClient?: () => LanguageClient | undefined) {

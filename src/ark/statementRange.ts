@@ -51,7 +51,7 @@ export async function getStatementRange(
         return { range, code };
     } catch (err) {
         getLogger().log(
-            'ark',
+            'runtime',
             LogCategory.Exec,
             'debug',
             `statementRange request failed: ${err instanceof Error ? err.message : String(err)}`,

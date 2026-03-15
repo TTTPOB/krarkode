@@ -21,7 +21,7 @@ export function config(): vscode.WorkspaceConfiguration {
 export { isDebugLoggingEnabled } from './logging/logger';
 
 export function logDebug(message: string): void {
-    getLogger().debug('ark', LogCategory.Core, message);
+    getLogger().debug('runtime', LogCategory.Core, message);
 }
 
 function substituteVariable(str: string, key: string, getValue: () => string | undefined) {

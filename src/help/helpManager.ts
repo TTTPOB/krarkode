@@ -14,7 +14,7 @@ export class HelpManager implements vscode.Disposable {
     private panel?: vscode.WebviewPanel;
     private readonly disposables: vscode.Disposable[] = [];
     private isFirstLoad = true;
-    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Help);
+    private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Help);
 
     constructor(
         private readonly extensionUri: vscode.Uri,
@@ -525,7 +525,7 @@ export class HelpManager implements vscode.Disposable {
             case 'log': {
                 const base = typeof message.message === 'string' ? message.message : 'Help webview log.';
                 const detail = typeof message.detail === 'string' ? message.detail : undefined;
-                logWebviewMessage('ark', LogCategory.Help, base, detail);
+                logWebviewMessage('ui', LogCategory.Help, base, detail);
                 break;
             }
         }

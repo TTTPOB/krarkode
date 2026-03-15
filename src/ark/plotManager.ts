@@ -43,7 +43,7 @@ export class PlotManager implements vscode.Disposable {
     private lastRenderSize: { width: number; height: number; dpr: number } | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     private readonly maxHistory: number;
-    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Plot);
+    private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Plot);
 
     constructor(renderSource?: DynamicPlotSource) {
         this.maxHistory = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;
@@ -656,7 +656,7 @@ export class PlotManager implements vscode.Disposable {
                 data: this.plotToHtml(updated),
             });
         } catch (err) {
-            getLogger().log('ark', LogCategory.Plot, 'error', `Failed to render plot ${plotId}: ${String(err)}`);
+            getLogger().log('ui', LogCategory.Plot, 'error', `Failed to render plot ${plotId}: ${String(err)}`);
         }
     }
 

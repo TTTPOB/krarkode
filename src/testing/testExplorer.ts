@@ -36,7 +36,7 @@ const logger = getLogger();
 
 export async function setupTestExplorer(context: vscode.ExtensionContext): Promise<void> {
     if (!isTestingEnabled()) {
-        logger.debug('ark', LogCategory.Core, 'Testing disabled; skipping test explorer setup.');
+        logger.debug('runtime', LogCategory.Core, 'Testing disabled; skipping test explorer setup.');
         disposeTestExplorer();
         return;
     }
@@ -47,19 +47,19 @@ export async function setupTestExplorer(context: vscode.ExtensionContext): Promi
 
     const workspaceRoot = getWorkspaceRoot();
     if (!workspaceRoot) {
-        logger.debug('ark', LogCategory.Core, 'No workspace folder; skipping test explorer setup.');
+        logger.debug('runtime', LogCategory.Core, 'No workspace folder; skipping test explorer setup.');
         return;
     }
 
     const configured = await isTestthatConfigured(workspaceRoot);
     if (!configured) {
-        logger.debug('ark', LogCategory.Core, 'Testthat config not found; skipping test explorer setup.');
+        logger.debug('runtime', LogCategory.Core, 'Testthat config not found; skipping test explorer setup.');
         return;
     }
 
     controller = vscode.tests.createTestController('krarkodeTestthat', 'Krarkode Test Explorer');
     context.subscriptions.push(controller);
-    logger.log('ark', LogCategory.Core, 'info', 'Test explorer initialized.');
+    logger.log('runtime', LogCategory.Core, 'info', 'Test explorer initialized.');
 
     controller.resolveHandler = async (item) => {
         if (!controller) {
@@ -119,7 +119,7 @@ async function discoverTestFiles(workspaceRoot: vscode.Uri): Promise<void> {
     if (!controller) {
         return;
     }
-    logger.debug('ark', LogCategory.Core, `Discovering testthat files in ${workspaceRoot.fsPath}.`);
+    logger.debug('runtime', LogCategory.Core, `Discovering testthat files in ${workspaceRoot.fsPath}.`);
     const pattern = new vscode.RelativePattern(workspaceRoot, TEST_FILE_PATTERN);
     const files = await vscode.workspace.findFiles(pattern);
     const seen = new Set<string>();
@@ -155,7 +155,7 @@ function getOrCreateFileItem(uri: vscode.Uri): vscode.TestItem | undefined {
     item.canResolveChildren = true;
     controller.items.add(item);
     testItemData.set(item, { kind: 'file', filePath: uri.fsPath });
-    logger.debug('ark', LogCategory.Core, `Created test file item for ${uri.fsPath}.`);
+    logger.debug('runtime', LogCategory.Core, `Created test file item for ${uri.fsPath}.`);
     return item;
 }
 
@@ -176,7 +176,7 @@ async function loadTestsFromFile(item: vscode.TestItem): Promise<void> {
         return;
     }
 
-    logger.debug('ark', LogCategory.Core, `Parsing tests from ${info.filePath}.`);
+    logger.debug('runtime', LogCategory.Core, `Parsing tests from ${info.filePath}.`);
     const document = await vscode.workspace.openTextDocument(item.uri);
     const content = document.getText();
     const matches = parseTestNames(content, document);
@@ -195,7 +195,7 @@ async function loadTestsFromFile(item: vscode.TestItem): Promise<void> {
     }
     item.children.replace(children);
     testsByFile.set(info.filePath, testMap);
-    logger.debug('ark', LogCategory.Core, `Parsed ${children.length} tests in ${info.filePath}.`);
+    logger.debug('runtime', LogCategory.Core, `Parsed ${children.length} tests in ${info.filePath}.`);
 }
 
 function parseTestNames(content: string, document: vscode.TextDocument): Array<{ name: string; range: vscode.Range }> {
@@ -224,7 +224,7 @@ async function runHandler(
     }
     const run = controller.createTestRun(request);
     const targets = collectRunTargets(request);
-    logger.log('ark', LogCategory.Core, 'info', `Starting test run (${targets.length} target(s)).`);
+    logger.log('runtime', LogCategory.Core, 'info', `Starting test run (${targets.length} target(s)).`);
 
     for (const target of targets) {
         if (token.isCancellationRequested) {
@@ -234,7 +234,7 @@ async function runHandler(
     }
 
     run.end();
-    logger.log('ark', LogCategory.Core, 'info', 'Test run finished.');
+    logger.log('runtime', LogCategory.Core, 'info', 'Test run finished.');
 }
 
 type RunTarget = {
@@ -330,7 +330,7 @@ async function runTestTarget(
     const selectedTest = target.selectedTests && target.selectedTests.length === 1 ? target.selectedTests[0] : null;
     const expression = buildRunnerExpression(reporterPathPosix, testPathPosix, selectedTest);
 
-    logger.debug('ark', LogCategory.Core, `Running testthat for ${target.filePath}.`);
+    logger.debug('runtime', LogCategory.Core, `Running testthat for ${target.filePath}.`);
 
     await spawnRProcess(rPath, expression, workspaceRoot.fsPath, run, target);
 }
@@ -364,7 +364,7 @@ async function spawnRProcess(
         child.stderr.on('data', (data: Buffer) => {
             const message = data.toString();
             stderr += message;
-            logger.debug('ark', LogCategory.Core, `testthat stderr: ${message.trim()}`);
+            logger.debug('runtime', LogCategory.Core, `testthat stderr: ${message.trim()}`);
         });
 
         child.on('error', (error) => {
@@ -396,12 +396,12 @@ function handleReporterLine(line: string, run: vscode.TestRun, target: RunTarget
     try {
         event = JSON.parse(trimmed) as ReporterEvent;
     } catch {
-        logger.debug('ark', LogCategory.Core, `Non-JSON test output: ${trimmed}`);
+        logger.debug('runtime', LogCategory.Core, `Non-JSON test output: ${trimmed}`);
         return;
     }
 
     if (event.type === 'start_file') {
-        logger.debug('ark', LogCategory.Core, `Test file started: ${event.filename ?? target.filePath}.`);
+        logger.debug('runtime', LogCategory.Core, `Test file started: ${event.filename ?? target.filePath}.`);
         return;
     }
 
@@ -411,7 +411,7 @@ function handleReporterLine(line: string, run: vscode.TestRun, target: RunTarget
     }
     const testItem = testsByFile.get(target.filePath)?.get(testName);
     if (!testItem) {
-        logger.debug('ark', LogCategory.Core, `Test item not found for ${testName}.`);
+        logger.debug('runtime', LogCategory.Core, `Test item not found for ${testName}.`);
         return;
     }
 
@@ -483,7 +483,7 @@ async function isTestthatConfigured(root: vscode.Uri): Promise<boolean> {
     const hasConfig = await existsInWorkspace(root, TESTTHAT_CONFIG);
     const hasDescriptor = await existsInWorkspace(root, R_PACKAGE_DESCRIPTOR);
     if (!hasDescriptor) {
-        logger.debug('ark', LogCategory.Core, 'R package descriptor missing; skipping test explorer.');
+        logger.debug('runtime', LogCategory.Core, 'R package descriptor missing; skipping test explorer.');
         return false;
     }
     return hasConfig;

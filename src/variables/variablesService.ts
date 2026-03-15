@@ -18,7 +18,7 @@ export class VariablesService {
     private connected = false;
     private lastErrorMessage: string | undefined;
     private lastErrorAt = 0;
-    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Variables);
+    private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Variables);
     private readonly pendingInspectPaths: string[][] = [];
     private readonly _onDidReceiveUpdate = new vscode.EventEmitter<VariablesEvent>();
     public readonly onDidReceiveUpdate = this._onDidReceiveUpdate.event;

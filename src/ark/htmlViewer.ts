@@ -11,14 +11,14 @@ import { getLogger, LogCategory } from '../logging/logger';
  */
 export class HtmlViewer implements vscode.Disposable {
     private readonly panels = new Map<string, vscode.WebviewPanel>();
-    private readonly outputChannel = getLogger().createChannel('ark', LogCategory.Html);
+    private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Html);
 
     public async showHtmlFile(params: ShowHtmlFileParams): Promise<void> {
         const { path: filePath, title, destination, height } = params;
 
         // Validate file exists
         if (!fs.existsSync(filePath)) {
-            getLogger().log('ark', LogCategory.Html, 'error', `HTML file not found: ${filePath}`);
+            getLogger().log('ui', LogCategory.Html, 'error', `HTML file not found: ${filePath}`);
             void vscode.window.showErrorMessage(`HTML file not found: ${filePath}`);
             return;
         }
@@ -35,7 +35,7 @@ export class HtmlViewer implements vscode.Disposable {
                 break;
             default:
                 getLogger().log(
-                    'ark',
+                    'ui',
                     LogCategory.Html,
                     'warn',
                     `Unknown destination: ${destination}, defaulting to viewer`,
@@ -105,7 +105,7 @@ export class HtmlViewer implements vscode.Disposable {
             }
         } catch (err) {
             getLogger().log(
-                'ark',
+                'ui',
                 LogCategory.Html,
                 'error',
                 `Failed to load HTML file: ${filePath}, error: ${String(err)}`,
