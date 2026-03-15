@@ -321,8 +321,9 @@ export class LoggerService implements vscode.Disposable {
         if (!this.isChannelEnabled(channelId)) {
             return;
         }
+        const prefixed = options.category ? `[${options.category}] ${cleanedMessage}` : cleanedMessage;
         const output = this.getOrCreateChannel(channelId);
-        this.writeToChannel(output, cleanedMessage, level, options.newLine);
+        this.writeToChannel(output, prefixed, level, options.newLine);
     }
 
     getChannelName(channelId: LogChannelId): string {
