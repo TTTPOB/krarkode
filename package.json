@@ -537,6 +537,7 @@
     "format": "pnpm exec prettier --write .",
     "package": "pnpm exec vsce package --no-dependencies",
     "test:unit": "vitest run",
+    "test:dataexplorer:bundle-smoke": "pnpm run build:dataexplorer && node scripts/data-explorer-bundle-smoke.mjs",
     "test:unit:watch": "vitest",
     "test:unit:coverage": "vitest run --coverage",
     "test:compile": "pnpm exec tsc -p tsconfig.test.json",
