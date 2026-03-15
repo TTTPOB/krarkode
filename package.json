@@ -380,6 +380,11 @@
         "category": "Krarkode"
       },
       {
+        "command": "krarkode.doctor",
+        "title": "Doctor (Check Environment)",
+        "category": "Krarkode"
+      },
+      {
         "command": "krarkode.runSelection",
         "title": "Run Selection/Line",
         "category": "Krarkode"

@@ -16,6 +16,7 @@ import { setupTestExplorer, refreshTestExplorer } from './testing/testExplorer';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
 import { getLogger } from './logging/logger';
+import { runDoctor } from './doctor';
 
 let sessionManager: ArkSessionManager | undefined;
 let languageService: ArkLanguageService | undefined;
@@ -133,6 +134,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
     context.subscriptions.push(codeExecutor);
     context.subscriptions.push(sessionManager);
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('krarkode.doctor', () => runDoctor()),
+    );
 
     context.subscriptions.push(
         sidecarManager.onDidChangeKernelStatus((status) => {
