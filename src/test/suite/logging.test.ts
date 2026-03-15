@@ -1,7 +1,13 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { DefaultLogLevelParser, formatLogMessage, LoggerService, RegexLogLevelParser } from '../../logging/logger';
+import {
+    DefaultLogLevelParser,
+    formatLogMessage,
+    LogCategory,
+    LoggerService,
+    RegexLogLevelParser,
+} from '../../logging/logger';
 
 type LogCalls = {
     trace: string[];
@@ -86,17 +92,47 @@ suite('Logging', () => {
 
     test('LoggerService filters output below channel level', async () => {
         const config = vscode.workspace.getConfiguration('krarkode.logging');
-        const previousSetting = config.get('channels.ark');
+        const previousSetting = config.get('channels.runtime');
         const { calls, restore } = stubOutputChannel();
         const logger = new LoggerService();
         try {
-            await config.update('channels.ark', 'warn', vscode.ConfigurationTarget.Global);
-            logger.write('ark', 'info message', { level: 'info', newLine: true });
+            await config.update('channels.runtime', 'warn', vscode.ConfigurationTarget.Global);
+            logger.write('runtime', 'info message', { level: 'info', newLine: true });
             assert.strictEqual(calls.info.length, 0);
-            logger.write('ark', 'warn message', { level: 'warn', newLine: true });
+            logger.write('runtime', 'warn message', { level: 'warn', newLine: true });
             assert.strictEqual(calls.warn.length, 1);
         } finally {
-            await config.update('channels.ark', previousSetting ?? undefined, vscode.ConfigurationTarget.Global);
+            await config.update('channels.runtime', previousSetting ?? undefined, vscode.ConfigurationTarget.Global);
+            restore();
+            logger.dispose();
+        }
+    });
+
+    test('LoggerService prepends category prefix to messages', () => {
+        const { calls, restore } = stubOutputChannel();
+        const logger = new LoggerService();
+        try {
+            logger.write('ui', 'plot opened', {
+                category: LogCategory.Plot,
+                level: 'info',
+                newLine: true,
+            });
+            assert.strictEqual(calls.info.length, 1);
+            assert.strictEqual(calls.info[0], '[plot] plot opened');
+        } finally {
+            restore();
+            logger.dispose();
+        }
+    });
+
+    test('LoggerService omits category prefix when category is absent', () => {
+        const { calls, restore } = stubOutputChannel();
+        const logger = new LoggerService();
+        try {
+            logger.write('lsp', 'lsp trace', { level: 'info', newLine: true });
+            assert.strictEqual(calls.info.length, 1);
+            assert.strictEqual(calls.info[0], 'lsp trace');
+        } finally {
             restore();
             logger.dispose();
         }

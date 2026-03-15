@@ -516,13 +516,13 @@ export class ArkLanguageService implements vscode.Disposable {
         await Promise.allSettled(promises);
     }
 
-    private getLogContext(source: 'lsp' | 'kernel' | 'sidecar'): LogContext {
+    private getLogContext(source: 'lsp' | 'kernel' | 'sidecar' | 'session'): LogContext {
         return {
             sessionName: sessionRegistry.getActiveSessionName(),
             connectionFile: this.connectionFile,
             port: source === 'lsp' ? this.lspPort : undefined,
             pid:
-                source === 'kernel'
+                source === 'kernel' || source === 'session'
                     ? this.arkProcess?.pid
                     : source === 'sidecar'
                       ? this.sidecarProcess?.pid
@@ -530,7 +530,7 @@ export class ArkLanguageService implements vscode.Disposable {
         };
     }
 
-    private formatLogMessage(message: string, source: 'lsp' | 'kernel' | 'sidecar'): string {
+    private formatLogMessage(message: string, source: 'lsp' | 'kernel' | 'sidecar' | 'session'): string {
         return formatLogMessage(message, this.getLogContext(source));
     }
 
