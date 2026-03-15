@@ -324,11 +324,13 @@ function isUpdateParams(value: unknown): value is UpdateParams {
 }
 
 function isInspectResult(value: unknown): value is InspectResult {
+    // Ark's InspectedVariable only contains `children` and `length`.
+    // The `path` is tracked locally via pendingInspectPaths, not in the response.
     return (
         isRecord(value) &&
-        Array.isArray(value.path) &&
         Array.isArray(value.children) &&
-        typeof value.length === 'number'
+        typeof value.length === 'number' &&
+        !Array.isArray(value.variables) // distinguish from RefreshParams
     );
 }
 
