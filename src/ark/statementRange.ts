@@ -41,7 +41,7 @@ export async function getStatementRange(
             position: client.code2ProtocolConverter.asPosition(position),
         };
 
-        const response = await client.sendRequest(StatementRangeRequest.type, params);
+        const response = await client.sendRequest(StatementRangeRequest, params);
         if (!response) {
             return undefined;
         }
