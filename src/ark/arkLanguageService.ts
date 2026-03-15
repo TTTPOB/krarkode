@@ -255,7 +255,7 @@ export class ArkLanguageService implements vscode.Disposable {
             String(timeoutMs),
         ];
 
-        this.outputChannel.appendLine(this.formatLogMessage(`Starting Ark sidecar: ${sidecarPath}`, 'sidecar'));
+        getLogger().log('sidecar', LogCategory.Comm, 'info', this.formatLogMessage(`Starting Ark sidecar: ${sidecarPath}`, 'sidecar'));
         const sidecar = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'], env: this.buildSidecarEnv() });
         this.sidecarProcess = sidecar;
         sidecar.stderr?.on('data', (chunk: Buffer) => {
@@ -268,15 +268,15 @@ export class ArkLanguageService implements vscode.Disposable {
                 const parsed = parseSidecarJsonLog(line);
                 if (!parsed) {
                     getLogger().debug(
-                        'lsp',
+                        'sidecar',
                         LogCategory.Logging,
                         this.formatLogMessage(`Failed to parse sidecar JSON log: ${line}`, 'sidecar'),
                     );
-                    getLogger().log('lsp', LogCategory.Stderr, 'info', this.formatLogMessage(line, 'sidecar'));
+                    getLogger().log('sidecar', LogCategory.Stderr, 'info', this.formatLogMessage(line, 'sidecar'));
                     continue;
                 }
                 getLogger().log(
-                    'lsp',
+                    'sidecar',
                     LogCategory.Stderr,
                     parsed.level,
                     this.formatLogMessage(parsed.message, 'sidecar'),
@@ -559,7 +559,7 @@ export class ArkLanguageService implements vscode.Disposable {
         if (sidecarRustLog) {
             env.RUST_LOG = sidecarRustLog;
             getLogger().debug(
-                'lsp',
+                'sidecar',
                 LogCategory.Logging,
                 this.formatLogMessage(`LSP sidecar log level set to ${sidecarRustLog}.`, 'sidecar'),
             );
@@ -576,13 +576,13 @@ export class ArkLanguageService implements vscode.Disposable {
         try {
             this.sidecarProcess.stdin.write(JSON.stringify(message) + '\n');
             getLogger().debug(
-                'lsp',
+                'sidecar',
                 LogCategory.Logging,
                 this.formatLogMessage(`Sent log reload command to LSP sidecar (level: ${logLevel}).`, 'sidecar'),
             );
         } catch (error) {
             getLogger().log(
-                'lsp',
+                'sidecar',
                 LogCategory.Logging,
                 'warn',
                 this.formatLogMessage(`Failed to reload LSP sidecar log level: ${error}`, 'sidecar'),
