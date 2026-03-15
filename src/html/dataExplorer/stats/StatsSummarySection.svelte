@@ -28,18 +28,20 @@
     </button>
     <div class="section-content" id={`stats-${sectionId}-section`}>
         <table class="stats-table">
-            {#if rows.length === 0}
-                <tr>
-                    <td class="stats-empty" colspan="2">{emptyMessage}</td>
-                </tr>
-            {:else}
-                {#each rows as row}
+            <tbody>
+                {#if rows.length === 0}
                     <tr>
-                        <td>{row.label}</td>
-                        <td>{row.value}</td>
+                        <td class="stats-empty" colspan="2">{emptyMessage}</td>
                     </tr>
-                {/each}
-            {/if}
+                {:else}
+                    {#each rows as row}
+                        <tr>
+                            <td>{row.label}</td>
+                            <td>{row.value}</td>
+                        </tr>
+                    {/each}
+                {/if}
+            </tbody>
         </table>
     </div>
 </div>

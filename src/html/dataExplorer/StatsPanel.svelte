@@ -104,18 +104,20 @@
                     </button>
                     <div class="section-content" id="stats-overview-section">
                         <table class="stats-table" id="stats-overview-table">
-                            {#if statsStore.overviewRows.length === 0}
-                                <tr>
-                                    <td class="stats-empty" colspan="2">{statsStore.overviewEmptyMessage}</td>
-                                </tr>
-                            {:else}
-                                {#each statsStore.overviewRows as row}
+                            <tbody>
+                                {#if statsStore.overviewRows.length === 0}
                                     <tr>
-                                        <td>{row.label}</td>
-                                        <td>{row.value}</td>
+                                        <td class="stats-empty" colspan="2">{statsStore.overviewEmptyMessage}</td>
                                     </tr>
-                                {/each}
-                            {/if}
+                                {:else}
+                                    {#each statsStore.overviewRows as row}
+                                        <tr>
+                                            <td>{row.label}</td>
+                                            <td>{row.value}</td>
+                                        </tr>
+                                    {/each}
+                                {/if}
+                            </tbody>
                         </table>
                     </div>
                 </div>
