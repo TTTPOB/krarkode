@@ -555,7 +555,7 @@
     "download:ark": "node scripts/download-ark.mjs",
     "stage:sidecar": "node scripts/stage-sidecar.mjs",
     "package": "pnpm exec vsce package --no-dependencies",
-    "package:full": "pnpm run download:ark && pnpm run stage:sidecar && pnpm run build && pnpm exec vsce package --no-dependencies",
+    "package:full": "node scripts/package-full.mjs",
     "test:unit": "vitest run",
     "test:dataexplorer:bundle-smoke": "pnpm run build:dataexplorer && node scripts/data-explorer-bundle-smoke.mjs",
     "test:unit:watch": "vitest",
