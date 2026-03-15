@@ -3,6 +3,9 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import sveltePreprocess from 'svelte-preprocess';
 
 export default defineConfig({
+    define: {
+        'process.env.NODE_ENV': JSON.stringify('production'),
+    },
     plugins: [
         svelte({
             preprocess: sveltePreprocess({ typescript: { tsconfigFile: './tsconfig.webview.json' } }),
