@@ -233,7 +233,7 @@
           "scope": "window",
           "markdownDescription": "Enable testthat integration with the VS Code Test Explorer."
         },
-        "krarkode.logging.channels.ark": {
+        "krarkode.logging.channels.runtime": {
           "type": "string",
           "default": "error",
           "enum": [
@@ -245,7 +245,7 @@
             "trace"
           ],
           "enumDescriptions": [
-            "Disable the Krarkode output channel.",
+            "Disable the Krarkode Runtime output channel.",
             "Show errors only.",
             "Show warnings and errors.",
             "Show info/warn/error messages.",
@@ -253,7 +253,29 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the main Krarkode output channel (session, plot, data explorer, variables, help). Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
+          "markdownDescription": "Log level for the Krarkode Runtime output channel (session lifecycle, kernel startup, code execution, testing)."
+        },
+        "krarkode.logging.channels.ui": {
+          "type": "string",
+          "default": "error",
+          "enum": [
+            "none",
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
+          "enumDescriptions": [
+            "Disable the Krarkode UI output channel.",
+            "Show errors only.",
+            "Show warnings and errors.",
+            "Show info/warn/error messages.",
+            "Show verbose logs (debug/info/warn/error).",
+            "Show trace logs (trace/debug/info/warn/error)."
+          ],
+          "scope": "window",
+          "markdownDescription": "Log level for the Krarkode UI output channel (plots, variables, data explorer, help, HTML viewer)."
         },
         "krarkode.logging.channels.arkKernel": {
           "type": "string",
@@ -267,7 +289,7 @@
             "trace"
           ],
           "enumDescriptions": [
-            "Disable the Ark Kernel output channel.",
+            "Disable the Krarkode Kernel output channel.",
             "Show errors only.",
             "Show warnings and errors.",
             "Show info/warn/error messages.",
@@ -275,7 +297,7 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Ark Kernel stdout/stderr output channel. Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
+          "markdownDescription": "Log level for the Krarkode Kernel output channel (Ark kernel stdout/stderr)."
         },
         "krarkode.logging.channels.lsp": {
           "type": "string",
@@ -297,7 +319,7 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Krarkode LSP output channel. Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
+          "markdownDescription": "Log level for the Krarkode LSP output channel (language server protocol operations)."
         },
         "krarkode.logging.channels.sidecar": {
           "type": "string",
@@ -319,7 +341,29 @@
             "Show trace logs (trace/debug/info/warn/error)."
           ],
           "scope": "window",
-          "markdownDescription": "Log level for the Krarkode Sidecar output channel. Set KRARKODE_DEBUG=1 or true to force debug/trace logs unless the channel is disabled."
+          "markdownDescription": "Log level for the Krarkode Sidecar output channel (sidecar process events and stderr)."
+        },
+        "krarkode.logging.channels.doctor": {
+          "type": "string",
+          "default": "info",
+          "enum": [
+            "none",
+            "error",
+            "warn",
+            "info",
+            "debug",
+            "trace"
+          ],
+          "enumDescriptions": [
+            "Disable the Krarkode Doctor output channel.",
+            "Show errors only.",
+            "Show warnings and errors.",
+            "Show info/warn/error messages.",
+            "Show verbose logs (debug/info/warn/error).",
+            "Show trace logs (trace/debug/info/warn/error)."
+          ],
+          "scope": "window",
+          "markdownDescription": "Log level for the Krarkode Doctor output channel (environment diagnostics)."
         }
       }
     },
