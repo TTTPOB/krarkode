@@ -50,18 +50,10 @@ export function substituteVariables(str: string): string {
     return result;
 }
 
-function getRfromEnvPath(platform: string): string {
-    let splitChar = ':';
-    let fileExtension = '';
-
-    if (platform === 'win32') {
-        splitChar = ';';
-        fileExtension = '.exe';
-    }
-
-    const osPaths: string[] = process.env.PATH ? process.env.PATH.split(splitChar) : [];
+function getRfromEnvPath(): string {
+    const osPaths: string[] = process.env.PATH ? process.env.PATH.split(':') : [];
     for (const osPath of osPaths) {
-        const osRPath: string = path.join(osPath, 'R' + fileExtension);
+        const osRPath: string = path.join(osPath, 'R');
         if (fs.existsSync(osRPath)) {
             return osRPath;
         }
@@ -71,9 +63,7 @@ function getRfromEnvPath(platform: string): string {
 
 async function getRpathFromSystem(): Promise<string> {
     let rpath = '';
-    const platform: string = process.platform;
-
-    rpath ||= getRfromEnvPath(platform);
+    rpath ||= getRfromEnvPath();
 
     return rpath;
 }
@@ -99,8 +89,6 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
     } else if (!quote) {
         rpath = rpath.replace(/^"(.*)"$/, '$1');
         rpath = rpath.replace(/^'(.*)'$/, '$1');
-    } else if (process.platform === 'win32' && /^'.* .*'$/.exec(rpath)) {
-        rpath = rpath.replace(/^'(.*)'$/, '"$1"');
     }
 
     return rpath;
@@ -142,9 +130,6 @@ function getSidecarTarget(): string | undefined {
     const platform = process.platform;
     const arch = process.arch;
 
-    if (platform === 'win32' && arch === 'x64') {
-        return 'win32-x64';
-    }
     if (platform === 'linux' && arch === 'x64') {
         return 'linux-x64';
     }
@@ -169,7 +154,7 @@ export function resolveSidecarPath(): string {
         return configured;
     }
 
-    const exeName = process.platform === 'win32' ? 'vscode-r-ark-sidecar.exe' : 'vscode-r-ark-sidecar';
+    const exeName = 'vscode-r-ark-sidecar';
     const context = getExtensionContext();
 
     const packagedTarget = getSidecarTarget();
@@ -206,9 +191,6 @@ function getArkTarget(): string | undefined {
     const platform = process.platform;
     const arch = process.arch;
 
-    if (platform === 'win32' && arch === 'x64') {
-        return 'win32-x64';
-    }
     if (platform === 'linux' && arch === 'x64') {
         return 'linux-x64';
     }
@@ -237,7 +219,7 @@ export function resolveArkPath(): string {
         return configured;
     }
 
-    const exeName = process.platform === 'win32' ? 'ark.exe' : 'ark';
+    const exeName = 'ark';
     const context = getExtensionContext();
 
     const target = getArkTarget();
@@ -287,11 +269,11 @@ export function getTempDir(): string {
  * Create temporary directory. Will avoid name clashes. Caller must delete directory after use.
  *
  * @param root Parent folder.
- * @param hidden If set to true, directory will be prefixed with a '.' (ignored on windows).
+ * @param hidden If set to true, directory will be prefixed with a '.'.
  * @returns Path to the temporary directory.
  */
 export function createTempDir(root: string, hidden?: boolean): string {
-    const hidePrefix = !hidden || process.platform === 'win32' ? '' : '.';
+    const hidePrefix = !hidden ? '' : '.';
     let tempDir: string;
     while (fs.existsSync((tempDir = path.join(root, `${hidePrefix}___temp_${randomBytes(8).toString('hex')}`)))) {
         /* Name clash */
@@ -338,13 +320,7 @@ export function spawn(
     proc.dispose = () => {
         if (running) {
             logDebug(`Process ${proc.pid || ''} terminating`);
-            if (process.platform === 'win32') {
-                if (proc.pid !== undefined) {
-                    cp.spawnSync('taskkill', ['/pid', proc.pid.toString(), '/f', '/t']);
-                }
-            } else {
-                proc.kill('SIGKILL');
-            }
+            proc.kill('SIGKILL');
         }
         if (onDisposed) {
             onDisposed();

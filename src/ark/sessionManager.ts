@@ -421,11 +421,6 @@ export class ArkSessionManager {
     }
 
     private async createSession(): Promise<void> {
-        if (process.platform === 'win32') {
-            void vscode.window.showErrorMessage('Ark console backend 暂不支持 Windows。');
-            return;
-        }
-
         const nameInput = await vscode.window.showInputBox({
             prompt: 'Ark session name',
             placeHolder: 'analysis',
@@ -585,11 +580,6 @@ export class ArkSessionManager {
     }
 
     private async interruptSession(): Promise<void> {
-        if (process.platform === 'win32') {
-            void vscode.window.showErrorMessage('Ark console backend 暂不支持 Windows。');
-            return;
-        }
-
         const registry = sessionRegistry.loadRegistry();
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found.');

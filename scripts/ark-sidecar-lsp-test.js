@@ -39,7 +39,7 @@ function resolveSidecarPath() {
     if (configured) {
         return configured;
     }
-    const exeName = process.platform === 'win32' ? 'vscode-r-ark-sidecar.exe' : 'vscode-r-ark-sidecar';
+    const exeName = 'vscode-r-ark-sidecar';
     const root = path.resolve(__dirname, '..');
     const releasePath = path.join(root, 'ark-sidecar', 'target', 'release', exeName);
     if (fs.existsSync(releasePath)) {

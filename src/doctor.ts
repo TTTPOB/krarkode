@@ -128,9 +128,7 @@ async function resolveExecutable(name: string): Promise<string | undefined> {
     if (name.includes('/') || name.includes('\\')) {
         return fs.existsSync(name) ? name : undefined;
     }
-    // Use `which` / `where` to find in PATH
-    const cmd = process.platform === 'win32' ? 'where' : 'which';
-    const result = await util.spawnAsync(cmd, [name]);
+    const result = await util.spawnAsync('which', [name]);
     if (result.status === 0 && result.stdout.trim()) {
         return result.stdout.trim().split('\n')[0];
     }

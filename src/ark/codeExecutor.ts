@@ -323,7 +323,7 @@ export class CodeExecutor implements vscode.Disposable {
         }
 
         const useBracketedPaste = util.config().get<boolean>('krarkode.bracketedPaste') ?? true;
-        if (useBracketedPaste && process.platform !== 'win32') {
+        if (useBracketedPaste) {
             // Wrap with ANSI bracketed paste escape sequences so the terminal
             // treats the entire block as a single paste operation.
             terminal.sendText(`\x1b[200~${text}\x1b[201~`, execute);
