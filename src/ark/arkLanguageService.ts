@@ -61,6 +61,7 @@ export class ArkLanguageService implements vscode.Disposable {
     private readonly config: vscode.WorkspaceConfiguration;
     private readonly outputChannel: vscode.OutputChannel;
     private readonly kernelOutputChannel: vscode.OutputChannel;
+    private readonly runtimeOutputChannel: vscode.OutputChannel;
     private readonly disposables: vscode.Disposable[] = [];
     private arkProcess: util.DisposableProcess | undefined;
     private sidecarProcess: cp.ChildProcessWithoutNullStreams | undefined;
@@ -72,6 +73,7 @@ export class ArkLanguageService implements vscode.Disposable {
     constructor() {
         this.outputChannel = getLogger().createChannel('lsp');
         this.kernelOutputChannel = getLogger().createChannel('ark-kernel');
+        this.runtimeOutputChannel = getLogger().createChannel('runtime', LogCategory.Session);
         this.client = undefined;
         this.config = vscode.workspace.getConfiguration('krarkode.ark');
         this.disposables.push(
@@ -153,22 +155,22 @@ export class ArkLanguageService implements vscode.Disposable {
             const alive = await this.checkConnectionFile(activeSession.connectionFilePath);
             if (alive) {
                 this.connectionFile = activeSession.connectionFilePath;
-                this.outputChannel.appendLine(
+                this.runtimeOutputChannel.appendLine(
                     this.formatLogMessage(
                         `Using Ark session connection file ${activeSession.connectionFilePath}`,
-                        'lsp',
+                        'session',
                     ),
                 );
                 return;
             }
 
             getLogger().log(
-                'lsp',
+                'runtime',
                 LogCategory.Session,
                 'warn',
                 this.formatLogMessage(
                     `Ark session connection file is stale: ${activeSession.connectionFilePath}`,
-                    'lsp',
+                    'session',
                 ),
             );
             sessionRegistry.setActiveSessionName(undefined);
@@ -187,16 +189,16 @@ export class ArkLanguageService implements vscode.Disposable {
         const rustLog = formatArkRustLog(arkLogLevel);
         if (rustLog) {
             env.RUST_LOG = rustLog;
-            this.outputChannel.appendLine(this.formatLogMessage(`Ark backend log level set to ${arkLogLevel}.`, 'lsp'));
+            this.runtimeOutputChannel.appendLine(this.formatLogMessage(`Ark backend log level set to ${arkLogLevel}.`, 'session'));
         }
         const rHome = await this.resolveRHome();
         if (rHome) {
             env.R_HOME = rHome;
-            this.outputChannel.appendLine(this.formatLogMessage(`Resolved R_HOME for Ark: ${rHome}`, 'lsp'));
+            this.runtimeOutputChannel.appendLine(this.formatLogMessage(`Resolved R_HOME for Ark: ${rHome}`, 'session'));
         }
 
-        this.outputChannel.appendLine(
-            this.formatLogMessage(`Starting Ark kernel with connection file ${connectionFile}`, 'lsp'),
+        this.runtimeOutputChannel.appendLine(
+            this.formatLogMessage(`Starting Ark kernel with connection file ${connectionFile}`, 'session'),
         );
         this.arkProcess = util.spawn(arkPath, ['--connection_file', connectionFile, '--session-mode', sessionMode], {
             cwd,
