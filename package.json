@@ -112,7 +112,7 @@
         },
         "krarkode.ark.console.commandTemplate": {
           "type": "string",
-          "default": "jupyter console --existing {connectionFile}",
+          "default": "jupyter-console --existing {connectionFile}",
           "scope": "window",
           "markdownDescription": "Console launch command template. Supports {connectionFile}."
         },

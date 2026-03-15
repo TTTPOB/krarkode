@@ -363,7 +363,7 @@ export class ArkSessionManager {
     private getConsoleCommandTemplate(): string {
         return (
             util.config().get<string>('krarkode.ark.console.commandTemplate') ||
-            'jupyter console --existing {connectionFile}'
+            'jupyter-console --existing {connectionFile}'
         );
     }
 
