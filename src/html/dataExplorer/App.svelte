@@ -285,7 +285,7 @@
     $effect(() => {
         const messageHandler = createMessageHandler({
             onInit: (msg) => initController.handleInit(msg),
-            onRows: (indices, columns, rowLabels) => rowDataController.handleRows(indices, columns, rowLabels),
+            onRows: (message) => rowDataController.handleRows(message),
             onError: (message) => {
                 tableMetaText = message;
             },
