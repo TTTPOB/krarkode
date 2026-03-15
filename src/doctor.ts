@@ -28,7 +28,7 @@ export async function runDoctor(): Promise<void> {
             ok: false,
             detail: rPath
                 ? `Not found at: ${rPath}`
-                : 'Not configured. Set krarkode.r.rBinaryPath or ensure R is in PATH.',
+                : 'Not configured. Set krarkode.r.binaryPath or ensure R is in PATH.',
         });
     }
 

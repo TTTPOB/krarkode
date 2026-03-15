@@ -73,7 +73,7 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
 
     const config = vscode.workspace.getConfiguration('krarkode.r');
 
-    rpath = config.get<string>('rBinaryPath');
+    rpath = config.get<string>('binaryPath');
     rpath &&= substituteVariables(rpath);
 
     rpath ||= await getRpathFromSystem();
@@ -82,7 +82,7 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
 
     if (!rpath) {
         void vscode.window.showErrorMessage(
-            `Cannot find R to use for Ark kernel. Change setting krarkode.r.rBinaryPath to R path.`,
+            `Cannot find R to use for Ark kernel. Change setting krarkode.r.binaryPath to R path.`,
         );
     } else if (quote && /^[^'"].* .*[^'"]$/.exec(rpath)) {
         rpath = `"${rpath}"`;
@@ -147,8 +147,8 @@ function getSidecarTarget(): string | undefined {
 }
 
 export function resolveSidecarPath(): string {
-    const config = vscode.workspace.getConfiguration('krarkode.ark');
-    const configured = config.get<string>('sidecarPath')?.trim();
+    const config = vscode.workspace.getConfiguration('krarkode.ark.sidecar');
+    const configured = config.get<string>('path')?.trim();
     if (configured) {
         logDebug(`Using configured sidecar path: ${configured}`);
         return configured;

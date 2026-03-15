@@ -36,12 +36,12 @@ type WriteOptions = {
 };
 
 const CHANNELS: Record<LogChannelId, { name: string; configKey: string }> = {
-    runtime: { name: 'Krarkode Runtime', configKey: 'channels.runtime' },
-    ui: { name: 'Krarkode UI', configKey: 'channels.ui' },
-    'ark-kernel': { name: 'Krarkode Kernel', configKey: 'channels.arkKernel' },
-    lsp: { name: 'Krarkode LSP', configKey: 'channels.lsp' },
-    sidecar: { name: 'Krarkode Sidecar', configKey: 'channels.sidecar' },
-    doctor: { name: 'Krarkode Doctor', configKey: 'channels.doctor' },
+    runtime: { name: 'Krarkode Runtime', configKey: 'runtime' },
+    ui: { name: 'Krarkode UI', configKey: 'ui' },
+    'ark-kernel': { name: 'Krarkode Kernel', configKey: 'arkKernel' },
+    lsp: { name: 'Krarkode LSP', configKey: 'lsp' },
+    sidecar: { name: 'Krarkode Sidecar', configKey: 'sidecar' },
+    doctor: { name: 'Krarkode Doctor', configKey: 'doctor' },
 };
 
 const DEFAULT_CHANNEL_SETTING: LogChannelSetting = 'error';
@@ -251,7 +251,7 @@ export class LoggerService implements vscode.Disposable {
     constructor() {
         this.disposables.push(
             vscode.workspace.onDidChangeConfiguration((event) => {
-                if (event.affectsConfiguration('krarkode.logging.channels')) {
+                if (event.affectsConfiguration('krarkode.logging')) {
                     this.syncChannels();
                 }
             }),

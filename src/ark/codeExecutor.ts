@@ -322,14 +322,14 @@ export class CodeExecutor implements vscode.Disposable {
             return;
         }
 
-        const useBracketedPaste = util.config().get<boolean>('krarkode.bracketedPaste') ?? true;
+        const useBracketedPaste = util.config().get<boolean>('krarkode.terminal.bracketedPaste') ?? true;
         if (useBracketedPaste) {
             // Wrap with ANSI bracketed paste escape sequences so the terminal
             // treats the entire block as a single paste operation.
             terminal.sendText(`\x1b[200~${text}\x1b[201~`, execute);
         } else {
             // Line-by-line fallback with configurable delay
-            const sendDelay = util.config().get<number>('krarkode.rtermSendDelay') ?? 8;
+            const sendDelay = util.config().get<number>('krarkode.terminal.sendDelay') ?? 8;
             const lines = text.split('\n');
             for (const [i, line] of lines.entries()) {
                 if (i > 0 && sendDelay > 0) {
