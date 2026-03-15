@@ -19,7 +19,6 @@ export default defineConfig({
             fileName: () => 'dataExplorer.js',
         },
         outDir: 'dist/html/dataExplorer',
-        emptyOutDir: true,
         sourcemap: false,
         minify: true,
     },
