@@ -161,16 +161,21 @@ export class ArkSessionManager {
         const pidLabel = entry?.pid ? String(entry.pid) : 'unknown';
         const nameLabel = entry?.name ?? 'No active session';
         const connectionFile = entry?.connectionFilePath;
+        const actions = [
+            `[$(plug) Attach](command:krarkode.attachArkSession)`,
+            `[$(arrow-swap) Switch](command:krarkode.switchArkSession)`,
+        ];
+        if (entry?.pid) {
+            actions.push(`[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession)`);
+        }
+        actions.push(`[$(stop-circle) Kill](command:krarkode.stopActiveArkSession)`);
         const md = new vscode.MarkdownString(
             `**Ark Session**\n\n` +
                 `- Status: ${status.label}\n` +
                 `- Session: ${nameLabel}\n` +
                 `- PID: ${pidLabel}\n` +
                 `- Connection: ${connectionFile ? '[Copy connection file](command:krarkode.copyArkConnectionFile)' : 'Not available'}\n\n` +
-                `[$(plug) Attach](command:krarkode.attachArkSession) | ` +
-                `[$(arrow-swap) Switch](command:krarkode.switchArkSession) | ` +
-                `[$(debug-pause) Interrupt](command:krarkode.interruptActiveArkSession) | ` +
-                `[$(stop-circle) Kill](command:krarkode.stopActiveArkSession)`,
+                actions.join(' | '),
         );
         md.isTrusted = true;
         md.supportThemeIcons = true;
@@ -678,16 +683,57 @@ export class ArkSessionManager {
         this.outputChannel.appendLine(`Switched active Ark session to ${entry.name}.`);
     }
 
+    /**
+     * Try to recover PID for a session from announce file or tmux pane.
+     * Updates the registry if a PID is found.
+     */
+    private async refreshSessionPid(entry: ArkSessionEntry): Promise<number | undefined> {
+        // Try announce file first
+        const sessionsDir = sessionRegistry.getSessionsDir();
+        const announceFile = path.join(sessionsDir, entry.name, 'announce.json');
+        if (fs.existsSync(announceFile)) {
+            try {
+                const content = fs.readFileSync(announceFile, 'utf8');
+                const payload = JSON.parse(content) as ArkAnnouncePayload;
+                if (payload.pid) {
+                    this.outputChannel.appendLine(`Recovered PID ${payload.pid} for session ${entry.name} from announce file.`);
+                    entry.pid = payload.pid;
+                    await sessionRegistry.upsertSessionValidated(entry);
+                    return payload.pid;
+                }
+            } catch {
+                // Fall through to tmux fallback
+            }
+        }
+
+        // Fallback: get PID from tmux pane
+        if (entry.mode === 'tmux' && entry.tmuxSessionName && entry.tmuxWindowName) {
+            const pid = await tmuxUtil.getTmuxPanePid(entry.tmuxSessionName, entry.tmuxWindowName);
+            if (pid) {
+                this.outputChannel.appendLine(`Recovered PID ${pid} for session ${entry.name} from tmux pane.`);
+                entry.pid = pid;
+                await sessionRegistry.upsertSessionValidated(entry);
+                return pid;
+            }
+        }
+
+        return undefined;
+    }
+
     private async interruptSessionEntry(entry: ArkSessionEntry): Promise<void> {
         if (!entry.pid) {
-            getLogger().log(
-                'runtime',
-                LogCategory.Session,
-                'warn',
-                `Interrupt requested for ${entry.name}, but PID is missing.`,
-            );
-            void vscode.window.showWarningMessage(`Ark session "${entry.name}" does not have a PID to interrupt.`);
-            return;
+            this.outputChannel.appendLine(`PID missing for session ${entry.name}, attempting recovery...`);
+            const recovered = await this.refreshSessionPid(entry);
+            if (!recovered) {
+                getLogger().log(
+                    'runtime',
+                    LogCategory.Session,
+                    'warn',
+                    `Interrupt requested for ${entry.name}, but PID is missing and recovery failed.`,
+                );
+                void vscode.window.showWarningMessage(`Ark session "${entry.name}" does not have a PID to interrupt.`);
+                return;
+            }
         }
 
         this.outputChannel.appendLine(`Sending SIGINT to Ark session ${entry.name} (PID ${entry.pid}).`);

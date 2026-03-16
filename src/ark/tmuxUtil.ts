@@ -73,6 +73,29 @@ export async function getFirstTmuxWindowTarget(sessionName: string): Promise<str
     return `${sessionName}:${lines[0]}`;
 }
 
+export async function getTmuxPanePid(sessionName: string, windowName: string): Promise<number | undefined> {
+    const target = `${sessionName}:${windowName}`;
+    const result = await runTmux(getTmuxPath(), [
+        'list-panes',
+        '-t',
+        target,
+        '-F',
+        '#{pane_pid}',
+    ]);
+    if (result.status !== 0) {
+        return undefined;
+    }
+    const lines = (result.stdout || '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    if (lines.length === 0) {
+        return undefined;
+    }
+    const pid = parseInt(lines[0], 10);
+    return isNaN(pid) ? undefined : pid;
+}
+
 export async function renameTmuxWindow(target: string, name: string): Promise<void> {
     const result = await runTmux(getTmuxPath(), ['rename-window', '-t', target, name]);
     if (result.status !== 0) {
