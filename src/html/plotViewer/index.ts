@@ -380,6 +380,7 @@ document.addEventListener('mousemove', (event: MouseEvent) => {
 
     if (largePlotDiv.style.height !== newHeightString) {
         largePlotDiv.style.height = newHeightString;
+        largePlotDiv.style.flexGrow = '0';
         postResizeMessage();
     }
 });
