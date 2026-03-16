@@ -90,7 +90,7 @@ export class ArkSessionManager {
     }
 
     private async openConsole(): Promise<void> {
-        const registry = sessionRegistry.loadRegistry();
+        const registry = await sessionRegistry.loadRegistryValidated();
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found. Use "Create Ark session" first.');
             return;
@@ -119,10 +119,10 @@ export class ArkSessionManager {
         this.statusQuickPick?.dispose();
     }
 
-    setActiveSessionHandler(handler: (entry: ArkSessionEntry | undefined) => void): void {
+    async setActiveSessionHandler(handler: (entry: ArkSessionEntry | undefined) => void): Promise<void> {
         this.onActiveSessionChanged = handler;
         // Initialize with current active session
-        const current = sessionRegistry.getActiveSession();
+        const current = await sessionRegistry.getActiveSessionValidated();
         if (current) {
             this.updateStatusBar(current);
             handler(current);
@@ -178,7 +178,7 @@ export class ArkSessionManager {
     }
 
     private async copyActiveConnectionFile(): Promise<void> {
-        const entry = sessionRegistry.getActiveSession();
+        const entry = await sessionRegistry.getActiveSessionValidated();
         if (!entry?.connectionFilePath) {
             void vscode.window.showWarningMessage('No active Ark connection file to copy.');
             return;
@@ -428,7 +428,7 @@ export class ArkSessionManager {
                 'Cancel',
             );
             if (choice === 'Attach') {
-                const existing = sessionRegistry.findSession(sessionName);
+                const existing = await sessionRegistry.findSessionValidated(sessionName);
                 if (existing) {
                     await this.openConsoleForEntry(existing);
                 } else {
@@ -480,7 +480,7 @@ export class ArkSessionManager {
             entry.pid = payload.pid;
         }
 
-        sessionRegistry.upsertSession(entry);
+        await sessionRegistry.upsertSessionValidated(entry);
 
         if (driver === 'tmux') {
             await this.openConsoleForEntry(entry);
@@ -557,12 +557,12 @@ export class ArkSessionManager {
 
             const derivedName = normalizeSessionName(path.basename(path.dirname(connectionFile)) || 'ark');
             const sessionName = payload.sessionName?.trim() || derivedName;
-            const registry = sessionRegistry.loadRegistry();
+            const registry = await sessionRegistry.loadRegistryValidated();
             const existing = registry.find(
                 (entry) => entry.connectionFilePath === connectionFile || entry.name === sessionName,
             );
 
-            sessionRegistry.upsertSession({
+            await sessionRegistry.upsertSessionValidated({
                 name: sessionName,
                 mode: existing?.mode ?? 'external',
                 connectionFilePath: connectionFile,
@@ -573,7 +573,7 @@ export class ArkSessionManager {
                 lastAttachedAt: nowIso(),
             });
 
-            const activeSession = sessionRegistry.findSession(sessionName);
+            const activeSession = await sessionRegistry.findSessionValidated(sessionName);
             this.setActiveSession(activeSession);
         } finally {
             if (fs.existsSync(announceFile)) {
@@ -583,7 +583,7 @@ export class ArkSessionManager {
     }
 
     private async stopSession(): Promise<void> {
-        const registry = sessionRegistry.loadRegistry();
+        const registry = await sessionRegistry.loadRegistryValidated();
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found.');
             return;
@@ -604,7 +604,7 @@ export class ArkSessionManager {
     }
 
     private async interruptSession(): Promise<void> {
-        const registry = sessionRegistry.loadRegistry();
+        const registry = await sessionRegistry.loadRegistryValidated();
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found.');
             return;
@@ -630,7 +630,7 @@ export class ArkSessionManager {
     }
 
     private async interruptActiveSession(): Promise<void> {
-        const entry = sessionRegistry.getActiveSession();
+        const entry = await sessionRegistry.getActiveSessionValidated();
         if (!entry) {
             void vscode.window.showWarningMessage('No active Ark session to interrupt.');
             return;
@@ -640,7 +640,7 @@ export class ArkSessionManager {
     }
 
     private async stopActiveSession(): Promise<void> {
-        const entry = sessionRegistry.getActiveSession();
+        const entry = await sessionRegistry.getActiveSessionValidated();
         if (!entry) {
             void vscode.window.showWarningMessage('No active Ark session to stop.');
             return;
@@ -650,7 +650,7 @@ export class ArkSessionManager {
     }
 
     private async switchSession(): Promise<void> {
-        const registry = sessionRegistry.loadRegistry();
+        const registry = await sessionRegistry.loadRegistryValidated();
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found.');
             return;
@@ -673,7 +673,7 @@ export class ArkSessionManager {
             return;
         }
 
-        sessionRegistry.updateSessionAttachment(entry.name, nowIso());
+        await sessionRegistry.updateSessionAttachmentValidated(entry.name, nowIso());
         this.setActiveSession(entry);
         this.outputChannel.appendLine(`Switched active Ark session to ${entry.name}.`);
     }
@@ -726,13 +726,13 @@ export class ArkSessionManager {
             getLogger().log('runtime', LogCategory.Session, 'error', `Failed to remove session directory: ${err}`);
         }
 
-        const registry = sessionRegistry.loadRegistry();
+        const registry = await sessionRegistry.loadRegistryValidated();
         const nextRegistry = registry.filter((item) => item.name !== entry.name);
         sessionRegistry.saveRegistry(nextRegistry);
 
         let nextActive: ArkSessionEntry | undefined;
         if (sessionRegistry.getActiveSessionName() !== entry.name) {
-            nextActive = sessionRegistry.getActiveSession();
+            nextActive = await sessionRegistry.getActiveSessionValidated();
         }
         this.setActiveSession(nextActive);
 
@@ -746,7 +746,7 @@ export class ArkSessionManager {
         const command = renderTemplate(consoleTemplate, { sidecarPath, connectionFile: entry.connectionFilePath });
         terminal.sendText(command, true);
         terminal.show(true);
-        sessionRegistry.updateSessionAttachment(entry.name, nowIso());
+        await sessionRegistry.updateSessionAttachmentValidated(entry.name, nowIso());
         this.setActiveSession(entry);
     }
 
