@@ -5,8 +5,8 @@ import type { ArkSessionEntry } from '../sessionRegistry';
 
 const { mockFs, mockListTmuxWindows, mockGlobalState, mockLogFn } = vi.hoisted(() => ({
     mockFs: {
-        existsSync: vi.fn(() => false),
-        readFileSync: vi.fn(() => '[]'),
+        existsSync: vi.fn((_p: string) => false as boolean),
+        readFileSync: vi.fn((_p: string) => '[]' as string),
         writeFileSync: vi.fn(),
         mkdirSync: vi.fn(),
         rmSync: vi.fn(),

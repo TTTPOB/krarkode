@@ -100,6 +100,6 @@ export async function renameTmuxWindow(target: string, name: string): Promise<vo
     const result = await runTmux(getTmuxPath(), ['rename-window', '-t', target, name]);
     if (result.status !== 0) {
         const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';
-        getLogger().log('runtime', LogCategory.Session, 'warning', `Failed to rename tmux window: ${message}`);
+        getLogger().log('runtime', LogCategory.Session, 'warn', `Failed to rename tmux window: ${message}`);
     }
 }

@@ -42,8 +42,8 @@ const {
         mockUpsertSessionValidated: vi.fn(async () => {}),
         mockGetActiveSession: vi.fn(() => undefined),
         mockGetTmuxPanePid: vi.fn(async () => undefined as number | undefined),
-        mockFsExistsSync: vi.fn(() => false),
-        mockFsReadFileSync: vi.fn(() => ''),
+        mockFsExistsSync: vi.fn((_p: string) => false as boolean),
+        mockFsReadFileSync: vi.fn((_p: string) => '' as string),
         mockLogFn: vi.fn(),
     };
 });

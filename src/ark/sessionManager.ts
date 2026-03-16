@@ -729,9 +729,10 @@ export class ArkSessionManager {
             }
         }
 
-        this.outputChannel.appendLine(`Sending SIGINT to Ark session ${entry.name} (PID ${entry.pid}).`);
+        const pid = entry.pid!;
+        this.outputChannel.appendLine(`Sending SIGINT to Ark session ${entry.name} (PID ${pid}).`);
         try {
-            process.kill(entry.pid, 'SIGINT');
+            process.kill(pid, 'SIGINT');
             this.outputChannel.appendLine(`SIGINT delivered to Ark session ${entry.name}.`);
             void vscode.window.showInformationMessage(`Sent Ctrl+C to Ark session "${entry.name}".`);
         } catch (err) {
