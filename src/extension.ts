@@ -14,8 +14,9 @@ import { VariablesManager } from './variables/variablesManager';
 import { DataExplorerManager } from './dataExplorer/dataExplorerManager';
 import * as util from './util';
 import type { ArkSessionEntry } from './ark/sessionRegistry';
-import { getLogger } from './logging/logger';
+import { getLogger, LogCategory } from './logging/logger';
 import { runDoctor } from './doctor';
+import { ConfigurationWatcher } from './configurationWatcher';
 
 let sessionManager: ArkSessionManager | undefined;
 let languageService: ArkLanguageService | undefined;
@@ -29,6 +30,7 @@ let helpManager: HelpManager | undefined;
 let variablesService: VariablesService | undefined;
 let variablesManager: VariablesManager | undefined;
 let dataExplorerManager: DataExplorerManager | undefined;
+let configurationWatcher: ConfigurationWatcher | undefined;
 let activeSessionConnectionFile: string | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -130,6 +132,35 @@ export function activate(context: vscode.ExtensionContext): void {
         languageService = new ArkLanguageService();
         // Not pushed to context.subscriptions — deactivate() handles disposal
     }
+
+    // Centralized configuration change handler
+    configurationWatcher = new ConfigurationWatcher({
+        enableLsp: () => {
+            if (languageService) {
+                return;
+            }
+            languageService = new ArkLanguageService();
+            getLogger().log('runtime', LogCategory.Core, 'info', 'LSP enabled by configuration change');
+        },
+        disableLsp: () => {
+            if (!languageService) {
+                return;
+            }
+            languageService.dispose();
+            languageService = undefined;
+            getLogger().log('runtime', LogCategory.Core, 'info', 'LSP disabled by configuration change');
+        },
+        isLspEnabled: () => !!languageService,
+        restartLsp: () => {
+            if (languageService) {
+                void languageService.restart();
+            }
+        },
+        setPlotMaxHistory: (value: number) => {
+            plotManager?.setMaxHistory(value);
+        },
+    });
+    context.subscriptions.push(configurationWatcher);
 
     context.subscriptions.push(codeExecutor);
     context.subscriptions.push(sessionManager);
@@ -242,4 +273,6 @@ export function deactivate(): void {
     helpService = undefined;
     dataExplorerManager?.dispose();
     dataExplorerManager = undefined;
+    configurationWatcher?.dispose();
+    configurationWatcher = undefined;
 }
