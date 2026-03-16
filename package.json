@@ -597,7 +597,7 @@
     "test:unit:watch": "vitest",
     "test:unit:coverage": "vitest run --coverage",
     "test:compile": "pnpm exec tsc -p tsconfig.test.json && node scripts/prepare-test-dist.mjs",
-    "test": "pnpm run test:unit && pnpm run build && pnpm run test:compile && node ./dist/test/runTest.js",
+    "test": "pnpm run test:unit && pnpm run build && pnpm run test:compile && node ./dist-test/test/runTest.js",
     "vscode:prepublish": "pnpm run compile"
   },
   "devDependencies": {
