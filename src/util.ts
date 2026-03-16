@@ -84,6 +84,11 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
         void vscode.window.showErrorMessage(
             `Cannot find R to use for Ark kernel. Change setting krarkode.r.binaryPath to R path.`,
         );
+    } else if (!isExecutableFile(rpath)) {
+        void vscode.window.showErrorMessage(
+            `krarkode.r.binaryPath "${rpath}" is not an executable file. Please set it to the R binary (e.g. /usr/bin/R), not a directory.`,
+        );
+        return undefined;
     } else if (quote && /^[^'"].* .*[^'"]$/.exec(rpath)) {
         rpath = `"${rpath}"`;
     } else if (!quote) {
@@ -92,6 +97,20 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
     }
 
     return rpath;
+}
+
+function isExecutableFile(filePath: string): boolean {
+    try {
+        const stat = fs.statSync(filePath);
+        if (!stat.isFile()) {
+            return false;
+        }
+        // Check user execute permission
+        fs.accessSync(filePath, fs.constants.X_OK);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 export function delay(ms: number): Promise<void> {
