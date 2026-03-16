@@ -1,5 +1,6 @@
 mod commands;
 mod connection;
+mod console;
 mod handlers;
 mod logging;
 mod protocol;
@@ -12,6 +13,7 @@ use uuid::Uuid;
 
 use crate::commands::{decode_code, parse_args};
 use crate::connection::read_connection;
+use crate::console::run_console;
 use crate::handlers::{run_check, run_execute_request, run_lsp, run_plot_watcher};
 use crate::logging::init_logging;
 use crate::protocol::{emit_event, SidecarEvent};
@@ -71,6 +73,9 @@ fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
             }
             Mode::Check => {
                 run_check(&connection, &session_id, args.timeout_ms).await?;
+            }
+            Mode::Console => {
+                run_console(&connection, &session_id).await?;
             }
         }
 

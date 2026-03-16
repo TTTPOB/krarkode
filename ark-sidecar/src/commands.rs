@@ -43,6 +43,9 @@ where
             "--check" => {
                 mode = Mode::Check;
             }
+            "--console" => {
+                mode = Mode::Console;
+            }
             "--code" => {
                 code = args.next();
             }
@@ -88,6 +91,7 @@ fn print_usage() {
     eprintln!("  vscode-r-ark-sidecar --execute --connection-file <path> --code <text> [--code-base64] [--timeout-ms <ms>] [--wait-for-idle]");
     eprintln!("  vscode-r-ark-sidecar --watch-plot --connection-file <path> [--timeout-ms <ms>]");
     eprintln!("  vscode-r-ark-sidecar --check --connection-file <path> [--timeout-ms <ms>]");
+    eprintln!("  vscode-r-ark-sidecar --console --connection-file <path>");
 }
 
 pub(crate) fn decode_code(args: &Args) -> Result<String> {
@@ -157,6 +161,19 @@ mod tests {
 
         let decoded = decode_code(&args).expect("decode code");
         assert_eq!(decoded, "plot(1:10)");
+    }
+
+    #[test]
+    fn parse_args_console_mode() {
+        let args = parse_args_from(vec![
+            "--console".to_string(),
+            "--connection-file".to_string(),
+            "connection.json".to_string(),
+        ])
+        .expect("parse args");
+
+        assert!(matches!(args.mode, Mode::Console));
+        assert_eq!(args.connection_file, "connection.json");
     }
 
     #[test]

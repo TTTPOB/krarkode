@@ -4,6 +4,7 @@ pub(crate) enum Mode {
     Execute,
     WatchPlot,
     Check,
+    Console,
 }
 
 #[derive(Debug)]
