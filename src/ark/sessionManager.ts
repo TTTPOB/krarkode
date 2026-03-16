@@ -363,7 +363,7 @@ export class ArkSessionManager {
     private getConsoleCommandTemplate(): string {
         return (
             util.config().get<string>('krarkode.ark.console.commandTemplate') ||
-            'jupyter-console --existing {connectionFile}'
+            '{sidecarPath} console --connection-file {connectionFile}'
         );
     }
 
@@ -718,7 +718,8 @@ export class ArkSessionManager {
     private async openConsoleForEntry(entry: ArkSessionEntry): Promise<void> {
         const terminal = this.getActiveTerminalOrCreate(`Ark Console: ${entry.name}`);
         const consoleTemplate = this.getConsoleCommandTemplate();
-        const command = renderTemplate(consoleTemplate, { connectionFile: entry.connectionFilePath });
+        const sidecarPath = util.resolveSidecarPath();
+        const command = renderTemplate(consoleTemplate, { sidecarPath, connectionFile: entry.connectionFilePath });
         terminal.sendText(command, true);
         terminal.show(true);
         sessionRegistry.updateSessionAttachment(entry.name, nowIso());
