@@ -82,7 +82,7 @@
           "type": "string",
           "default": "",
           "scope": "window",
-          "markdownDescription": "Override the Ark executable path. Leave empty to use the bundled binary (or fall back to `ark` in PATH)."
+          "markdownDescription": "Override the Ark executable path. Supports `${workspaceFolder}`, `${userHome}` etc. Leave empty to use the bundled binary (or fall back to `ark` in PATH)."
         },
         "krarkode.ark.logLevel": {
           "type": "string",
@@ -141,7 +141,7 @@
           "type": "string",
           "default": "",
           "scope": "window",
-          "markdownDescription": "Override the Ark sidecar executable path."
+          "markdownDescription": "Override the Ark sidecar executable path. Supports `${workspaceFolder}`, `${userHome}` etc."
         },
         "krarkode.ark.sidecar.timeoutMs": {
           "type": "number",
@@ -171,7 +171,7 @@
           "type": "string",
           "default": "tmux",
           "scope": "window",
-          "markdownDescription": "tmux executable path for Ark console sessions."
+          "markdownDescription": "tmux executable path for Ark console sessions. Supports `${workspaceFolder}`, `${userHome}` etc."
         },
         "krarkode.ark.tmux.manageKernel": {
           "type": "boolean",

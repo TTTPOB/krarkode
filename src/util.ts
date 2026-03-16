@@ -186,8 +186,9 @@ function getSidecarTarget(): string | undefined {
 
 export function resolveSidecarPath(): string {
     const config = vscode.workspace.getConfiguration('krarkode.ark.sidecar');
-    const configured = config.get<string>('path')?.trim();
-    if (configured) {
+    const rawConfigured = config.get<string>('path')?.trim();
+    if (rawConfigured) {
+        const configured = substituteVariables(rawConfigured);
         logDebug(`Using configured sidecar path: ${configured}`);
         return configured;
     }
@@ -251,8 +252,9 @@ function getArkTarget(): string | undefined {
  */
 export function resolveArkPath(): string {
     const config = vscode.workspace.getConfiguration('krarkode.ark');
-    const configured = config.get<string>('path')?.trim();
-    if (configured) {
+    const rawConfigured = config.get<string>('path')?.trim();
+    if (rawConfigured) {
+        const configured = substituteVariables(rawConfigured);
         logDebug(`Using configured ark path: ${configured}`);
         return configured;
     }
