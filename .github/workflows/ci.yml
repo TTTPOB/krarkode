@@ -64,6 +64,8 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+      - uses: prefix-dev/setup-pixi@v0.9.4
+      - run: pixi --version
       - run: pnpm install --frozen-lockfile
       - name: Run tests
         uses: GabrielBB/xvfb-action@v1
