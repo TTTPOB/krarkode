@@ -1,4 +1,5 @@
 mod highlighter;
+mod history;
 mod r_parser;
 mod validator;
 
