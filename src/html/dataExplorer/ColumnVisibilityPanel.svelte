@@ -131,7 +131,7 @@
             {#if displayedColumns.length === 0}
                 <div class="column-visibility-empty">No columns available.</div>
             {:else}
-                {#each displayedColumns as column}
+                {#each displayedColumns as column (column.column_index)}
                     <div class="column-visibility-item">
                         <div class="column-visibility-details">
                             <div class="column-visibility-name" title={getColumnLabel(column)}>{getColumnLabel(column)}</div>

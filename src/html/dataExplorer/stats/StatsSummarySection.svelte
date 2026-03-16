@@ -34,7 +34,7 @@
                         <td class="stats-empty" colspan="2">{emptyMessage}</td>
                     </tr>
                 {:else}
-                    {#each rows as row}
+                    {#each rows as row (row.label)}
                         <tr>
                             <td>{row.label}</td>
                             <td>{row.value}</td>

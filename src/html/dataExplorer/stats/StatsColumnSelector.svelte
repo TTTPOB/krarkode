@@ -18,7 +18,7 @@
     <label for="stats-column">Select Column</label>
     <select id="stats-column" bind:value={value} onchange={() => onChange?.()}>
         <option value="">Choose column...</option>
-        {#each schema as column}
+        {#each schema as column (column.column_index)}
             <option value={String(column.column_index)}>{getColumnLabel(column)}</option>
         {/each}
     </select>

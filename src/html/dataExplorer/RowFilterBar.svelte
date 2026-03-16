@@ -69,7 +69,7 @@
             {#if rowFilters.length === 0}
                 <span class="row-filter-label">No filters</span>
             {:else}
-                {#each rowFilters as filter, index}
+                {#each rowFilters as filter, index (filter)}
                     <div
                         class="row-filter-chip"
                         role="button"

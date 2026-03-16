@@ -6,7 +6,7 @@ import svelteParser from 'svelte-eslint-parser';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
-const ignores = ['.pixi/**', 'dist/**', 'node_modules/**', 'repo_ref/**', 'ark-sidecar/target/**'];
+const ignores = ['.pixi/**', 'dist/**', 'node_modules/**', 'repo_ref/**', 'ark-sidecar/target/**', '**/*.svelte.ts'];
 const nodeGlobals = globals.node;
 const browserGlobals = globals.browser;
 const mochaGlobals = globals.mocha;

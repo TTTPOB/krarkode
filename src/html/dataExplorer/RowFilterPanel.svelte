@@ -113,7 +113,7 @@
         <div class="filter-section">
             <label for="row-filter-column">Column</label>
             <select id="row-filter-column" value={draft.columnIndex} onchange={handleColumnChange}>
-                {#each schema as column}
+                {#each schema as column (column.column_index)}
                     <option value={column.column_index}>{getColumnLabel(column)}</option>
                 {/each}
             </select>
@@ -121,7 +121,7 @@
         <div class="filter-section">
             <label for="row-filter-type">Filter Type</label>
             <select id="row-filter-type" bind:value={draft.filterType}>
-                {#each getSupportedRowFilterTypes() as filterType}
+                {#each getSupportedRowFilterTypes() as filterType (filterType)}
                     <option value={filterType}>{ROW_FILTER_TYPE_LABELS[filterType] ?? filterType}</option>
                 {/each}
             </select>
