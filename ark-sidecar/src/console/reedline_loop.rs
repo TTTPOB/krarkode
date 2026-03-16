@@ -4,13 +4,15 @@
 // with highlighter, validator, completer, and history, then enters the
 // read-execute-display loop.
 
+use std::borrow::Cow;
 use std::io::Write;
 use std::sync::Arc;
 
 use nu_ansi_term::Color;
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, Emacs, KeyCode, KeyModifiers, MenuBuilder, Reedline,
-    ReedlineEvent, ReedlineMenu, Signal, TraversalDirection,
+    Prompt, PromptEditMode, PromptHistorySearch, PromptHistorySearchStatus, ReedlineEvent,
+    ReedlineMenu, Signal, TraversalDirection,
 };
 use std::sync::mpsc as std_mpsc;
 use tracing::{debug, error, info};
@@ -26,11 +28,41 @@ use crate::lsp_client::virtual_document::DebouncedVirtualDocument;
 use crate::lsp_client::LspClient;
 
 /// The R console prompt.
-fn make_prompt() -> reedline::DefaultPrompt {
-    reedline::DefaultPrompt::new(
-        reedline::DefaultPromptSegment::Empty,
-        reedline::DefaultPromptSegment::Empty,
-    )
+#[derive(Clone, Default)]
+struct ConsolePrompt;
+
+impl Prompt for ConsolePrompt {
+    fn render_prompt_left(&self) -> Cow<'_, str> {
+        Cow::Borrowed("")
+    }
+
+    fn render_prompt_right(&self) -> Cow<'_, str> {
+        Cow::Borrowed("")
+    }
+
+    fn render_prompt_indicator(&self, _edit_mode: PromptEditMode) -> Cow<'_, str> {
+        Cow::Borrowed("")
+    }
+
+    fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
+        Cow::Borrowed("")
+    }
+
+    fn render_prompt_history_search_indicator(
+        &self,
+        history_search: PromptHistorySearch,
+    ) -> Cow<'_, str> {
+        let prefix = match history_search.status {
+            PromptHistorySearchStatus::Passing => "",
+            PromptHistorySearchStatus::Failing => "failing ",
+        };
+
+        Cow::Owned(format!("({prefix}reverse-search: {}) ", history_search.term))
+    }
+}
+
+fn make_prompt() -> ConsolePrompt {
+    ConsolePrompt
 }
 
 /// Print the startup banner with R version and binary path info.
@@ -315,11 +347,16 @@ pub(crate) fn run_reedline_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use reedline::Prompt;
 
     #[test]
     fn prompt_is_empty() {
         assert_eq!(make_prompt().render_prompt_left(), "");
+        assert_eq!(make_prompt().render_prompt_right(), "");
+        assert_eq!(
+            make_prompt().render_prompt_indicator(PromptEditMode::Default),
+            ""
+        );
+        assert_eq!(make_prompt().render_prompt_multiline_indicator(), "");
     }
 
     #[test]
