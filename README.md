@@ -105,7 +105,7 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 ## Requirements
 
 - **Ark** binary — build from [posit-dev/ark](https://github.com/posit-dev/ark) or extract from a [Positron](https://github.com/posit-dev/positron) release
-- **R** 4.1+ with `jsonlite` (`install.packages("jsonlite")`)
+- **R** 4.1+ (no additional R packages required for Ark session management)
 - **tmux** — used for session management
 
 ---

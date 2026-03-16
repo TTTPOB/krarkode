@@ -10,6 +10,7 @@ import { collectRBinaryCandidates } from '../rBinaryResolver';
 import type { RBinaryCandidate } from '../rBinaryResolver';
 import { getLogger, LogCategory } from '../logging/logger';
 import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
+import { buildArkAttachScript, buildArkStartupScript, rStringLiteral } from './announceScripts';
 import * as tmuxUtil from './tmuxUtil';
 
 type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'reconnecting' | 'unknown';
@@ -35,16 +36,6 @@ function normalizeSessionName(value: string): string {
 
 function shellEscape(value: string): string {
     return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function rStringLiteral(value: string): string {
-    const escaped = value
-        .replace(/\\/g, '\\\\')
-        .replace(/"/g, '\\"')
-        .replace(/\n/g, '\\n')
-        .replace(/\r/g, '\\r')
-        .replace(/\t/g, '\\t');
-    return `"${escaped}"`;
 }
 
 function renderTemplate(template: string, values: Record<string, string>): string {
@@ -808,49 +799,12 @@ export class ArkSessionManager {
 
     private writeStartupFile(startupFile: string, sessionName: string, announceFile: string): void {
         fs.mkdirSync(path.dirname(startupFile), { recursive: true });
-        const content = [
-            `Sys.setenv(TERM_PROGRAM = "vscode")`,
-            `local({`,
-            `  .krarkode_announce_path <- ${rStringLiteral(announceFile)}`,
-            `  .krarkode_session_name <- ${rStringLiteral(sessionName)}`,
-            `  .krarkode_connection_file <- Sys.getenv("ARK_CONNECTION_FILE")`,
-            `  if (!requireNamespace("jsonlite", quietly = TRUE)) {`,
-            `    stop("jsonlite package is required for Ark session management")`,
-            `  }`,
-            `  .krarkode_payload <- jsonlite::toJSON(list(`,
-            `    sessionName = .krarkode_session_name,`,
-            `    connectionFilePath = .krarkode_connection_file,`,
-            `    pid = Sys.getpid(),`,
-            `    startedAt = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")`,
-            `  ), auto_unbox = TRUE)`,
-            `  writeLines(.krarkode_payload, .krarkode_announce_path)`,
-            `})`,
-        ];
-        fs.writeFileSync(startupFile, content.join('\n'));
+        fs.writeFileSync(startupFile, buildArkStartupScript(sessionName, announceFile));
     }
 
     private writeAnnounceScript(scriptPath: string, announceFile: string): void {
         fs.mkdirSync(path.dirname(scriptPath), { recursive: true });
-        const content = [
-            `local({`,
-            `  .krarkode_announce_path <- ${rStringLiteral(announceFile)}`,
-            `  .krarkode_script_path <- ${rStringLiteral(scriptPath)}`,
-            `  .krarkode_connection_file <- Sys.getenv("ARK_CONNECTION_FILE")`,
-            `  .krarkode_session_name <- basename(dirname(.krarkode_connection_file))`,
-            `  if (!requireNamespace("jsonlite", quietly = TRUE)) {`,
-            `    stop("jsonlite package is required for Ark session management")`,
-            `  }`,
-            `  .krarkode_payload <- jsonlite::toJSON(list(`,
-            `    sessionName = .krarkode_session_name,`,
-            `    connectionFilePath = .krarkode_connection_file,`,
-            `    pid = Sys.getpid(),`,
-            `    startedAt = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")`,
-            `  ), auto_unbox = TRUE)`,
-            `  writeLines(.krarkode_payload, .krarkode_announce_path)`,
-            `  if (file.exists(.krarkode_script_path)) file.remove(.krarkode_script_path)`,
-            `})`,
-        ];
-        fs.writeFileSync(scriptPath, content.join('\n'));
+        fs.writeFileSync(scriptPath, buildArkAttachScript(scriptPath, announceFile));
     }
 
     private async waitForAnnounce(announceFile: string, timeoutMs: number): Promise<ArkAnnouncePayload | undefined> {

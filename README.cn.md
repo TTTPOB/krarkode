@@ -106,7 +106,7 @@
 ## 前置要求
 
 - **Ark** 二进制 — 从 [posit-dev/ark](https://github.com/posit-dev/ark) 编译，或从 [Positron](https://github.com/posit-dev/positron) 发布包中提取
-- **R** 4.1+ 且已安装 `jsonlite`（`install.packages("jsonlite")`）
+- **R** 4.1+（Ark session 管理不需要额外安装 R 包）
 - **tmux** — 用来做会话管理
 
 ---

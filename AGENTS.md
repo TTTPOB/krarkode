@@ -52,7 +52,7 @@ CRITICAL RULES
 
 ### R Code Generation
 
-- **Use `jsonlite`**: When generating R scripts (e.g., `init-ark.R`) that embed JSON or complex strings, **ALWAYS** use `jsonlite::toJSON()` inside the R code or pre-serialize in TS. NEVER use manual string concatenation/escaping for JSON payloads in R, as it is prone to escaping errors.
+- **Use the shared serializer helper**: When generating R scripts (e.g., `init-ark.R`) that embed JSON or complex strings, **ALWAYS** use the shared minimal serializer helper already defined for announce payloads, or pre-serialize in TS. NEVER write ad hoc JSON concatenation/escaping at the call site in R.
 
 ## pnpm Scripts Reference
 
@@ -121,4 +121,3 @@ All scripts are run via `pnpm run <script>`. Never use `npm run` or `yarn`.
 
 * Ark sidecar smoke test
     - 通过 pixi 的 R 4.4 环境运行：`pixi run -- node scripts/ark-sidecar-lsp-test.js`
-

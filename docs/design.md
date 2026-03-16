@@ -73,9 +73,9 @@ Each session generates a per-session R startup script rather than embedding R co
 
 **The constraint**: The startup script often contains JSON payloads. Manual string escaping in R is error-prone and breaks on nested quotes or special characters.
 
-**The choice**: Use `jsonlite::toJSON()` inside the generated R code—or pre-serialize in TypeScript and embed the result—instead of any manual string concatenation.
+**The choice**: Use a shared minimal serializer helper inside the generated R code for the announce payload—or pre-serialize in TypeScript and embed the result—instead of writing ad hoc JSON concatenation at each call site.
 
-This is a hard rule: **never construct JSON payloads via string concatenation in R startup scripts.**
+This is a hard rule: **never construct JSON payloads ad hoc in R startup scripts. Use the shared serializer helper or pre-serialize in TypeScript.**
 
 ---
 
@@ -99,4 +99,3 @@ The Ark LSP runs inside the kernel process. If there is no active session, code 
 **The choice**: `ArkLanguageService` automatically spawns a background Ark instance solely for LSP when no session is active. When a real session starts, the LSP client switches to use that session's kernel.
 
 This means the editor stays fully featured (completions, diagnostics, hover) even when no interactive session is running.
-
