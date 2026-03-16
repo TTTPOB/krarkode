@@ -3,6 +3,7 @@ mod connection;
 mod console;
 mod handlers;
 mod logging;
+mod lsp_client;
 mod protocol;
 mod types;
 
