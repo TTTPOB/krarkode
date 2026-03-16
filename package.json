@@ -69,6 +69,12 @@
           "scope": "window",
           "markdownDescription": "Path to the R binary. Leave empty to auto-detect."
         },
+        "krarkode.pixi.manifestPath": {
+          "type": "string",
+          "default": "",
+          "scope": "window",
+          "markdownDescription": "Path to `pixi.toml` for R environment discovery. Supports `${workspaceFolder}` etc. Leave empty to use workspace root."
+        },
         "krarkode.ark.path": {
           "type": "string",
           "default": "",
