@@ -58,7 +58,6 @@ const KERNEL_LOG_LEVEL_PARSER = new RegexLogLevelParser(/\b(TRACE|DEBUG|INFO|WAR
 
 export class ArkLanguageService implements vscode.Disposable {
     private client: LanguageClient | undefined;
-    private readonly config: vscode.WorkspaceConfiguration;
     private readonly outputChannel: vscode.OutputChannel;
     private readonly kernelOutputChannel: vscode.OutputChannel;
     private readonly runtimeOutputChannel: vscode.OutputChannel;
@@ -75,7 +74,6 @@ export class ArkLanguageService implements vscode.Disposable {
         this.kernelOutputChannel = getLogger().createChannel('ark-kernel');
         this.runtimeOutputChannel = getLogger().createChannel('runtime', LogCategory.Session);
         this.client = undefined;
-        this.config = vscode.workspace.getConfiguration('krarkode.ark');
         this.disposables.push(
             vscode.workspace.onDidChangeConfiguration((event) => {
                 if (event.affectsConfiguration('krarkode.logging.lsp')) {
@@ -181,11 +179,11 @@ export class ArkLanguageService implements vscode.Disposable {
         this.connectionFile = connectionFile;
 
         const arkPath = util.resolveArkPath();
-        const sessionMode = (this.config.get<string>('sessionMode') || DEFAULT_SESSION_MODE).trim();
+        const sessionMode = (vscode.workspace.getConfiguration('krarkode.ark').get<string>('sessionMode') || DEFAULT_SESSION_MODE).trim();
         const env = Object.assign({}, process.env, {
             ARK_CONNECTION_FILE: connectionFile,
         });
-        const arkLogLevel = getArkLogLevel(this.config);
+        const arkLogLevel = getArkLogLevel();
         const rustLog = formatArkRustLog(arkLogLevel);
         if (rustLog) {
             env.RUST_LOG = rustLog;
@@ -563,7 +561,7 @@ export class ArkLanguageService implements vscode.Disposable {
 
     private buildSidecarEnv(): NodeJS.ProcessEnv {
         const env = { ...process.env };
-        const logLevel = getArkLogLevel(this.config);
+        const logLevel = getArkLogLevel();
         const sidecarRustLog = formatSidecarRustLog(logLevel);
         if (sidecarRustLog) {
             env.RUST_LOG = sidecarRustLog;
@@ -580,7 +578,7 @@ export class ArkLanguageService implements vscode.Disposable {
         if (!this.sidecarProcess || this.sidecarProcess.killed) {
             return;
         }
-        const logLevel = getArkLogLevel(this.config);
+        const logLevel = getArkLogLevel();
         const message = { command: SIDECAR_LOG_RELOAD_COMMAND, log_level: logLevel };
         try {
             this.sidecarProcess.stdin.write(JSON.stringify(message) + '\n');
