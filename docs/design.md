@@ -57,7 +57,7 @@ Ark does not expose one. The comm protocol is Ark's public contract—using it m
 **The choice**: All launch commands are Go-style templates with named substitution variables:
 
 ```
-{arkPath} {connectionFile} {sessionMode} {startupFile} {sessionsDir} {name}
+{arkPath} {connectionFile} {startupFile} {sessionsDir} {name}
 ```
 
 Users override the default templates in settings to match their environment.

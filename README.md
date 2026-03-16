@@ -98,7 +98,6 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 | Doctor diagnostics | ✅ |
 | Console mode — tmux driver | ✅ |
 | Console mode — external terminal driver | ✅ |
-| Notebook / background session mode | ❌ not planned |
 | Debugger integration | ❌ may consider if DAP integration becomes available |
 
 ---
@@ -117,7 +116,6 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 |---------|---------|-------------|
 | `krarkode.r.rBinaryPath` | `R` | R executable path |
 | `krarkode.ark.path` | `ark` | Ark executable path |
-| `krarkode.ark.sessionMode` | `console` | Session mode (only `console` in v0.1.0) |
 | `krarkode.ark.console.driver` | `tmux` | Console driver: `tmux` or `external` |
 | `krarkode.ark.console.commandTemplate` | — | Console launch command template |
 | `krarkode.ark.kernel.commandTemplate` | — | Ark kernel launch command template |
@@ -132,7 +130,7 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 | `krarkode.source.echo` | `false` | Echo sourced code to console |
 | `krarkode.terminal.bracketedPaste` | `true` | Use bracketed paste for terminal sends |
 
-Template variables available in command templates: `{arkPath}`, `{connectionFile}`, `{sessionMode}`, `{startupFile}`, `{sessionsDir}`, `{name}`
+Template variables available in command templates: `{arkPath}`, `{connectionFile}`, `{startupFile}`, `{sessionsDir}`, `{name}`
 
 ---
 

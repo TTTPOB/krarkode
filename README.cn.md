@@ -117,7 +117,6 @@
 | ----------------------------------------- | --------- | ------------------------------ |
 | `krarkode.r.rBinaryPath`                  | `R`       | R 可执行文件路径                      |
 | `krarkode.ark.path`                       | `ark`     | Ark 可执行文件路径                    |
-| `krarkode.ark.sessionMode`                | `console` | 会话模式（v0.1.0 仅支持 `console`）     |
 | `krarkode.ark.console.driver`             | `tmux`    | Console 驱动：`tmux` 或 `external` |
 | `krarkode.ark.console.commandTemplate`    | —         | Console 启动命令模板                 |
 | `krarkode.ark.kernel.commandTemplate`     | —         | Ark 内核启动命令模板                   |
@@ -132,7 +131,7 @@
 | `krarkode.source.echo`                    | `false`   | Source 文件时是否回显代码               |
 | `krarkode.terminal.bracketedPaste`        | `true`    | 终端发送是否使用 bracketed paste       |
 
-命令模板中可用的变量：`{arkPath}`、`{connectionFile}`、`{sessionMode}`、`{startupFile}`、`{sessionsDir}`、`{name}`
+命令模板中可用的变量：`{arkPath}`、`{connectionFile}`、`{startupFile}`、`{sessionsDir}`、`{name}`
 
 ---
 
