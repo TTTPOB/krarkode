@@ -5,6 +5,7 @@
 
 import type * as echarts from 'echarts/core';
 import type { ColumnHistogram, ColumnFrequencyTable } from '../types';
+import { formatSignificant } from './number';
 
 /**
  * Get chart theme colors from CSS variables.
@@ -48,7 +49,7 @@ export function renderHistogramChart(
     const labels = counts.map((_, index) => {
         const start = edges[index] ?? '';
         const end = edges[index + 1] ?? '';
-        return `${start} - ${end}`;
+        return `${formatSignificant(start)} - ${formatSignificant(end)}`;
     });
 
     const colors = getChartThemeColors();
