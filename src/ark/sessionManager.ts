@@ -348,7 +348,7 @@ export class ArkSessionManager {
             util.config().get<string>('krarkode.ark.sessionMode') || DEFAULT_SESSION_MODE
         ).trim() as ArkSessionMode;
         if (configured !== 'console') {
-            void vscode.window.showWarningMessage('Ark console backend 仅支持 console 模式，已强制使用 console。');
+            void vscode.window.showWarningMessage('Ark console backend only supports console mode. Forced to use console.');
             return 'console';
         }
         return configured;
@@ -455,7 +455,7 @@ export class ArkSessionManager {
                 if (existing) {
                     await this.openConsoleForEntry(existing);
                 } else {
-                    void vscode.window.showWarningMessage('未找到会话注册信息，请使用 Attach 重新绑定。');
+                    void vscode.window.showWarningMessage('Session registration not found. Please use Attach to rebind.');
                 }
             }
             return;
@@ -508,7 +508,7 @@ export class ArkSessionManager {
         if (driver === 'tmux') {
             await this.openConsoleForEntry(entry);
         } else {
-            void vscode.window.showInformationMessage('已生成 Ark connection file，请手动启动 Ark kernel 与 console。');
+            void vscode.window.showInformationMessage('Ark connection file generated. Please start the Ark kernel and console manually.');
             this.setActiveSession(entry);
         }
     }
@@ -552,7 +552,7 @@ export class ArkSessionManager {
     private async attachSession(): Promise<void> {
         const terminal = this.getActiveTerminal();
         if (!terminal) {
-            void vscode.window.showWarningMessage('请先在当前终端打开一个已连接 Ark 的 Jupyter console。');
+            void vscode.window.showWarningMessage('Please open a Jupyter console connected to Ark in the current terminal first.');
             return;
         }
 
@@ -567,14 +567,14 @@ export class ArkSessionManager {
             const payload = await this.waitForAnnounce(announceFile, timeoutMs);
             if (!payload?.connectionFilePath) {
                 void vscode.window.showErrorMessage(
-                    '未能从当前 console 获取 Ark connection file。请确认 ARK_CONNECTION_FILE 已设置。',
+                    'Failed to get Ark connection file from the current console. Please verify ARK_CONNECTION_FILE is set.',
                 );
                 return;
             }
 
             const connectionFile = payload.connectionFilePath.trim();
             if (!connectionFile) {
-                void vscode.window.showErrorMessage('当前 console 返回了空的 connection file。');
+                void vscode.window.showErrorMessage('The current console returned an empty connection file.');
                 return;
             }
 
@@ -735,7 +735,7 @@ export class ArkSessionManager {
             if (entry.tmuxSessionName && entry.tmuxWindowName) {
                 await this.killTmuxWindow(entry.tmuxSessionName, entry.tmuxWindowName);
             } else {
-                void vscode.window.showWarningMessage('缺少 tmux window 信息，无法停止该 Ark kernel。');
+                void vscode.window.showWarningMessage('Missing tmux window info. Cannot stop the Ark kernel.');
             }
         }
 
@@ -871,7 +871,7 @@ export class ArkSessionManager {
         const windowName = this.getTmuxWindowName(name);
         const windows = await this.listTmuxWindows(tmuxSessionName);
         if (windows.includes(windowName)) {
-            void vscode.window.showWarningMessage(`tmux window "${windowName}" 已存在，请先使用 Attach 绑定。`);
+            void vscode.window.showWarningMessage(`tmux window "${windowName}" already exists. Please use Attach to bind first.`);
             return undefined;
         }
 
@@ -879,7 +879,7 @@ export class ArkSessionManager {
         if (tmuxSession.created) {
             const baseTarget = await this.getFirstTmuxWindowTarget(tmuxSessionName);
             if (!baseTarget) {
-                void vscode.window.showWarningMessage('未能找到 tmux 初始窗口。');
+                void vscode.window.showWarningMessage('Failed to find the initial tmux window.');
                 return undefined;
             }
             if (!manageKernel) {
@@ -889,7 +889,7 @@ export class ArkSessionManager {
                     void vscode.window.showWarningMessage(`Failed to rename tmux window: ${message}`);
                     return undefined;
                 }
-                void vscode.window.showWarningMessage('ark.tmux.manageKernel=false: 请手动在该窗口启动 Ark kernel。');
+                void vscode.window.showWarningMessage('ark.tmux.manageKernel=false: Please start the Ark kernel manually in this window.');
                 return windowName;
             }
             const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile, rBinaryPath);
@@ -918,7 +918,7 @@ export class ArkSessionManager {
                 void vscode.window.showWarningMessage(`Failed to create tmux window: ${message}`);
                 return undefined;
             }
-            void vscode.window.showWarningMessage('ark.tmux.manageKernel=false: 请手动在该窗口启动 Ark kernel。');
+            void vscode.window.showWarningMessage('ark.tmux.manageKernel=false: Please start the Ark kernel manually in this window.');
             return windowName;
         }
         const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile, rBinaryPath);

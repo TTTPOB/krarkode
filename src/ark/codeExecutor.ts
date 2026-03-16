@@ -318,7 +318,7 @@ export class CodeExecutor implements vscode.Disposable {
 
         const terminal = this.getActiveTerminal();
         if (!terminal) {
-            void vscode.window.showWarningMessage('未找到可用的终端，请先打开一个 Jupyter console。');
+            void vscode.window.showWarningMessage('No active terminal found. Please open a Jupyter console first.');
             return;
         }
 
