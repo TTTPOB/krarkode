@@ -42,7 +42,7 @@ export class PlotManager implements vscode.Disposable {
     private renderTimeout?: NodeJS.Timeout;
     private lastRenderSize: { width: number; height: number; dpr: number } | undefined;
     private readonly disposables: vscode.Disposable[] = [];
-    private readonly maxHistory: number;
+    private maxHistory: number;
     private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Plot);
 
     constructor(renderSource?: DynamicPlotSource) {
@@ -53,6 +53,23 @@ export class PlotManager implements vscode.Disposable {
                 renderSource.onDidOpenPlot((event) => this.addDynamicPlot(event.plotId, event.preRender)),
                 renderSource.onDidClosePlot((event) => this.removePlot(event.plotId)),
             );
+        }
+    }
+
+    public setMaxHistory(value: number): void {
+        this.maxHistory = Math.max(1, value);
+        // Trim excess plots if new limit is lower
+        while (this.plots.length > this.maxHistory) {
+            this.plots.shift();
+            if (this.currentIndex > 0) {
+                this.currentIndex--;
+            }
+        }
+        if (this.currentIndex >= this.plots.length) {
+            this.currentIndex = this.plots.length - 1;
+        }
+        if (this.panel) {
+            this.renderWebview();
         }
     }
 
