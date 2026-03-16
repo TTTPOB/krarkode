@@ -5,7 +5,7 @@
 // - Snippet syntax stripping ($0, ${1:default}, etc.)
 // - Span computation from textEdit ranges or word-start heuristics
 
-use lsp_types::{CompletionItem, CompletionResponse, InsertTextFormat};
+use lsp_types::{CompletionItem, CompletionItemKind, CompletionResponse, Documentation, InsertTextFormat};
 use reedline::{Span, Suggestion};
 use tracing::debug;
 
@@ -30,7 +30,7 @@ pub(crate) fn completion_response_to_suggestions(
         "completion: filtering CompletionItems for console suggestions"
     );
 
-    filter_completion_items(&items, token)
+    sort_completion_items(filter_completion_items(&items, token))
         .iter()
         .map(|item| completion_item_to_suggestion(item, buffer, cursor_byte_offset))
         .collect()
@@ -96,6 +96,84 @@ fn filter_completion_items<'a>(
     );
 
     filtered
+}
+
+fn sort_completion_items<'a>(mut items: Vec<&'a CompletionItem>) -> Vec<&'a CompletionItem> {
+    items.sort_by(|left, right| {
+        completion_item_priority(left)
+            .cmp(&completion_item_priority(right))
+            .then_with(|| completion_item_sort_key(left).cmp(completion_item_sort_key(right)))
+            .then_with(|| left.label.cmp(&right.label))
+    });
+    items
+}
+
+fn completion_item_priority(item: &CompletionItem) -> u8 {
+    if item.preselect.unwrap_or(false)
+        || item
+            .sort_text
+            .as_deref()
+            .is_some_and(|sort_text| sort_text.starts_with("0-"))
+    {
+        return 0;
+    }
+
+    if is_unscoped_variable_completion(item) {
+        return 1;
+    }
+
+    if is_unscoped_completion(item) {
+        return 2;
+    }
+
+    if is_workspace_completion(item) {
+        return 3;
+    }
+
+    if has_package_context(item) {
+        return 4;
+    }
+
+    5
+}
+
+fn completion_item_sort_key(item: &CompletionItem) -> &str {
+    item.sort_text
+        .as_deref()
+        .or(item.filter_text.as_deref())
+        .unwrap_or(item.label.as_str())
+}
+
+fn has_package_context(item: &CompletionItem) -> bool {
+    item.label_details
+        .as_ref()
+        .and_then(|details| details.description.as_deref())
+        .is_some()
+}
+
+fn is_workspace_completion(item: &CompletionItem) -> bool {
+    completion_item_documentation_text(item)
+        .is_some_and(|text| text.starts_with("Defined in `") || text.starts_with("Defined in this document"))
+}
+
+fn is_unscoped_completion(item: &CompletionItem) -> bool {
+    !has_package_context(item) && !is_workspace_completion(item)
+}
+
+fn is_unscoped_variable_completion(item: &CompletionItem) -> bool {
+    is_unscoped_completion(item)
+        && matches!(
+            item.kind,
+            Some(CompletionItemKind::VALUE | CompletionItemKind::VARIABLE | CompletionItemKind::STRUCT)
+        )
+}
+
+fn completion_item_documentation_text(item: &CompletionItem) -> Option<&str> {
+    match item.documentation.as_ref() {
+        Some(Documentation::String(text)) => Some(text.as_str()),
+        Some(Documentation::MarkupContent(content)) => Some(content.value.as_str()),
+        None => None,
+    }
 }
 
 fn current_completion_token(buffer: &str, cursor_byte_offset: usize) -> &str {
@@ -254,7 +332,10 @@ fn find_word_start(buffer: &str, cursor: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{CompletionItem, CompletionItemKind, Position, Range, TextEdit};
+    use lsp_types::{
+        CompletionItem, CompletionItemKind, CompletionItemLabelDetails, Documentation, Position,
+        Range, TextEdit,
+    };
 
     // --- strip_snippet_syntax ---
 
@@ -581,5 +662,77 @@ mod tests {
             .collect();
 
         assert_eq!(values, vec!["View()".to_string(), "Vision".to_string()]);
+    }
+
+    #[test]
+    fn sorts_unscoped_variables_before_workspace_and_package_items() {
+        let response = CompletionResponse::Array(vec![
+            CompletionItem {
+                label: "mean".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                sort_text: Some("1-mean".to_string()),
+                label_details: Some(CompletionItemLabelDetails {
+                    detail: None,
+                    description: Some("base".to_string()),
+                }),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "helper".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                sort_text: Some("1-helper".to_string()),
+                documentation: Some(Documentation::String(
+                    "Defined in `R/helpers.R` on line 3.".to_string(),
+                )),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "my_data".to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                sort_text: Some("1-my_data".to_string()),
+                ..Default::default()
+            },
+        ]);
+
+        let suggestions = completion_response_to_suggestions(Some(response), "", 0);
+        let values: Vec<_> = suggestions
+            .into_iter()
+            .map(|suggestion| suggestion.value)
+            .collect();
+
+        assert_eq!(
+            values,
+            vec![
+                "my_data".to_string(),
+                "helper".to_string(),
+                "mean".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn sorts_same_priority_items_by_sort_text() {
+        let response = CompletionResponse::Array(vec![
+            CompletionItem {
+                label: "zebra".to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                sort_text: Some("1-b".to_string()),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "alpha".to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                sort_text: Some("1-a".to_string()),
+                ..Default::default()
+            },
+        ]);
+
+        let suggestions = completion_response_to_suggestions(Some(response), "", 0);
+        let values: Vec<_> = suggestions
+            .into_iter()
+            .map(|suggestion| suggestion.value)
+            .collect();
+
+        assert_eq!(values, vec!["alpha".to_string(), "zebra".to_string()]);
     }
 }
