@@ -11,7 +11,6 @@ import type { RBinaryCandidate } from '../rBinaryResolver';
 import { getLogger, LogCategory } from '../logging/logger';
 import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
 
-type ArkSessionMode = 'console' | 'notebook' | 'background';
 type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'reconnecting' | 'unknown';
 
 type StatusMenuItem = vscode.QuickPickItem & { action?: () => Promise<void> };
@@ -24,7 +23,6 @@ interface ArkAnnouncePayload {
 }
 
 const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
-const DEFAULT_SESSION_MODE: ArkSessionMode = 'console';
 const DEFAULT_TMUX_PATH = 'tmux';
 const DEFAULT_TMUX_SESSION_NAME = 'krarkode-ark';
 
@@ -343,17 +341,6 @@ export class ArkSessionManager {
         return util.resolveArkPath();
     }
 
-    private getSessionMode(): ArkSessionMode {
-        const configured = (
-            util.config().get<string>('krarkode.ark.sessionMode') || DEFAULT_SESSION_MODE
-        ).trim() as ArkSessionMode;
-        if (configured !== 'console') {
-            void vscode.window.showWarningMessage('Ark console backend only supports console mode. Forced to use console.');
-            return 'console';
-        }
-        return configured;
-    }
-
     private getConsoleDriver(): ArkConsoleDriver {
         const configured = (util.config().get<string>('krarkode.ark.console.driver') || 'tmux').trim();
         if (configured === 'external') {
@@ -372,7 +359,7 @@ export class ArkSessionManager {
     private getKernelCommandTemplate(): string {
         return (
             util.config().get<string>('krarkode.ark.kernel.commandTemplate') ||
-            '{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}'
+            '{arkPath} --connection_file {connectionFile} --session-mode console --startup-file {startupFile}'
         );
     }
 
@@ -1000,12 +987,10 @@ export class ArkSessionManager {
 
     private async buildKernelCommand(connectionFile: string, startupFile: string, rBinaryPath?: string): Promise<string> {
         const arkPath = this.getArkPath();
-        const sessionMode = this.getSessionMode();
         const kernelTemplate = this.getKernelCommandTemplate();
         const kernelCommand = renderShellTemplate(kernelTemplate, {
             arkPath,
             connectionFile,
-            sessionMode,
             startupFile,
         });
 

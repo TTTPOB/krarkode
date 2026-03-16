@@ -98,17 +98,6 @@
           "scope": "window",
           "markdownDescription": "Log level for the Ark backend (sets RUST_LOG=ark=<level>). Use inherit to keep the current RUST_LOG."
         },
-        "krarkode.ark.sessionMode": {
-          "type": "string",
-          "default": "console",
-          "enum": [
-            "console",
-            "notebook",
-            "background"
-          ],
-          "scope": "window",
-          "markdownDescription": "Ark session mode (console is recommended; other modes are not fully supported)."
-        },
         "krarkode.ark.console.driver": {
           "type": "string",
           "default": "tmux",
@@ -127,9 +116,9 @@
         },
         "krarkode.ark.kernel.commandTemplate": {
           "type": "string",
-          "default": "{arkPath} --connection_file {connectionFile} --session-mode {sessionMode} --startup-file {startupFile}",
+          "default": "{arkPath} --connection_file {connectionFile} --session-mode console --startup-file {startupFile}",
           "scope": "window",
-          "markdownDescription": "Ark kernel command template. Supports {arkPath}, {connectionFile}, {sessionMode}, {startupFile}."
+          "markdownDescription": "Ark kernel command template. Supports {arkPath}, {connectionFile}, {startupFile}."
         },
         "krarkode.ark.kernel.startupFileTemplate": {
           "type": "string",

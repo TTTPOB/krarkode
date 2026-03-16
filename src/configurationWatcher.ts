@@ -29,7 +29,6 @@ const PROMPT_RESTART_KEYS = [
 
 // Keys that only take effect on next session creation
 const NEXT_SESSION_KEYS = [
-    'krarkode.ark.sessionMode',
     'krarkode.ark.console.driver',
     'krarkode.ark.console.commandTemplate',
     'krarkode.ark.kernel.commandTemplate',

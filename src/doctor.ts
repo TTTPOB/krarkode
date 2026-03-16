@@ -98,7 +98,6 @@ export async function runDoctor(): Promise<void> {
     }
 
     // 6. Key settings summary
-    const sessionMode = config.get<string>('ark.sessionMode') || 'console';
     const lspEnabled = config.get<boolean>('ark.lsp.enabled') ?? true;
     const bracketedPaste = config.get<boolean>('bracketedPaste') ?? true;
 
@@ -119,7 +118,6 @@ export async function runDoctor(): Promise<void> {
 
     output.appendLine('');
     output.appendLine('--- Settings ---');
-    output.appendLine(`Session mode: ${sessionMode}`);
     output.appendLine(`Console driver: ${consoleDriver}`);
     output.appendLine(`LSP enabled: ${lspEnabled}`);
     output.appendLine(`Bracketed paste: ${bracketedPaste}`);

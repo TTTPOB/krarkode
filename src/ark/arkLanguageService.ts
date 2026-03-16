@@ -52,7 +52,6 @@ interface SidecarMessage {
 
 const DEFAULT_IP_ADDRESS = '127.0.0.1';
 const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
-const DEFAULT_SESSION_MODE = 'notebook';
 const DEFAULT_SIDECAR_TIMEOUT_MS = 15000;
 const KERNEL_LOG_LEVEL_PARSER = new RegexLogLevelParser(/\b(TRACE|DEBUG|INFO|WARN|ERROR)\b/i);
 
@@ -179,7 +178,6 @@ export class ArkLanguageService implements vscode.Disposable {
         this.connectionFile = connectionFile;
 
         const arkPath = util.resolveArkPath();
-        const sessionMode = (vscode.workspace.getConfiguration('krarkode.ark').get<string>('sessionMode') || DEFAULT_SESSION_MODE).trim();
         const env = Object.assign({}, process.env, {
             ARK_CONNECTION_FILE: connectionFile,
         });
@@ -198,7 +196,7 @@ export class ArkLanguageService implements vscode.Disposable {
         this.runtimeOutputChannel.appendLine(
             this.formatLogMessage(`Starting Ark kernel with connection file ${connectionFile}`, 'session'),
         );
-        this.arkProcess = util.spawn(arkPath, ['--connection_file', connectionFile, '--session-mode', sessionMode], {
+        this.arkProcess = util.spawn(arkPath, ['--connection_file', connectionFile, '--session-mode', 'console'], {
             cwd,
             env,
         });
