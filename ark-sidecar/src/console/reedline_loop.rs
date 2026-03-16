@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, Emacs, KeyCode, KeyModifiers, MenuBuilder, Reedline,
-    ReedlineEvent, ReedlineMenu, Signal,
+    ReedlineEvent, ReedlineMenu, Signal, TraversalDirection,
 };
 use std::sync::mpsc as std_mpsc;
 use tracing::{debug, error, info};
@@ -62,7 +62,8 @@ pub(crate) fn run_reedline_loop(
         ColumnarMenu::default()
             .with_name("completion_menu")
             .with_columns(4)
-            .with_column_padding(2),
+            .with_column_padding(2)
+            .with_traversal_direction(TraversalDirection::Vertical),
     );
 
     // Build reedline editor
