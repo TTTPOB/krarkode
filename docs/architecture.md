@@ -21,8 +21,8 @@ Krarkode is structured as three layers: the VS Code extension (TypeScript), a Ru
 ┌───────────────────────────▼─────────────────────────────────────┐
 │                     ark-sidecar  (Rust)                          │
 │                                                                 │
-│  run_lsp()  run_execute_request()  run_plot_watcher()           │
-│                   run_check()                                   │
+│  lsp  execute  plot-watcher  check  console                    │
+│                   lsp_client (for console completions)           │
 │                                                                 │
 │  ZeroMQ Shell socket  ◄── comm_open / execute_request           │
 │  ZeroMQ IoPub socket  ──► display_data / comm_message           │
@@ -46,15 +46,16 @@ Activation order:
 
 ```
 1. Logger (multi-channel)
-2. SidecarManager
-3. ArkCommBackend + PlotManager
-4. HtmlViewer
-5. VariablesService + VariablesManager
-6. SessionManager
-7. CodeExecutor
-8. ArkLanguageService  (auto-starts background kernel)
-9. HelpService + HelpManager
-10. DataExplorerManager
+2. ConfigurationWatcher
+3. SidecarManager
+4. ArkCommBackend + PlotManager
+5. HtmlViewer
+6. VariablesService + VariablesManager
+7. SessionManager
+8. CodeExecutor
+9. ArkLanguageService  (auto-starts background kernel)
+10. HelpService + HelpManager
+11. DataExplorerManager
 ```
 
 Session change events cascade down: `SessionManager` notifies `SidecarManager`, which reconnects sockets; `ArkLanguageService` restarts its LSP client; `VariablesManager` re-subscribes to the new session's comm channel.
@@ -63,16 +64,19 @@ Session change events cascade down: `SessionManager` notifies `SidecarManager`, 
 
 ## Sidecar (`ark-sidecar/`)
 
-A small Rust binary that owns all ZeroMQ socket work. The extension spawns sidecar instances on demand and communicates over **newline-delimited JSON on stdin/stdout**.
+A Rust binary that owns all ZeroMQ socket work and provides a built-in console REPL. The extension spawns sidecar instances on demand and communicates over **newline-delimited JSON on stdin/stdout**. Uses clap subcommands for CLI dispatch.
 
-| Mode | Invocation | Purpose |
-|------|-----------|---------|
-| `run_lsp` | Once per session | Starts Ark LSP; sends `comm_open` on `positron.ui` (required for dynamic plots); proxies LSP traffic |
-| `run_execute_request` | Per execution | Fires a single `execute_request` on the shell socket; optionally waits for kernel-idle |
-| `run_plot_watcher` | Once per session | Tails the IoPub socket; emits `display_data` and `show_html_file` events as JSON to stdout |
-| `run_check` | On demand | Validates environment (R, Ark, connection) for the `doctor` command |
+| Subcommand | Invocation | Purpose |
+|------------|-----------|---------|
+| `lsp` | Once per session | Starts Ark LSP; sends `comm_open` on `positron.ui` (required for dynamic plots); proxies LSP traffic |
+| `execute` | Per execution | Fires a single `execute_request` on the shell socket; optionally waits for kernel-idle |
+| `plot-watcher` | Once per session | Tails the IoPub socket; emits `display_data` and `show_html_file` events as JSON to stdout |
+| `check` | On demand | Validates environment (R, Ark, connection) for the `doctor` command |
+| `console` | Once per session | Runs an interactive reedline-based REPL with LSP-powered tab completion, syntax highlighting, and bracket validation |
 
-Key dependencies: `runtimelib` (Jupyter protocol), `zeromq`, `tokio`.
+The `console` subcommand replaces the previous `jupyter console` approach. It includes a built-in LSP client (`lsp_client/`) that connects to the Ark LSP server over TCP for code completions, and uses reedline for line editing with R-aware syntax highlighting and bracket validation.
+
+Key dependencies: `runtimelib` (Jupyter protocol), `zeromq`, `tokio`, `clap`, `reedline`.
 
 ---
 
