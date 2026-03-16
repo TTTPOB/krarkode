@@ -82,7 +82,7 @@ fn filter_completion_items<'a>(
     } else if !case_insensitive_matches.is_empty() {
         ("case_insensitive_prefix", case_insensitive_matches)
     } else {
-        ("fallback_original", items.iter().collect())
+        ("no_prefix_matches", Vec::new())
     };
 
     debug!(
@@ -530,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn falls_back_to_original_items_when_no_prefix_matches_exist() {
+    fn returns_no_items_when_no_prefix_matches_exist() {
         let response = CompletionResponse::Array(vec![
             CompletionItem {
                 label: "deviance".to_string(),
@@ -548,10 +548,7 @@ mod tests {
             .map(|suggestion| suggestion.value)
             .collect();
 
-        assert_eq!(
-            values,
-            vec!["deviance".to_string(), "activeBindingFunction".to_string()]
-        );
+        assert!(values.is_empty());
     }
 
     #[test]
