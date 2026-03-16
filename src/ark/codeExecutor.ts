@@ -340,7 +340,7 @@ export class CodeExecutor implements vscode.Disposable {
             }
         }
 
-        sessionRegistry.updateSessionAttachment(entry.name, new Date().toISOString());
+        await sessionRegistry.updateSessionAttachmentValidated(entry.name, new Date().toISOString());
         sessionRegistry.setActiveSessionName(entry.name);
     }
 
@@ -355,7 +355,7 @@ export class CodeExecutor implements vscode.Disposable {
      * Pick a session for code execution.
      */
     private async pickSessionForExecution(): Promise<ArkSessionEntry | undefined> {
-        const registry = sessionRegistry.loadRegistry();
+        const registry = await sessionRegistry.loadRegistryValidated();
         if (registry.length === 0) {
             const choice = await vscode.window.showInformationMessage(
                 'No Ark sessions found. Create one now?',

@@ -147,7 +147,7 @@ export class ArkLanguageService implements vscode.Disposable {
         }
 
         // Try to reuse existing session from registry
-        const activeSession = sessionRegistry.getActiveSession();
+        const activeSession = await sessionRegistry.getActiveSessionValidated();
         if (activeSession && fs.existsSync(activeSession.connectionFilePath)) {
             const alive = await this.checkConnectionFile(activeSession.connectionFilePath);
             if (alive) {
@@ -218,7 +218,7 @@ export class ArkLanguageService implements vscode.Disposable {
 
     private async resolveRHome(): Promise<string | undefined> {
         // Prefer session-specific R binary if available
-        const activeSession = sessionRegistry.getActiveSession();
+        const activeSession = await sessionRegistry.getActiveSessionValidated();
         const rPath = activeSession?.rBinaryPath ?? await util.getRBinaryPath();
         if (!rPath) {
             return undefined;
