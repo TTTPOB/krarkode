@@ -21,7 +21,7 @@ const FAIL: ExecResult = { status: 1, stdout: '', stderr: '' };
 // ---- parsePixiEnvironmentNames ----
 
 describe('parsePixiEnvironmentNames', () => {
-    test('extracts environment names from [environments] table', () => {
+    test('extracts environment names from [environments] table, including implicit default', () => {
         const toml = `
 [workspace]
 name = "myproject"
@@ -38,7 +38,16 @@ r-base = "4.3.*"
 r44 = ["r44"]
 r43 = ["r43"]
 `;
-        expect(parsePixiEnvironmentNames(toml)).toEqual(['r44', 'r43']);
+        expect(parsePixiEnvironmentNames(toml)).toEqual(['default', 'r44', 'r43']);
+    });
+
+    test('does not duplicate default when explicitly listed in [environments]', () => {
+        const toml = `
+[environments]
+default = {solve-group = "default"}
+custom = ["custom"]
+`;
+        expect(parsePixiEnvironmentNames(toml)).toEqual(['default', 'custom']);
     });
 
     test('returns ["default"] when no [environments] table', () => {
@@ -64,13 +73,13 @@ name = "myproject"
         expect(parsePixiEnvironmentNames(toml)).toEqual(['default']);
     });
 
-    test('handles environments with full object syntax', () => {
+    test('handles environments with full object syntax, including implicit default', () => {
         const toml = `
 [environments]
 prod = {features = ["prod"], solve-group = "default"}
 test = {features = ["test"], no-default-feature = true}
 `;
-        expect(parsePixiEnvironmentNames(toml)).toEqual(['prod', 'test']);
+        expect(parsePixiEnvironmentNames(toml)).toEqual(['default', 'prod', 'test']);
     });
 
     test('returns ["default"] on invalid TOML', () => {
@@ -78,13 +87,13 @@ test = {features = ["test"], no-default-feature = true}
         expect(parsePixiEnvironmentNames(toml)).toEqual(['default']);
     });
 
-    test('handles environments with hyphenated names', () => {
+    test('handles environments with hyphenated names, including implicit default', () => {
         const toml = `
 [environments]
 r-4-4 = ["r44"]
 my-custom-env = ["custom"]
 `;
-        expect(parsePixiEnvironmentNames(toml)).toEqual(['r-4-4', 'my-custom-env']);
+        expect(parsePixiEnvironmentNames(toml)).toEqual(['default', 'r-4-4', 'my-custom-env']);
     });
 });
 
@@ -138,17 +147,19 @@ r43 = ["r43"]
         expect(result).toEqual([]);
     });
 
-    test('returns environments with resolved R binary paths', async () => {
+    test('returns environments with resolved R binary paths, including default', async () => {
         const result = await resolvePixiEnvironments(
             makeOptions({
                 exec: mockExec({
                     'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
+                    '-e default': { status: 0, stdout: '/envs/default/bin/R\n', stderr: '' },
                     '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
                     '-e r43': { status: 0, stdout: '/envs/r43/bin/R\n', stderr: '' },
                 }),
             }),
         );
         expect(result).toEqual([
+            { name: 'default', rBinaryPath: '/envs/default/bin/R' },
             { name: 'r44', rBinaryPath: '/envs/r44/bin/R' },
             { name: 'r43', rBinaryPath: '/envs/r43/bin/R' },
         ]);
@@ -159,12 +170,14 @@ r43 = ["r43"]
             makeOptions({
                 exec: mockExec({
                     'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
+                    '-e default': { status: 0, stdout: '/envs/default/bin/R\n', stderr: '' },
                     '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
                     '-e r43': FAIL,
                 }),
             }),
         );
         expect(result).toEqual([
+            { name: 'default', rBinaryPath: '/envs/default/bin/R' },
             { name: 'r44', rBinaryPath: '/envs/r44/bin/R' },
         ]);
     });
@@ -174,6 +187,7 @@ r43 = ["r43"]
             makeOptions({
                 exec: mockExec({
                     'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
+                    '-e default': { status: 0, stdout: '/envs/default/bin/R\n', stderr: '' },
                     '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
                     '-e r43': { status: 0, stdout: '/envs/r43/bin/R\n', stderr: '' },
                 }),
@@ -190,6 +204,7 @@ r43 = ["r43"]
             makeOptions({
                 exec: mockExec({
                     'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
+                    '-e default': { status: 0, stdout: '  \n', stderr: '' },
                     '-e r44': { status: 0, stdout: '  \n', stderr: '' },
                 }),
             }),
@@ -226,6 +241,7 @@ r-base = "4.4.*"
                 logger: (msg) => logs.push(msg),
                 exec: mockExec({
                     'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
+                    '-e default': FAIL,
                     '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
                     '-e r43': FAIL,
                 }),
@@ -233,6 +249,7 @@ r-base = "4.4.*"
         );
         expect(logs.some((l) => l.includes('pixi environments found'))).toBe(true);
         expect(logs.some((l) => l.includes('pixi CLI found'))).toBe(true);
+        expect(logs.some((l) => l.includes('default'))).toBe(true);
         expect(logs.some((l) => l.includes('r44'))).toBe(true);
         expect(logs.some((l) => l.includes('r43'))).toBe(true);
     });

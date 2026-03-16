@@ -78,6 +78,10 @@ export function parsePixiEnvironmentNames(tomlContent: string): string[] {
         if (environments && typeof environments === 'object' && !Array.isArray(environments)) {
             const keys = Object.keys(environments as Record<string, unknown>);
             if (keys.length > 0) {
+                // Always include 'default' — pixi implicitly creates it
+                if (!keys.includes('default')) {
+                    return ['default', ...keys];
+                }
                 return keys;
             }
         }
