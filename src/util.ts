@@ -68,13 +68,32 @@ async function getRpathFromSystem(): Promise<string> {
     return rpath;
 }
 
+/**
+ * Normalize the r.binaryPath setting (string or string[]) into an array of paths.
+ */
+export function getConfiguredRBinaryPaths(): string[] {
+    const config = vscode.workspace.getConfiguration('krarkode.r');
+    const raw = config.get<string | string[]>('binaryPath');
+    if (!raw) {
+        return [];
+    }
+    const paths = Array.isArray(raw) ? raw : [raw];
+    return paths
+        .map((p) => substituteVariables(p.trim()))
+        .filter((p) => p.length > 0);
+}
+
 export async function getRBinaryPath(quote = false): Promise<string | undefined> {
     let rpath: string | undefined = '';
 
-    const config = vscode.workspace.getConfiguration('krarkode.r');
-
-    rpath = config.get<string>('binaryPath');
-    rpath &&= substituteVariables(rpath);
+    // Pick first valid configured path
+    const configuredPaths = getConfiguredRBinaryPaths();
+    for (const p of configuredPaths) {
+        if (isExecutableFile(p)) {
+            rpath = p;
+            break;
+        }
+    }
 
     rpath ||= await getRpathFromSystem();
 

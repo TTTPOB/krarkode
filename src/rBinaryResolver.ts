@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { substituteVariables, getRfromEnvPath, isExecutableFile } from './util';
+import { substituteVariables, getRfromEnvPath, isExecutableFile, getConfiguredRBinaryPaths } from './util';
 import { resolvePixiEnvironments } from './pixi/pixiResolver';
 import { getLogger, LogCategory } from './logging/logger';
 
@@ -34,11 +34,9 @@ export async function collectRBinaryCandidates(): Promise<RBinaryCandidate[]> {
         }
     };
 
-    // 1. User-configured R binary path
-    const rConfig = vscode.workspace.getConfiguration('krarkode.r');
-    let userRPath = rConfig.get<string>('binaryPath') || '';
-    if (userRPath) {
-        userRPath = substituteVariables(userRPath);
+    // 1. User-configured R binary paths (string or array)
+    const configuredPaths = getConfiguredRBinaryPaths();
+    for (const userRPath of configuredPaths) {
         if (isExecutableFile(userRPath)) {
             log.debug('runtime', LogCategory.Core, `R candidate from setting: ${userRPath}`);
             addCandidate({

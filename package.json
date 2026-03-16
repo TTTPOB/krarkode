@@ -64,10 +64,13 @@
       "title": "Krarkode",
       "properties": {
         "krarkode.r.binaryPath": {
-          "type": "string",
-          "default": "",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "default": [],
           "scope": "window",
-          "markdownDescription": "Path to the R binary. Leave empty to auto-detect."
+          "markdownDescription": "Path(s) to R binaries. Can be a single string or an array of paths. Supports `${workspaceFolder}`, `${userHome}` etc. Leave empty to auto-detect."
         },
         "krarkode.pixi.manifestPath": {
           "type": "string",
