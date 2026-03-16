@@ -249,6 +249,7 @@ export class ArkLanguageService implements vscode.Disposable {
         const timeoutMs = lspConfig.get<number>('timeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
         const sidecarPath = util.resolveSidecarPath();
         const args = [
+            'lsp',
             '--connection-file',
             this.connectionFile,
             '--ip-address',
@@ -292,7 +293,7 @@ export class ArkLanguageService implements vscode.Disposable {
     private async checkConnectionFile(connectionFile: string): Promise<boolean> {
         const sidecarPath = util.resolveSidecarPath();
         const timeoutMs = vscode.workspace.getConfiguration('krarkode.ark.lsp').get<number>('timeoutMs') ?? DEFAULT_SIDECAR_TIMEOUT_MS;
-        const args = ['--check', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
+        const args = ['check', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
         const result = await util.spawnAsync(sidecarPath, args, { env: process.env });
         if (result.error || result.status !== 0) {
             const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';

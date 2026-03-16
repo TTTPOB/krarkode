@@ -202,7 +202,7 @@ export class ArkSidecarManager implements vscode.Disposable {
     private start(connectionFile: string): void {
         const sidecarPath = this.resolveSidecarPath();
         const timeoutMs = this.getTimeoutMs();
-        const args = ['--watch-plot', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
+        const args = ['watch-plot', '--connection-file', connectionFile, '--timeout-ms', String(timeoutMs)];
         const proc = cp.spawn(sidecarPath, args, { stdio: ['pipe', 'pipe', 'pipe'], env: this.buildSidecarEnv() });
         this.proc = proc;
 

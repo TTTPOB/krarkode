@@ -235,7 +235,7 @@ async function main() {
 
     const sidecarProc = cp.spawn(
         sidecarPath,
-        ['--connection-file', connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)],
+        ['lsp', '--connection-file', connectionFile, '--ip-address', ipAddress, '--timeout-ms', String(timeoutMs)],
         {
             stdio: ['ignore', 'pipe', 'pipe'],
         },

@@ -17,7 +17,7 @@ use crate::console::run_console;
 use crate::handlers::{run_check, run_execute_request, run_lsp, run_plot_watcher};
 use crate::logging::init_logging;
 use crate::protocol::{emit_event, SidecarEvent};
-use crate::types::{Mode, SUPPORTED_SIGNATURE_SCHEME};
+use crate::types::{Command, SUPPORTED_SIGNATURE_SCHEME};
 
 fn main() {
     let log_handle = init_logging();
@@ -31,8 +31,18 @@ fn main() {
 }
 
 fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
-    let args = parse_args()?;
-    let connection = read_connection(&args.connection_file)?;
+    let cli = parse_args();
+
+    // Extract connection_file from any command variant
+    let connection_file = match &cli.command {
+        Command::Lsp { connection_file, .. }
+        | Command::Execute { connection_file, .. }
+        | Command::WatchPlot { connection_file, .. }
+        | Command::Check { connection_file, .. }
+        | Command::Console { connection_file, .. } => connection_file,
+    };
+
+    let connection = read_connection(connection_file)?;
 
     if connection.signature_scheme != SUPPORTED_SIGNATURE_SCHEME {
         return Err(anyhow!(
@@ -49,32 +59,40 @@ fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
 
     runtime.block_on(async move {
         let session_id = Uuid::new_v4().to_string();
-        match args.mode {
-            Mode::Lsp => {
-                let ip_address = args
-                    .ip_address
-                    .clone()
-                    .ok_or_else(|| anyhow!("--ip-address is required"))?;
-                run_lsp(&connection, &session_id, &ip_address, args.timeout_ms).await?;
+        match cli.command {
+            Command::Lsp {
+                ip_address,
+                timeout_ms,
+                ..
+            } => {
+                run_lsp(&connection, &session_id, &ip_address, timeout_ms).await?;
             }
-            Mode::Execute => {
-                let code = decode_code(&args)?;
+            Command::Execute {
+                code,
+                code_base64,
+                wait_for_idle,
+                timeout_ms,
+                ..
+            } => {
+                let code = decode_code(&code, code_base64)?;
                 run_execute_request(
                     &connection,
                     &session_id,
                     &code,
-                    args.timeout_ms,
-                    args.wait_for_idle,
+                    timeout_ms,
+                    wait_for_idle,
                 )
                 .await?;
             }
-            Mode::WatchPlot => {
+            Command::WatchPlot { timeout_ms, .. } => {
+                // timeout_ms is available but run_plot_watcher doesn't use it directly
+                let _ = timeout_ms;
                 run_plot_watcher(&connection, &session_id, log_handle.clone()).await?;
             }
-            Mode::Check => {
-                run_check(&connection, &session_id, args.timeout_ms).await?;
+            Command::Check { timeout_ms, .. } => {
+                run_check(&connection, &session_id, timeout_ms).await?;
             }
-            Mode::Console => {
+            Command::Console { .. } => {
                 run_console(&connection, &session_id).await?;
             }
         }
