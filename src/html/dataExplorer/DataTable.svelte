@@ -166,7 +166,7 @@
             {#if leftSpacerWidth > 0}
                 <div class="table-cell column-spacer" role="presentation" aria-hidden="true"></div>
             {/if}
-            {#each renderColumns as entry}
+            {#each renderColumns as entry (entry.column.column_index)}
                 {@const column = entry.column}
                 <div
                     class="table-cell header-cell"
@@ -197,8 +197,9 @@
                             <span class="header-label" title={getColumnLabel(column)}>{getColumnLabel(column)}</span>
                             <span class="sort-indicator">{getSortIndicator(column.column_index)}</span>
                         </div>
-                        <div class="header-actions">
+                        <div class="header-actions" aria-label="Column actions">
                             <button
+                                type="button"
                                 class="header-action"
                                 title="Filter rows by this column"
                                 aria-label="Filter rows by this column"
@@ -206,18 +207,20 @@
                                 onclick={(e) => { e.stopPropagation(); onOpenRowFilter?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-filter"></span>
+                                <span class="header-action-label">Filter</span>
                             </button>
-                            <span class="header-action-separator">|</span>
                             <button
+                                type="button"
                                 class="header-action"
                                 title="Show statistics for this column"
                                 aria-label="Show statistics for this column"
                                 onclick={(e) => { e.stopPropagation(); onOpenStats?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-graph"></span>
+                                <span class="header-action-label">Stats</span>
                             </button>
-                            <span class="header-action-separator">|</span>
                             <button
+                                type="button"
                                 class="header-action"
                                 title="Hide this column"
                                 aria-label="Hide this column"
@@ -225,6 +228,7 @@
                                 onclick={(e) => { e.stopPropagation(); onHideColumn?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-eye-closed"></span>
+                                <span class="header-action-label">Hide</span>
                             </button>
                         </div>
                     </div>
@@ -262,7 +266,7 @@
                     {#if leftSpacerWidth > 0}
                         <div class="table-cell column-spacer" role="presentation" aria-hidden="true"></div>
                     {/if}
-                    {#each renderColumns as entry}
+                    {#each renderColumns as entry (entry.column.column_index)}
                         {@const value = getCellValue(virtualRow.index, entry.schemaIndex, rowCacheVersion)}
                         <div class="table-cell" role="cell" class:cell-special={isSpecialValue(value)}>{value}</div>
                     {/each}
@@ -364,47 +368,56 @@
     }
 
     .header-actions {
-        display: flex;
-        align-items: center;
-        gap: 2px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        align-items: stretch;
+        gap: 4px;
         margin-top: 2px;
         padding-top: 2px;
         border-top: 1px solid var(--vscode-editorWidget-border);
     }
 
     .header-action {
-        background: transparent;
-        color: var(--vscode-descriptionForeground);
-        border: none;
-        padding: 2px 8px;
-        border-radius: 2px;
+        min-width: 0;
+        background: var(--vscode-button-secondaryBackground);
+        color: var(--vscode-button-secondaryForeground);
+        border: 1px solid transparent;
+        padding: 2px 6px;
+        border-radius: 999px;
         cursor: pointer;
-        font-size: 1.4em;
+        font-size: 0.72em;
+        font-weight: 600;
+        line-height: 1.2;
         display: inline-flex;
         align-items: center;
-        gap: 0;
+        justify-content: center;
+        gap: 4px;
+        white-space: nowrap;
+        overflow: hidden;
     }
 
     .header-action:hover {
-        background: var(--vscode-list-hoverBackground);
-        color: var(--vscode-editor-foreground);
+        background: var(--vscode-button-secondaryHoverBackground);
+        border-color: var(--vscode-focusBorder);
+        color: var(--vscode-button-secondaryForeground);
     }
 
     .header-action:disabled {
         cursor: default;
         color: var(--vscode-disabledForeground);
-        background: transparent;
+        background: var(--vscode-button-secondaryBackground);
+        border-color: transparent;
+        opacity: 0.7;
     }
 
     .header-action .codicon {
-        font-size: 1em;
+        font-size: 1.1em;
     }
 
-    .header-action-separator {
-        color: var(--vscode-descriptionForeground);
-        opacity: 0.6;
-        padding: 0 4px;
-        font-size: 1em;
+    .header-action-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .column-resizer {
