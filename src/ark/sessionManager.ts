@@ -427,20 +427,22 @@ export class ArkSessionManager {
         const sessionsDir = sessionRegistry.getSessionsDir();
         const sessionDir = path.join(sessionsDir, sessionName);
         if (fs.existsSync(sessionDir)) {
-            const choice = await vscode.window.showWarningMessage(
-                `Session "${sessionName}" already exists. Attach instead?`,
-                'Attach',
-                'Cancel',
-            );
-            if (choice === 'Attach') {
-                const existing = await sessionRegistry.findSessionValidated(sessionName);
-                if (existing) {
+            const existing = await sessionRegistry.findSessionValidated(sessionName);
+            if (existing) {
+                // Session is live — offer to attach
+                const choice = await vscode.window.showWarningMessage(
+                    `Session "${sessionName}" already exists. Attach instead?`,
+                    'Attach',
+                    'Cancel',
+                );
+                if (choice === 'Attach') {
                     await this.openConsoleForEntry(existing);
-                } else {
-                    void vscode.window.showWarningMessage('Session registration not found. Please use Attach to rebind.');
                 }
+                return;
             }
-            return;
+            // Stale directory without registry entry — clean up and proceed
+            this.outputChannel.appendLine(`Removing stale session directory for "${sessionName}".`);
+            fs.rmSync(sessionDir, { recursive: true, force: true });
         }
         fs.mkdirSync(sessionDir, { recursive: true });
 

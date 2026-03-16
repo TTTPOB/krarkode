@@ -120,6 +120,19 @@ export async function loadRegistryValidated(): Promise<ArkSessionEntry[]> {
 
     const tmuxSessionName = getTmuxSessionName();
     const aliveWindows = await listTmuxWindows(tmuxSessionName);
+
+    // If tmux query returned nothing but we have tmux entries, the tmux
+    // session itself may be down.  Don't prune — we'd wipe the entire registry.
+    if (aliveWindows.length === 0) {
+        getLogger().log(
+            'runtime',
+            LogCategory.Session,
+            'warn',
+            'tmux returned no windows; skipping registry pruning to avoid data loss.',
+        );
+        return entries;
+    }
+
     const aliveSet = new Set(aliveWindows);
 
     const validated = entries.filter((entry) => {
@@ -134,6 +147,7 @@ export async function loadRegistryValidated(): Promise<ArkSessionEntry[]> {
 
     if (validated.length !== entries.length) {
         const pruned = entries.filter((e) => !validated.includes(e));
+        const sessionsDir = getSessionsDir();
         for (const dead of pruned) {
             getLogger().log(
                 'runtime',
@@ -141,6 +155,26 @@ export async function loadRegistryValidated(): Promise<ArkSessionEntry[]> {
                 'info',
                 `Pruned dead tmux session from registry: ${dead.name} (window: ${dead.tmuxWindowName})`,
             );
+            // Clean up stale session directory to prevent blocking re-creation
+            const sessionDir = path.join(sessionsDir, dead.name);
+            try {
+                if (fs.existsSync(sessionDir)) {
+                    fs.rmSync(sessionDir, { recursive: true, force: true });
+                    getLogger().log(
+                        'runtime',
+                        LogCategory.Session,
+                        'info',
+                        `Removed stale session directory: ${sessionDir}`,
+                    );
+                }
+            } catch (err) {
+                getLogger().log(
+                    'runtime',
+                    LogCategory.Session,
+                    'warn',
+                    `Failed to remove stale session directory ${sessionDir}: ${err}`,
+                );
+            }
         }
         saveRegistry(validated);
     }
