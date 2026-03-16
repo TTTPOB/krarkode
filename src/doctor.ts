@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { getLogger } from './logging/logger';
 import * as util from './util';
+import { collectRBinaryCandidates } from './rBinaryResolver';
 
 interface CheckResult {
     label: string;
@@ -77,7 +78,26 @@ export async function runDoctor(): Promise<void> {
         results.push({ label: 'tmux', ok: true, detail: `Skipped (console driver: ${consoleDriver})` });
     }
 
-    // 5. Key settings summary
+    // 5. Pixi environments
+    try {
+        const candidates = await collectRBinaryCandidates();
+        const pixiCandidates = candidates.filter((c) => c.source === 'pixi');
+        if (pixiCandidates.length > 0) {
+            const envList = pixiCandidates.map((c) => `${c.label}: ${c.rBinaryPath}`).join(', ');
+            results.push({ label: 'Pixi', ok: true, detail: `Found ${pixiCandidates.length} R environment(s) (${envList})` });
+        } else {
+            const pixiAvailable = await resolveExecutable('pixi');
+            if (pixiAvailable) {
+                results.push({ label: 'Pixi', ok: true, detail: 'pixi available but no R environments found' });
+            } else {
+                results.push({ label: 'Pixi', ok: true, detail: 'pixi CLI not found, skipping environment discovery' });
+            }
+        }
+    } catch {
+        results.push({ label: 'Pixi', ok: true, detail: 'Failed to check pixi environments' });
+    }
+
+    // 6. Key settings summary
     const sessionMode = config.get<string>('ark.sessionMode') || 'console';
     const lspEnabled = config.get<boolean>('ark.lsp.enabled') ?? true;
     const bracketedPaste = config.get<boolean>('bracketedPaste') ?? true;
