@@ -28,7 +28,7 @@ import {
     type LogContext,
     type LogLevel,
 } from '../logging/logger';
-import { formatArkRustLog, formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
+import { formatArkRustLog, formatSidecarRustLog, getArkLogLevel, mergeRustLogDirective } from './arkLogLevel';
 import { parseSidecarJsonLog } from './sidecarLogParser';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 
@@ -186,7 +186,7 @@ export class ArkLanguageService implements vscode.Disposable {
         const arkLogLevel = getArkLogLevel();
         const rustLog = formatArkRustLog(arkLogLevel);
         if (rustLog) {
-            env.RUST_LOG = rustLog;
+            env.RUST_LOG = mergeRustLogDirective(env.RUST_LOG, 'ark', arkLogLevel);
             this.runtimeOutputChannel.appendLine(this.formatLogMessage(`Ark backend log level set to ${arkLogLevel}.`, 'session'));
         }
         const rHome = await this.resolveRHome();
@@ -564,11 +564,11 @@ export class ArkLanguageService implements vscode.Disposable {
         const logLevel = getArkLogLevel();
         const sidecarRustLog = formatSidecarRustLog(logLevel);
         if (sidecarRustLog) {
-            env.RUST_LOG = sidecarRustLog;
+            env.RUST_LOG = mergeRustLogDirective(env.RUST_LOG, 'vscode_r_ark_sidecar', logLevel);
             getLogger().debug(
                 'sidecar',
                 LogCategory.Logging,
-                this.formatLogMessage(`LSP sidecar log level set to ${sidecarRustLog}.`, 'sidecar'),
+                this.formatLogMessage(`LSP sidecar log level set to ${sidecarRustLog} (RUST_LOG=${env.RUST_LOG}).`, 'sidecar'),
             );
         }
         return env;

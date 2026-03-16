@@ -34,3 +34,28 @@ export function formatSidecarRustLog(level: ArkLogLevelSetting): string | undefi
     }
     return `${SIDECAR_RUST_LOG_TARGET}=${level}`;
 }
+
+/**
+ * Merge a target=level directive into an existing RUST_LOG string.
+ * If the target already has a directive, replace it. Otherwise append.
+ */
+export function mergeRustLogDirective(
+    existingRustLog: string | undefined,
+    target: string,
+    level: string,
+): string {
+    const directive = `${target}=${level}`;
+    if (!existingRustLog) {
+        return directive;
+    }
+    // Remove any existing directive for this target, then append
+    const re = new RegExp(`(^|,)${target}=[a-zA-Z]+(,|$)`, 'g');
+    const cleaned = existingRustLog.replace(re, (_match, before: string, after: string) => {
+        // Keep one comma if removing from between two directives
+        return before && after ? ',' : '';
+    });
+    if (!cleaned) {
+        return directive;
+    }
+    return `${cleaned},${directive}`;
+}

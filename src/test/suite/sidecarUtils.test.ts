@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { formatArkRustLog, formatSidecarRustLog, getArkLogLevel } from '../../ark/arkLogLevel';
+import { formatArkRustLog, formatSidecarRustLog, getArkLogLevel, mergeRustLogDirective } from '../../ark/arkLogLevel';
 import { parseSidecarJsonLog } from '../../ark/sidecarLogParser';
 
 suite('Sidecar/session utils', () => {
@@ -33,5 +33,31 @@ suite('Sidecar/session utils', () => {
             get: () => 'invalid',
         } as unknown as vscode.WorkspaceConfiguration;
         assert.strictEqual(getArkLogLevel(invalidConfig), 'inherit');
+    });
+
+    test('mergeRustLogDirective appends when no existing RUST_LOG', () => {
+        assert.strictEqual(mergeRustLogDirective(undefined, 'ark', 'debug'), 'ark=debug');
+        assert.strictEqual(mergeRustLogDirective('', 'ark', 'debug'), 'ark=debug');
+    });
+
+    test('mergeRustLogDirective appends to existing directives', () => {
+        assert.strictEqual(mergeRustLogDirective('warn', 'ark', 'debug'), 'warn,ark=debug');
+        assert.strictEqual(
+            mergeRustLogDirective('warn,tower_lsp=info', 'ark', 'debug'),
+            'warn,tower_lsp=info,ark=debug',
+        );
+    });
+
+    test('mergeRustLogDirective replaces existing target directive', () => {
+        assert.strictEqual(mergeRustLogDirective('warn,ark=info', 'ark', 'debug'), 'warn,ark=debug');
+        assert.strictEqual(mergeRustLogDirective('ark=trace,tower=info', 'ark', 'debug'), 'tower=info,ark=debug');
+        assert.strictEqual(mergeRustLogDirective('ark=warn', 'ark', 'debug'), 'ark=debug');
+    });
+
+    test('mergeRustLogDirective works for sidecar target', () => {
+        assert.strictEqual(
+            mergeRustLogDirective('info', 'vscode_r_ark_sidecar', 'debug'),
+            'info,vscode_r_ark_sidecar=debug',
+        );
     });
 });

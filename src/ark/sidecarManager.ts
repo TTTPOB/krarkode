@@ -6,7 +6,7 @@ import * as readline from 'readline';
 import * as vscode from 'vscode';
 import * as util from '../util';
 import { formatLogMessage, getLogger, isDebugLoggingEnabled, LogCategory, type LogContext } from '../logging/logger';
-import { formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
+import { formatSidecarRustLog, getArkLogLevel, mergeRustLogDirective } from './arkLogLevel';
 import { parseSidecarJsonLog } from './sidecarLogParser';
 import type { SidecarEvent } from './sidecarProtocol.generated';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
@@ -297,11 +297,11 @@ export class ArkSidecarManager implements vscode.Disposable {
         const logLevel = getArkLogLevel(vscode.workspace.getConfiguration('krarkode.ark'));
         const sidecarRustLog = formatSidecarRustLog(logLevel);
         if (sidecarRustLog) {
-            env.RUST_LOG = sidecarRustLog;
+            env.RUST_LOG = mergeRustLogDirective(env.RUST_LOG, 'vscode_r_ark_sidecar', logLevel);
             getLogger().debug(
                 'sidecar',
                 LogCategory.Logging,
-                this.formatLogMessage(`Sidecar log level set to ${sidecarRustLog}.`),
+                this.formatLogMessage(`Sidecar log level set to ${sidecarRustLog} (RUST_LOG=${env.RUST_LOG}).`),
             );
         }
         return env;

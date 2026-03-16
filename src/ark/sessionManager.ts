@@ -1014,7 +1014,10 @@ export class ArkSessionManager {
         const arkLogLevel = getArkLogLevel();
         const rustLog = formatArkRustLog(arkLogLevel);
         if (rustLog) {
-            envParts.push(`RUST_LOG=${shellEscape(rustLog)}`);
+            // Use shell parameter expansion to merge with login shell's RUST_LOG
+            // rather than replacing it entirely. This preserves base-level and
+            // other crate directives the user may have configured.
+            envParts.push(`RUST_LOG="\${RUST_LOG:+\${RUST_LOG},}${rustLog}"`);
             this.outputChannel.appendLine(`Ark backend log level set to ${arkLogLevel}.`);
         }
 
