@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as util from '../util';
 import { getExtensionContext } from '../context';
+import { getTmuxSessionName, listTmuxWindows } from './tmuxUtil';
+import { getLogger, LogCategory } from '../logging/logger';
 
 export type ArkConsoleDriver = 'tmux' | 'external';
 
@@ -95,4 +97,92 @@ export function getActiveSession(): ArkSessionEntry | undefined {
 
 export function findSession(name: string): ArkSessionEntry | undefined {
     return loadRegistry().find((entry) => entry.name === name);
+}
+
+// --- Async validated variants: intersect registry with live tmux windows ---
+
+/**
+ * Load registry and prune tmux entries whose windows no longer exist.
+ * External-mode entries are kept unconditionally.
+ * Pruned results are persisted back to disk.
+ */
+export async function loadRegistryValidated(): Promise<ArkSessionEntry[]> {
+    const entries = loadRegistry();
+    if (entries.length === 0) {
+        return entries;
+    }
+
+    // Only query tmux if there are tmux-mode entries
+    const hasTmuxEntries = entries.some((e) => e.mode === 'tmux');
+    if (!hasTmuxEntries) {
+        return entries;
+    }
+
+    const tmuxSessionName = getTmuxSessionName();
+    const aliveWindows = await listTmuxWindows(tmuxSessionName);
+    const aliveSet = new Set(aliveWindows);
+
+    const validated = entries.filter((entry) => {
+        if (entry.mode !== 'tmux') {
+            return true;
+        }
+        if (!entry.tmuxWindowName) {
+            return false;
+        }
+        return aliveSet.has(entry.tmuxWindowName);
+    });
+
+    if (validated.length !== entries.length) {
+        const pruned = entries.filter((e) => !validated.includes(e));
+        for (const dead of pruned) {
+            getLogger().log(
+                'runtime',
+                LogCategory.Session,
+                'info',
+                `Pruned dead tmux session from registry: ${dead.name} (window: ${dead.tmuxWindowName})`,
+            );
+        }
+        saveRegistry(validated);
+    }
+
+    return validated;
+}
+
+export async function findSessionValidated(name: string): Promise<ArkSessionEntry | undefined> {
+    const registry = await loadRegistryValidated();
+    return registry.find((entry) => entry.name === name);
+}
+
+export async function getActiveSessionValidated(): Promise<ArkSessionEntry | undefined> {
+    const activeName = getActiveSessionName();
+    if (!activeName) {
+        return undefined;
+    }
+    const registry = await loadRegistryValidated();
+    const entry = registry.find((e) => e.name === activeName);
+    if (!entry) {
+        // Active session was pruned — clear stale globalState
+        setActiveSessionName(undefined);
+    }
+    return entry;
+}
+
+export async function upsertSessionValidated(entry: ArkSessionEntry): Promise<void> {
+    const registry = await loadRegistryValidated();
+    const idx = registry.findIndex((item) => item.name === entry.name);
+    if (idx >= 0) {
+        registry[idx] = entry;
+    } else {
+        registry.push(entry);
+    }
+    saveRegistry(registry);
+}
+
+export async function updateSessionAttachmentValidated(name: string, time: string): Promise<void> {
+    const registry = await loadRegistryValidated();
+    const idx = registry.findIndex((item) => item.name === name);
+    if (idx >= 0) {
+        registry[idx].lastAttachedAt = time;
+        saveRegistry(registry);
+    }
 }
