@@ -2,7 +2,7 @@
 
 A focused VS Code extension that brings Positron-quality Ark kernel integration to vanilla VS Code.
 
-> **v0.1.0 — Feature-complete for core R interactive workflow. Console mode only.**
+> **v0.1.0 released, ready for daily interactive use.**
 
 [中文](README.cn.md)
 
@@ -14,13 +14,11 @@ Previously, using R in VS Code required the [vscode-R extension](https://marketp
 
 [Ark](https://github.com/posit-dev/ark) is a full-featured R kernel built by Posit. It ships with an LSP server, Jupyter comm protocol support, and a built-in plot device. However, using Ark natively in VS Code is currently not possible — it only works in [Positron](https://github.com/posit-dev/positron), the Electron-based IDE built by Posit.
 
-That is why I built Krarkode: to bring Ark's powerful R kernel experience into VS Code. This project has a strong personal bias; some design decisions serve my preferred workflow rather than being designed for generic use cases. I am (partly) a bioinformatician, mainly using R for data analysis and visualization rather than package development. I don't use R Markdown at all, so package development and R Markdown-related features are out of scope for now. My focus is on the interactive workflow: code execution, plot viewing, data exploration, and language intelligence.
+That is why I built Krarkode: to bring Ark's R kernel experience into VS Code. This project has a strong personal bias; most design decisions serve my preferred workflow rather than being designed for generic use cases. I am (partly) a bioinformatician, mainly using R for data analysis and visualization rather than package development. I don't use R Markdown at all, so package development and R Markdown-related features are out of scope for now.
 
-Because my time is limited, I chose to glue multiple existing tools together instead of building everything elegantly from scratch. For example, I used the official `jupyter console` for code execution (after all, Ark is a Jupyter kernel), and `tmux` for session management. The implementation is not the most elegant, but it works. At some point in the future I might implement a proper R terminal that connects directly to Ark, but for now the `tmux`-based session management and `jupyter console` are good enough for me. This is my first somewhat "big" project — it has many rough edges, test coverage is very limited (I am a poor test writer), and most of the code was generated with the help of `Claude Code` and `Codex`. But I think I've put enough human intelligence into the design, and I won't be ashamed of the AI involvement.
+Because my time is limited, I chose to glue multiple existing tools together instead of building everything elegantly from scratch. For example, session management relies on `tmux`. The implementation is not the most elegant, but it works. This is my first somewhat "big" project — it has many rough edges, test coverage is very limited (I am a poor test writer), and most of the code was generated with the help of `Claude Code` and `Codex`. But I have put enough human intelligence into the design, and I won't be ashamed of the AI involvement.
 
 The name, though seemingly hard to pronounce, means I `cracked` `ark` out of Positron and put it into VS `Code`.
-
-Since the Ark dev team recently announced [oak](https://github.com/posit-dev/ark/issues/1117), which extracts the LSP server from Ark, this project may evolve once oak matures.
 
 **Ark owns computation and protocol. Krarkode owns UI and VS Code glue.**
 
@@ -31,11 +29,13 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 ## Features (v0.1.0)
 
 ### Session Management
+
 - Create, attach, switch, stop, and interrupt Ark sessions
 - Status bar shows real-time kernel state: `idle` / `busy` / `starting` / `reconnecting`
 - Sessions persist across editor restarts (registry + connection file)
 
 ### Code Execution
+
 - Run selection or current line (`Ctrl+Enter` / `Cmd+Enter`)
 - Source file with optional echo (`Ctrl+Shift+S`)
 - Run from line to end / beginning to line
@@ -43,34 +43,41 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 - Quick-inspect: `nrow()`, `length()`, `head()`, `names()`, `View()`
 
 ### Language Server
+
 - Full R language intelligence: completions, diagnostics, hover, go-to-definition
 - Auto-starts a background Ark instance for LSP when no interactive session is active
 
 ### Plot Viewer
+
 - Captures `display_data` from base R graphics, ggplot2, etc.
 - History navigation, zoom controls, fit-to-window
 - Save to file, open in browser
 - Dynamic re-rendering on panel resize (via `positron.ui` comm)
 
 ### Help Browser
+
 - R help viewer inside VS Code with back/forward/home navigation
 - `F1` at cursor looks up the function under point
 - `Ctrl+Shift+H` to open
 
 ### Variables Panel
+
 - Real-time workspace inspector connected via `positron.variables` comm
 - Expandable tree for lists and environments
 
 ### Data Explorer
+
 - Interactive data frame viewer launched via `View()` or the variables panel
 - Column sorting, row filtering, column statistics
 - Virtual scrolling (TanStack Virtual) for large data frames
 - Column visibility toggle
 
 ### HTML Viewer
+
 - Displays `show_html_file` output: htmlwidgets, R Markdown, etc.
 
 ### Doctor
+
 - `Krarkode: Doctor` command checks R binary, Ark binary, sidecar, and connection health
 
 ---
@@ -91,8 +98,8 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 | Doctor diagnostics | ✅ |
 | Console mode — tmux driver | ✅ |
 | Console mode — external terminal driver | ✅ |
-| Notebook / background session mode | ❌ not implemented |
-| Debugger integration | ❌ not implemented |
+| Notebook / background session mode | ❌ not planned |
+| Debugger integration | ❌ may consider if DAP integration becomes available |
 
 ---
 
@@ -100,7 +107,7 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 
 - **Ark** binary — build from [posit-dev/ark](https://github.com/posit-dev/ark) or extract from a [Positron](https://github.com/posit-dev/positron) release
 - **R** 4.1+ with `jsonlite` (`install.packages("jsonlite")`)
-- **tmux** on `$PATH` (default console driver; configurable to external terminal)
+- **tmux** — used for session management
 
 ---
 
@@ -166,6 +173,6 @@ Ark is MIT licensed. Krarkode uses only Ark's public protocol surface and binary
 
 ## Related Projects
 
-- [posit-dev/ark](https://github.com/posit-dev/ark) — The Ark R kernel this extension is built around
+- [posit-dev/ark](https://github.com/posit-dev/ark) — The Ark R kernel this extension is built around (note: the Ark team recently announced [oak](https://github.com/posit-dev/ark/issues/1117), which extracts the LSP server from Ark. This project may evolve once oak matures.)
 - [posit-dev/positron](https://github.com/posit-dev/positron) — Positron IDE, the primary consumer of Ark; source of inspiration for the UX this extension recreates
 - [vscode-R](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r) — The most classic VS Code R extension
