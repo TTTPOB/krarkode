@@ -11,12 +11,17 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use runtimelib::{create_client_iopub_connection, ConnectionInfo};
+use runtimelib::{
+    create_client_iopub_connection, ConnectionInfo, ExecuteRequest, ExecutionState,
+    JupyterMessage, JupyterMessageContent,
+};
 use std::sync::mpsc as std_mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::connection::{create_shell_connection, send_comm_open, wait_for_comm_port};
+use crate::connection::{
+    create_control_connection, create_shell_connection, send_comm_open, wait_for_comm_port,
+};
 use crate::lsp_client::LspClient;
 use kernel_loop::{run_kernel_loop, ConsoleRequest};
 
@@ -25,7 +30,11 @@ use kernel_loop::{run_kernel_loop, ConsoleRequest};
 /// Sets up channels between the blocking reedline loop and the async
 /// kernel event loop, then runs both concurrently. Optionally initializes
 /// an LSP client for tab completion.
-pub(crate) async fn run_console(connection_info: &ConnectionInfo, session_id: &str) -> Result<()> {
+pub(crate) async fn run_console(
+    connection_info: &ConnectionInfo,
+    session_id: &str,
+    r_binary_path: Option<&str>,
+) -> Result<()> {
     info!(mode = "console", "Sidecar: starting console mode");
 
     // --- LSP Initialization (best-effort) ---
@@ -40,6 +49,45 @@ pub(crate) async fn run_console(connection_info: &ConnectionInfo, session_id: &s
         }
     };
 
+    // --- Query R version (best-effort) ---
+    let r_version = match query_r_version(connection_info, session_id).await {
+        Ok(version) => {
+            info!(version = %version, "Console: R version queried");
+            Some(version)
+        }
+        Err(err) => {
+            warn!(error = ?err, "Console: failed to query R version");
+            None
+        }
+    };
+
+    // --- Control channel for interrupt/shutdown ---
+    let control = create_control_connection(connection_info, session_id)
+        .await
+        .context("Failed to connect control socket")?;
+
+    // --- SIGINT handler ---
+    let (interrupt_tx, interrupt_rx) = tokio::sync::mpsc::channel::<()>(4);
+    tokio::spawn(async move {
+        use tokio::signal::unix::{signal, SignalKind};
+        let mut sigint = match signal(SignalKind::interrupt()) {
+            Ok(s) => s,
+            Err(err) => {
+                warn!(error = ?err, "Console: failed to register SIGINT handler");
+                return;
+            }
+        };
+        debug!("Console: SIGINT handler registered");
+        loop {
+            sigint.recv().await;
+            debug!("Console: SIGINT received, forwarding to kernel loop");
+            if interrupt_tx.send(()).await.is_err() {
+                debug!("Console: interrupt channel closed, SIGINT handler exiting");
+                break;
+            }
+        }
+    });
+
     // Channel: reedline -> kernel (execute/exit requests)
     let (request_tx, request_rx) = tokio::sync::mpsc::channel::<ConsoleRequest>(16);
 
@@ -50,14 +98,30 @@ pub(crate) async fn run_console(connection_info: &ConnectionInfo, session_id: &s
     let conn_info = connection_info.clone();
     let sess_id = session_id.to_string();
     let runtime_handle = tokio::runtime::Handle::current();
+    let r_binary_path_owned = r_binary_path.map(|s| s.to_string());
 
     // Spawn the blocking reedline loop
     let reedline_handle = tokio::task::spawn_blocking(move || {
-        reedline_loop::run_reedline_loop(request_tx, exec_output_rx, lsp_client, runtime_handle);
+        reedline_loop::run_reedline_loop(
+            request_tx,
+            exec_output_rx,
+            lsp_client,
+            runtime_handle,
+            r_version,
+            r_binary_path_owned,
+        );
     });
 
     // Run the async kernel loop (in the current task)
-    let kernel_result = run_kernel_loop(&conn_info, &sess_id, request_rx, exec_output_tx).await;
+    let kernel_result = run_kernel_loop(
+        &conn_info,
+        &sess_id,
+        request_rx,
+        exec_output_tx,
+        control,
+        interrupt_rx,
+    )
+    .await;
 
     // Wait for reedline to finish
     let _ = reedline_handle.await;
@@ -65,6 +129,85 @@ pub(crate) async fn run_console(connection_info: &ConnectionInfo, session_id: &s
     debug!("Console mode: finished");
 
     kernel_result
+}
+
+/// Query the R version string from the kernel by executing `cat(R.version.string)`.
+///
+/// Uses temporary shell+iopub connections (same pattern as LSP init).
+async fn query_r_version(connection_info: &ConnectionInfo, session_id: &str) -> Result<String> {
+    debug!("Console: querying R version from kernel");
+
+    let mut iopub = create_client_iopub_connection(connection_info, "", session_id)
+        .await
+        .context("Failed to connect iopub for R version query")?;
+    let mut shell = create_shell_connection(connection_info, session_id)
+        .await
+        .context("Failed to connect shell for R version query")?;
+
+    // Execute cat(R.version.string) to get clean stdout output
+    let execute_request = ExecuteRequest::new("cat(R.version.string)".to_string());
+    let message = JupyterMessage::new(execute_request, None);
+    let msg_id = message.header.msg_id.clone();
+    shell
+        .send(message)
+        .await
+        .context("Failed to send R version execute request")?;
+
+    let mut version_output = String::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+
+    loop {
+        let remaining = deadline - tokio::time::Instant::now();
+        if remaining.is_zero() {
+            break;
+        }
+
+        match tokio::time::timeout(remaining, iopub.read()).await {
+            Ok(Ok(message)) => {
+                let parent_match = message
+                    .parent_header
+                    .as_ref()
+                    .map(|h| h.msg_id == msg_id)
+                    .unwrap_or(false);
+
+                if !parent_match {
+                    continue;
+                }
+
+                match &message.content {
+                    JupyterMessageContent::StreamContent(stream) => {
+                        version_output.push_str(&stream.text);
+                    }
+                    JupyterMessageContent::Status(status) => {
+                        if status.execution_state == ExecutionState::Idle {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Ok(Err(err)) => {
+                // Ignore comm_close errors
+                let err_str = format!("{err:?}");
+                if err_str.contains("comm_close") && err_str.contains("missing field `data`") {
+                    continue;
+                }
+                debug!(error = ?err, "Console: iopub error during R version query");
+                break;
+            }
+            Err(_) => {
+                debug!("Console: timeout waiting for R version");
+                break;
+            }
+        }
+    }
+
+    let version = version_output.trim().to_string();
+    if version.is_empty() {
+        anyhow::bail!("Empty R version response");
+    }
+    Ok(version)
+    // iopub and shell connections are dropped here
 }
 
 /// Initialize the LSP client by negotiating with Ark via the Jupyter comm protocol.

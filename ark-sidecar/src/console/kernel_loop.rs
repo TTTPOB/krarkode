@@ -10,8 +10,8 @@ use std::sync::mpsc as std_mpsc;
 use tracing::{debug, error, warn};
 
 use runtimelib::{
-    create_client_iopub_connection, ExecuteRequest, ExecutionState, JupyterMessage,
-    JupyterMessageContent,
+    create_client_iopub_connection, ClientControlConnection, ExecuteRequest, ExecutionState,
+    InterruptRequest, JupyterMessage, JupyterMessageContent,
 };
 
 use crate::connection::create_shell_connection;
@@ -22,6 +22,8 @@ use super::output::{format_iopub_content, ExecutionEvent};
 pub(crate) enum ConsoleRequest {
     /// Execute R code.
     Execute(String),
+    /// Execute R code and then exit the console (used for confirmed q()/quit()).
+    ExecuteAndExit(String),
     /// Exit the console.
     Exit,
 }
@@ -37,6 +39,8 @@ pub(crate) async fn run_kernel_loop(
     session_id: &str,
     mut request_rx: tokio::sync::mpsc::Receiver<ConsoleRequest>,
     exec_output_tx: std_mpsc::Sender<ExecutionEvent>,
+    mut control: ClientControlConnection,
+    mut interrupt_rx: tokio::sync::mpsc::Receiver<()>,
 ) -> Result<()> {
     debug!("Console kernel_loop: connecting to kernel");
 
@@ -51,12 +55,30 @@ pub(crate) async fn run_kernel_loop(
 
     // Track the current execute_request msg_id to correlate iopub output
     let mut current_exec_msg_id: Option<String> = None;
+    // Whether to exit after the current execution completes (for q()/quit())
+    let mut exit_after_exec = false;
 
     loop {
         tokio::select! {
             // Handle execute/exit requests from the reedline loop
             request = request_rx.recv() => {
                 match request {
+                    Some(ConsoleRequest::ExecuteAndExit(code)) => {
+                        exit_after_exec = true;
+                        debug!(code_len = code.len(), exit_after = true, "Console kernel_loop: execute-and-exit request");
+                        let execute_request = ExecuteRequest::new(code);
+                        let message = JupyterMessage::new(execute_request, None);
+                        let msg_id = message.header.msg_id.clone();
+                        current_exec_msg_id = Some(msg_id);
+                        if let Err(err) = shell.send(message).await {
+                            error!(error = ?err, "Console kernel_loop: failed to send execute_request");
+                            let _ = exec_output_tx.send(ExecutionEvent::Output(
+                                format!("Error sending execute request: {}\n", err),
+                            ));
+                            let _ = exec_output_tx.send(ExecutionEvent::Done);
+                            break;
+                        }
+                    }
                     Some(ConsoleRequest::Execute(code)) => {
                         debug!(code_len = code.len(), "Console kernel_loop: execute request");
                         let execute_request = ExecuteRequest::new(code);
@@ -75,6 +97,20 @@ pub(crate) async fn run_kernel_loop(
                         debug!("Console kernel_loop: exit requested");
                         break;
                     }
+                }
+            }
+
+            // Handle interrupt signals (Ctrl+C during execution)
+            _ = interrupt_rx.recv() => {
+                if current_exec_msg_id.is_some() {
+                    debug!("Console kernel_loop: sending InterruptRequest to kernel");
+                    let interrupt = InterruptRequest {};
+                    let message = JupyterMessage::new(interrupt, None);
+                    if let Err(err) = control.send(message).await {
+                        warn!(error = ?err, "Console kernel_loop: failed to send InterruptRequest");
+                    }
+                } else {
+                    debug!("Console kernel_loop: interrupt received but no execution in progress");
                 }
             }
 
@@ -102,6 +138,10 @@ pub(crate) async fn run_kernel_loop(
                                 debug!("Console kernel_loop: execution idle");
                                 current_exec_msg_id = None;
                                 let _ = exec_output_tx.send(ExecutionEvent::Done);
+                                if exit_after_exec {
+                                    debug!("Console kernel_loop: exit_after_exec set, breaking");
+                                    break;
+                                }
                                 continue;
                             }
                         }

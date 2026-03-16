@@ -133,6 +133,24 @@ pub(crate) async fn create_shell_connection(
     Ok(Connection::new(socket, &connection_info.key, session_id))
 }
 
+pub(crate) async fn create_control_connection(
+    connection_info: &ConnectionInfo,
+    session_id: &str,
+) -> Result<runtimelib::ClientControlConnection> {
+    let mut options = SocketOptions::default();
+    let identity = PeerIdentity::from_str(&format!("sidecar-ctrl-{}", Uuid::new_v4()))
+        .context("Failed to create control peer identity")?;
+    options.peer_identity(identity);
+
+    let mut socket = DealerSocket::with_options(options);
+    socket
+        .connect(&connection_info.control_url())
+        .await
+        .context("Failed to connect control socket")?;
+
+    Ok(Connection::new(socket, &connection_info.key, session_id))
+}
+
 pub(crate) async fn wait_for_iopub_idle(
     iopub: &mut runtimelib::ClientIoPubConnection,
     msg_id: &str,

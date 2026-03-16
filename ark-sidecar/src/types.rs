@@ -77,6 +77,10 @@ pub(crate) enum Command {
         /// Path to Jupyter connection file
         #[arg(long)]
         connection_file: String,
+
+        /// Path to the R binary (displayed in startup banner)
+        #[arg(long)]
+        r_binary_path: Option<String>,
     },
 }
 

@@ -743,7 +743,10 @@ export class ArkSessionManager {
         const terminal = this.getActiveTerminalOrCreate(`Ark Console: ${entry.name}`);
         const consoleTemplate = this.getConsoleCommandTemplate();
         const sidecarPath = util.resolveSidecarPath();
-        const command = renderTemplate(consoleTemplate, { sidecarPath, connectionFile: entry.connectionFilePath });
+        let command = renderTemplate(consoleTemplate, { sidecarPath, connectionFile: entry.connectionFilePath });
+        if (entry.rBinaryPath) {
+            command += ` --r-binary-path ${shellEscape(entry.rBinaryPath)}`;
+        }
         terminal.sendText(command, true);
         terminal.show(true);
         await sessionRegistry.updateSessionAttachmentValidated(entry.name, nowIso());

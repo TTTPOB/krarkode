@@ -97,8 +97,8 @@ fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
             Command::Check { timeout_ms, .. } => {
                 run_check(&connection, &session_id, timeout_ms).await?;
             }
-            Command::Console { .. } => {
-                run_console(&connection, &session_id).await?;
+            Command::Console { r_binary_path, .. } => {
+                run_console(&connection, &session_id, r_binary_path.as_deref()).await?;
             }
         }
 
