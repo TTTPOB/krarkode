@@ -16,6 +16,7 @@ use runtimelib::{
     JupyterMessage, JupyterMessageContent,
 };
 use std::sync::mpsc as std_mpsc;
+use tokio::signal::unix::{signal, SignalKind};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -67,17 +68,16 @@ pub(crate) async fn run_console(
         .context("Failed to connect control socket")?;
 
     // --- SIGINT handler ---
+    // Register synchronously so the default SIGINT action (terminate process)
+    // is replaced BEFORE the reedline loop starts. Previously this was inside
+    // tokio::spawn, creating a race where SIGINT could arrive before the
+    // spawned task was polled — killing the sidecar instead of interrupting Ark.
+    let mut sigint = signal(SignalKind::interrupt())
+        .context("Failed to register SIGINT handler")?;
+    debug!("Console: SIGINT handler registered");
+
     let (interrupt_tx, interrupt_rx) = tokio::sync::mpsc::channel::<()>(4);
     tokio::spawn(async move {
-        use tokio::signal::unix::{signal, SignalKind};
-        let mut sigint = match signal(SignalKind::interrupt()) {
-            Ok(s) => s,
-            Err(err) => {
-                warn!(error = ?err, "Console: failed to register SIGINT handler");
-                return;
-            }
-        };
-        debug!("Console: SIGINT handler registered");
         loop {
             sigint.recv().await;
             debug!("Console: SIGINT received, forwarding to kernel loop");
