@@ -451,7 +451,8 @@ export class ArkLanguageService implements vscode.Disposable {
             errorHandler: {
                 error: () => {
                     if (this.isIntentionallyRestarting) {
-                        return { action: ErrorAction.Continue };
+                        // Suppress the default notification during intentional restarts.
+                        return { action: ErrorAction.Continue, handled: true };
                     }
                     return {
                         action: ErrorAction.Continue,
@@ -460,7 +461,8 @@ export class ArkLanguageService implements vscode.Disposable {
                 },
                 closed: () => {
                     if (this.isIntentionallyRestarting) {
-                        return { action: CloseAction.DoNotRestart };
+                        // Suppress the default notification during intentional restarts.
+                        return { action: CloseAction.DoNotRestart, handled: true };
                     }
                     return {
                         action: CloseAction.DoNotRestart,
@@ -493,9 +495,17 @@ export class ArkLanguageService implements vscode.Disposable {
     }
 
     private async stopLanguageService(): Promise<void> {
-        const promises: Promise<void>[] = [];
+        // Stop the LSP client first and wait for the shutdown handshake to
+        // complete before killing the sidecar.  Previously the sidecar was
+        // SIGKILL-ed while client.stop() was still in flight, which severed
+        // the TCP connection and caused ECONNRESET / "Connection to server
+        // got closed" notifications from vscode-languageclient.
         if (this.client) {
-            promises.push(this.client.stop());
+            try {
+                await this.client.stop();
+            } catch {
+                // Client may already be stopped or the connection dead.
+            }
             this.client = undefined;
         }
 
@@ -519,8 +529,6 @@ export class ArkLanguageService implements vscode.Disposable {
         }
         this.connectionFile = undefined;
         this.lspPort = undefined;
-
-        await Promise.allSettled(promises);
     }
 
     private getLogContext(source: 'lsp' | 'kernel' | 'sidecar' | 'session'): LogContext {
