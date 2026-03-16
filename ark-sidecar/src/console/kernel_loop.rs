@@ -7,6 +7,7 @@
 
 use anyhow::{Context, Result};
 use std::sync::mpsc as std_mpsc;
+use std::time::Duration;
 use tracing::{debug, error, warn};
 
 use runtimelib::{
@@ -57,6 +58,9 @@ pub(crate) async fn run_kernel_loop(
     let mut current_exec_msg_id: Option<String> = None;
     // Whether to exit after the current execution completes (for q()/quit())
     let mut exit_after_exec = false;
+    // Deadline for exit timeout — when q() kills Ark, ZMQ SUB sockets hang
+    // forever (no close notification), so we need a safety timeout.
+    let mut exit_deadline: Option<tokio::time::Instant> = None;
 
     loop {
         tokio::select! {
@@ -65,6 +69,9 @@ pub(crate) async fn run_kernel_loop(
                 match request {
                     Some(ConsoleRequest::ExecuteAndExit(code)) => {
                         exit_after_exec = true;
+                        exit_deadline = Some(
+                            tokio::time::Instant::now() + Duration::from_secs(5),
+                        );
                         debug!(code_len = code.len(), exit_after = true, "Console kernel_loop: execute-and-exit request");
                         let execute_request = ExecuteRequest::new(code);
                         let message = JupyterMessage::new(execute_request, None);
@@ -102,6 +109,12 @@ pub(crate) async fn run_kernel_loop(
 
             // Handle interrupt signals (Ctrl+C during execution)
             _ = interrupt_rx.recv() => {
+                if exit_after_exec {
+                    // Ark is likely dead after q(), no point sending interrupt
+                    debug!("Console kernel_loop: interrupt during exit-after-exec, breaking immediately");
+                    let _ = exec_output_tx.send(ExecutionEvent::Done);
+                    break;
+                }
                 if current_exec_msg_id.is_some() {
                     debug!("Console kernel_loop: sending InterruptRequest to kernel");
                     let interrupt = InterruptRequest {};
@@ -193,6 +206,20 @@ pub(crate) async fn run_kernel_loop(
                         // Shell errors are less critical; continue the loop
                     }
                 }
+            }
+
+            // Safety timeout after q()/quit() — when Ark dies, ZMQ PUB/SUB
+            // sockets never signal disconnection, so iopub.read() hangs forever.
+            // This timeout ensures the console exits cleanly.
+            _ = async {
+                match exit_deadline {
+                    Some(d) => tokio::time::sleep_until(d).await,
+                    None => std::future::pending::<()>().await,
+                }
+            } => {
+                warn!("Console kernel_loop: exit timeout after q(), kernel likely terminated");
+                let _ = exec_output_tx.send(ExecutionEvent::Done);
+                break;
             }
         }
     }
