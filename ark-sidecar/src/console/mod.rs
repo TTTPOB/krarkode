@@ -1,3 +1,5 @@
+mod r_parser;
+
 use anyhow::Result;
 use runtimelib::ConnectionInfo;
 use tracing::debug;
