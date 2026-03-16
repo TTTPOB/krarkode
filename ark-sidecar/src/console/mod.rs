@@ -1,3 +1,4 @@
+mod highlighter;
 mod r_parser;
 
 use anyhow::Result;
