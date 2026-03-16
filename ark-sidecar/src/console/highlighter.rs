@@ -7,9 +7,11 @@ use nu_ansi_term::{Color, Style};
 use once_cell::sync::Lazy;
 use reedline::{Highlighter, StyledText};
 use std::collections::HashSet;
+use std::sync::Arc;
 use tree_sitter::Node;
 
 use super::r_parser::{is_atomic_node, parse_r};
+use crate::lsp_client::virtual_document::DebouncedVirtualDocument;
 
 /// Reserved keywords in R.
 static KEYWORDS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
@@ -185,10 +187,22 @@ fn fill_gaps(tokens: &[Token], total_len: usize) -> Vec<Token> {
 }
 
 /// Tree-sitter based R syntax highlighter for reedline.
-pub(crate) struct RHighlighter;
+pub(crate) struct RHighlighter {
+    virtual_document: Option<Arc<DebouncedVirtualDocument>>,
+}
+
+impl RHighlighter {
+    pub fn new(virtual_document: Option<Arc<DebouncedVirtualDocument>>) -> Self {
+        Self { virtual_document }
+    }
+}
 
 impl Highlighter for RHighlighter {
     fn highlight(&self, line: &str, _cursor: usize) -> StyledText {
+        if let Some(virtual_document) = &self.virtual_document {
+            virtual_document.schedule_sync(line);
+        }
+
         let mut styled = StyledText::new();
 
         if let Some(tree) = parse_r(line) {
@@ -299,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_highlight_preserves_text() {
-        let highlighter = RHighlighter;
+        let highlighter = RHighlighter::new(None);
         let input = "x <- c(1, 2, 3)";
         let styled = highlighter.highlight(input, 0);
         assert_eq!(styled.raw_string(), input);
@@ -307,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_highlight_empty() {
-        let highlighter = RHighlighter;
+        let highlighter = RHighlighter::new(None);
         let styled = highlighter.highlight("", 0);
         assert_eq!(styled.raw_string(), "");
     }

@@ -19,6 +19,7 @@ use super::history::create_history;
 use super::kernel_loop::ConsoleRequest;
 use super::output::ExecutionEvent;
 use super::validator::RValidator;
+use crate::lsp_client::virtual_document::DebouncedVirtualDocument;
 use crate::lsp_client::LspClient;
 
 /// The R console prompt.
@@ -39,6 +40,10 @@ pub(crate) fn run_reedline_loop(
     runtime_handle: tokio::runtime::Handle,
 ) {
     debug!("Console reedline_loop: building editor");
+
+    let virtual_document = lsp_client
+        .as_ref()
+        .map(|client| DebouncedVirtualDocument::new(client.clone(), runtime_handle.clone()));
 
     // Build keybindings with Tab completion
     let mut keybindings = default_emacs_keybindings();
@@ -62,14 +67,17 @@ pub(crate) fn run_reedline_loop(
 
     // Build reedline editor
     let mut editor = Reedline::create()
-        .with_highlighter(Box::new(RHighlighter))
+        .with_highlighter(Box::new(RHighlighter::new(virtual_document.clone())))
         .with_validator(Box::new(RValidator));
 
     // Attach LSP completer if available
-    if let Some(client) = lsp_client {
+    if let Some(virtual_document) = virtual_document {
         info!("Console reedline_loop: LSP completion enabled");
         editor = editor
-            .with_completer(Box::new(LspCompleter::new(client, runtime_handle)))
+            .with_completer(Box::new(LspCompleter::new(
+                virtual_document,
+                runtime_handle,
+            )))
             .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
             .with_edit_mode(edit_mode);
     } else {

@@ -64,6 +64,15 @@ impl ConsoleDocument {
         }
     }
 
+    /// Update content only if it changed.
+    pub fn update_if_changed(&mut self, new_content: &str) -> Option<DidChangeTextDocumentParams> {
+        if self.content == new_content {
+            return None;
+        }
+
+        Some(self.update(new_content))
+    }
+
     /// Get the document URI.
     pub fn uri(&self) -> &Uri {
         &self.uri
@@ -115,6 +124,13 @@ mod tests {
         assert_eq!(params.content_changes.len(), 1);
         assert!(params.content_changes[0].range.is_none());
         assert_eq!(params.content_changes[0].text, "x <- 1\ny <- 2");
+    }
+
+    #[test]
+    fn update_if_changed_skips_identical_content() {
+        let mut doc = ConsoleDocument::new();
+        assert!(doc.update_if_changed("x <- 1").is_some());
+        assert!(doc.update_if_changed("x <- 1").is_none());
     }
 
     #[test]

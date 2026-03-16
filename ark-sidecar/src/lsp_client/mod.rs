@@ -7,6 +7,7 @@ pub(crate) mod completion;
 pub(crate) mod document;
 pub(crate) mod position;
 pub(crate) mod transport;
+pub(crate) mod virtual_document;
 
 use std::sync::Mutex;
 
@@ -99,26 +100,46 @@ impl LspClient {
         Ok(result)
     }
 
-    /// Request completions for the given buffer content at the given byte offset.
-    ///
-    /// Sends didChange with the full buffer, then requests completion.
-    pub async fn complete(
-        &self,
-        buffer: &str,
-        cursor_byte_offset: usize,
-    ) -> Result<Option<CompletionResponse>> {
-        // Update document content
-        let (did_change, uri) = {
+    /// Synchronize the console document if the buffer content changed.
+    pub async fn sync_document_if_changed(&self, buffer: &str) -> Result<bool> {
+        let did_change = {
             let mut doc = self.document.lock().unwrap();
-            let params = doc.update(buffer);
-            let uri = doc.uri().clone();
-            (params, uri)
+            doc.update_if_changed(buffer)
         };
 
+        let Some(did_change) = did_change else {
+            debug!(
+                buffer_len = buffer.len(),
+                "LspClient: console document already up to date"
+            );
+            return Ok(false);
+        };
+
+        debug!(
+            version = did_change.text_document.version,
+            buffer_len = buffer.len(),
+            "LspClient: sending textDocument/didChange"
+        );
         self.transport
             .notify("textDocument/didChange", &did_change)
             .await
             .context("LSP didChange failed")?;
+
+        Ok(true)
+    }
+
+    /// Request completions for the given buffer content at the given byte offset.
+    ///
+    /// The caller is responsible for synchronizing the virtual document first.
+    pub async fn request_completion(
+        &self,
+        buffer: &str,
+        cursor_byte_offset: usize,
+    ) -> Result<Option<CompletionResponse>> {
+        let uri = {
+            let doc = self.document.lock().unwrap();
+            doc.uri().clone()
+        };
 
         // Build completion request
         let position = byte_offset_to_lsp_position(buffer, cursor_byte_offset);
