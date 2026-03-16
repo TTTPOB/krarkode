@@ -115,20 +115,20 @@ export function activate(context: vscode.ExtensionContext): void {
     codeExecutor = new CodeExecutor(() => languageService?.getClient());
     codeExecutor.registerCommands(context);
 
-    if (util.config().get<boolean>('krarkode.ark.lsp.enabled') ?? true) {
-        // ArkLanguageService now auto-starts in constructor
-        languageService = new ArkLanguageService();
+    // Register restart command unconditionally; it checks languageService at call time
+    context.subscriptions.push(
+        vscode.commands.registerCommand('krarkode.restartArkLanguageServer', () => {
+            if (!languageService) {
+                void vscode.window.showErrorMessage('Ark language server is not running.');
+                return;
+            }
+            void languageService.restart();
+        }),
+    );
 
-        context.subscriptions.push(
-            vscode.commands.registerCommand('krarkode.restartArkLanguageServer', () => {
-                if (!languageService) {
-                    void vscode.window.showErrorMessage('Ark language server is not running.');
-                    return;
-                }
-                void languageService.restart();
-            }),
-        );
-        context.subscriptions.push(languageService);
+    if (util.config().get<boolean>('krarkode.ark.lsp.enabled') ?? true) {
+        languageService = new ArkLanguageService();
+        // Not pushed to context.subscriptions — deactivate() handles disposal
     }
 
     context.subscriptions.push(codeExecutor);
