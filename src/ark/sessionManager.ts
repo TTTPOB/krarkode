@@ -82,6 +82,7 @@ export class ArkSessionManager {
 
     private async openConsole(): Promise<void> {
         const registry = await sessionRegistry.loadRegistryValidated();
+        this.syncAfterValidation(registry);
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found. Use "Create Ark session" first.');
             return;
@@ -298,6 +299,18 @@ export class ArkSessionManager {
         }
 
         return items;
+    }
+
+    /**
+     * After a validated registry load, check if the active session was pruned
+     * and sync the status bar / tooltip accordingly.
+     */
+    private syncAfterValidation(validatedRegistry: ArkSessionEntry[]): void {
+        const activeName = sessionRegistry.getActiveSessionName();
+        if (activeName && !validatedRegistry.find((e) => e.name === activeName)) {
+            this.outputChannel.appendLine(`Active session "${activeName}" was pruned; clearing status bar.`);
+            this.setActiveSession(undefined);
+        }
     }
 
     private normalizeKernelStatus(status: string | undefined): ArkKernelStatus | undefined {
@@ -582,6 +595,7 @@ export class ArkSessionManager {
 
     private async stopSession(): Promise<void> {
         const registry = await sessionRegistry.loadRegistryValidated();
+        this.syncAfterValidation(registry);
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found.');
             return;
@@ -603,6 +617,7 @@ export class ArkSessionManager {
 
     private async interruptSession(): Promise<void> {
         const registry = await sessionRegistry.loadRegistryValidated();
+        this.syncAfterValidation(registry);
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found.');
             return;
@@ -649,6 +664,7 @@ export class ArkSessionManager {
 
     private async switchSession(): Promise<void> {
         const registry = await sessionRegistry.loadRegistryValidated();
+        this.syncAfterValidation(registry);
         if (registry.length === 0) {
             void vscode.window.showInformationMessage('No Ark sessions found.');
             return;
