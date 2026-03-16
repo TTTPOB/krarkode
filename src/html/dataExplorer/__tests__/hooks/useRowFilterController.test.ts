@@ -164,10 +164,12 @@ describe('useRowFilterController', () => {
             const filters = dataStore.rowFilters;
             expect(filters).toHaveLength(1);
             expect(filters[0].params).toEqual({ op: '>=', value: '18' });
-            expect(postMessage).toHaveBeenCalledWith({
+            const posted = postMessage.mock.calls[0][0];
+            expect(posted).toEqual({
                 type: 'setRowFilters',
                 filters,
             });
+            expect(() => structuredClone(posted.filters)).not.toThrow();
             expect(getState().rowFilterPanelOpen).toBe(false);
             expect(getState().rowFilterError).toBe('');
         });
@@ -236,10 +238,12 @@ describe('useRowFilterController', () => {
             const filters = dataStore.rowFilters;
             expect(filters).toHaveLength(2);
             expect(filters.map((f) => f.filter_id)).toEqual(['a', 'c']);
-            expect(postMessage).toHaveBeenCalledWith({
+            const posted = postMessage.mock.calls[0][0];
+            expect(posted).toEqual({
                 type: 'setRowFilters',
                 filters,
             });
+            expect(() => structuredClone(posted.filters)).not.toThrow();
         });
 
         test('removing the only filter results in empty list', () => {
@@ -249,7 +253,9 @@ describe('useRowFilterController', () => {
             ctrl.removeRowFilter(0);
 
             expect(dataStore.rowFilters).toHaveLength(0);
-            expect(postMessage).toHaveBeenCalledWith({ type: 'setRowFilters', filters: [] });
+            const posted = postMessage.mock.calls[0][0];
+            expect(posted).toEqual({ type: 'setRowFilters', filters: [] });
+            expect(() => structuredClone(posted.filters)).not.toThrow();
         });
     });
 });

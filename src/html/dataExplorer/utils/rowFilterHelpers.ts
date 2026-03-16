@@ -145,3 +145,18 @@ export function getSupportedRowFilterTypes(rowFilterSupport?: SetRowFiltersFeatu
 
     return Object.keys(ROW_FILTER_TYPE_LABELS) as RowFilterType[];
 }
+
+export function serializeRowFilters(filters: RowFilter[]): RowFilter[] {
+    return filters.map((filter) => ({
+        ...filter,
+        column_schema: { ...filter.column_schema },
+        params: filter.params
+            ? {
+                ...filter.params,
+                ...('values' in filter.params && Array.isArray(filter.params.values)
+                    ? { values: [...filter.params.values] }
+                    : {}),
+            }
+            : undefined,
+    }));
+}

@@ -1,6 +1,13 @@
 import { dataStore, uiStore } from '../stores';
 import type { RowFilter, RowFilterCondition, RowFilterDraft } from '../types';
-import { buildRowFilterParams, createRowFilterDraft, createRowFilterId, getSupportedRowFilterTypes, supportsRowFilterConditions } from '../utils';
+import {
+    buildRowFilterParams,
+    createRowFilterDraft,
+    createRowFilterId,
+    getSupportedRowFilterTypes,
+    serializeRowFilters,
+    supportsRowFilterConditions,
+} from '../utils';
 
 type RowFilterControllerOptions = {
     log: (message: string, payload?: unknown) => void;
@@ -109,7 +116,7 @@ export class RowFilterController {
         dataStore.rowFilters = nextFilters;
         uiStore.rowFilterPanelOpen = false;
         this.setRowFilterError('');
-        this.postMessage({ type: 'setRowFilters', filters: nextFilters });
+        this.postMessage({ type: 'setRowFilters', filters: serializeRowFilters(nextFilters) });
         this.log('Row filters saved', { count: nextFilters.length, filter });
     }
 
@@ -117,7 +124,7 @@ export class RowFilterController {
         const nextFilters = [...dataStore.rowFilters];
         nextFilters.splice(index, 1);
         dataStore.rowFilters = nextFilters;
-        this.postMessage({ type: 'setRowFilters', filters: nextFilters });
+        this.postMessage({ type: 'setRowFilters', filters: serializeRowFilters(nextFilters) });
         this.log('Row filter removed', { index, count: nextFilters.length });
     }
 }
