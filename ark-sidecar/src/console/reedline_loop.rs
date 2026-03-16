@@ -289,6 +289,15 @@ pub(crate) fn run_reedline_loop(
             }
             Ok(Signal::CtrlD) => {
                 debug!("Console reedline_loop: Ctrl+D, exiting");
+                println!();
+                println!(
+                    "{}",
+                    Color::DarkGray.paint(
+                        "Detaching from Ark session. The R session continues running.\n\
+                         If a long-running task is in progress, reconnect with:\n  \
+                         vscode-r-ark-sidecar console --connection-file <path>"
+                    )
+                );
                 let _ = request_tx.blocking_send(ConsoleRequest::Exit);
                 break;
             }
