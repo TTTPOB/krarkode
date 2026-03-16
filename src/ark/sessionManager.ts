@@ -6,6 +6,8 @@ import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
 import type { ArkConsoleDriver, ArkSessionEntry } from './sessionRegistry';
 import { getRBinaryPath } from '../util';
+import { collectRBinaryCandidates } from '../rBinaryResolver';
+import type { RBinaryCandidate } from '../rBinaryResolver';
 import { getLogger, LogCategory } from '../logging/logger';
 import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
 
@@ -432,6 +434,14 @@ export class ArkSessionManager {
         }
 
         const sessionName = normalizeSessionName(nameInput);
+
+        // Collect R binary candidates and let user choose
+        const selectedRBinary = await this.selectRBinary();
+        if (!selectedRBinary) {
+            return;
+        }
+        this.outputChannel.appendLine(`R binary selected: ${selectedRBinary} for session "${sessionName}"`);
+
         const sessionsDir = sessionRegistry.getSessionsDir();
         const sessionDir = path.join(sessionsDir, sessionName);
         if (fs.existsSync(sessionDir)) {
@@ -469,7 +479,7 @@ export class ArkSessionManager {
                 return;
             }
             tmuxSessionName = ensured.name;
-            const windowName = await this.createKernelWindow(ensured, sessionName, connectionFile, startupFile);
+            const windowName = await this.createKernelWindow(ensured, sessionName, connectionFile, startupFile, selectedRBinary);
             if (!windowName) {
                 return;
             }
@@ -482,6 +492,7 @@ export class ArkSessionManager {
             connectionFilePath: connectionFile,
             tmuxSessionName,
             tmuxWindowName,
+            rBinaryPath: selectedRBinary,
             createdAt: nowIso(),
             lastAttachedAt: nowIso(),
         };
@@ -500,6 +511,42 @@ export class ArkSessionManager {
             void vscode.window.showInformationMessage('已生成 Ark connection file，请手动启动 Ark kernel 与 console。');
             this.setActiveSession(entry);
         }
+    }
+
+    /**
+     * Collect R binary candidates and present a QuickPick if multiple are available.
+     * Returns the selected R binary path, or undefined if cancelled / none found.
+     */
+    private async selectRBinary(): Promise<string | undefined> {
+        this.outputChannel.appendLine('Collecting R binary candidates...');
+        const candidates = await collectRBinaryCandidates();
+
+        if (candidates.length === 0) {
+            void vscode.window.showErrorMessage(
+                'No R binary found. Configure krarkode.r.binaryPath, add pixi.toml with R, or ensure R is in PATH.',
+            );
+            return undefined;
+        }
+
+        if (candidates.length === 1) {
+            this.outputChannel.appendLine(`Single R binary candidate, using directly: ${candidates[0].rBinaryPath}`);
+            return candidates[0].rBinaryPath;
+        }
+
+        // Multiple candidates: show QuickPick
+        this.outputChannel.appendLine(`${candidates.length} R binary candidates found, showing picker`);
+        const items = candidates.map((c) => ({
+            label: c.label,
+            detail: c.detail,
+            rBinaryPath: c.rBinaryPath,
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+            placeHolder: 'Select R binary for this session',
+            ignoreFocusOut: true,
+        });
+
+        return selected?.rBinaryPath;
     }
 
     private async attachSession(): Promise<void> {
@@ -817,6 +864,7 @@ export class ArkSessionManager {
         name: string,
         connectionFile: string,
         startupFile: string,
+        rBinaryPath?: string,
     ): Promise<string | undefined> {
         const tmuxPath = this.getTmuxPath();
         const tmuxSessionName = tmuxSession.name;
@@ -844,7 +892,7 @@ export class ArkSessionManager {
                 void vscode.window.showWarningMessage('ark.tmux.manageKernel=false: 请手动在该窗口启动 Ark kernel。');
                 return windowName;
             }
-            const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile);
+            const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile, rBinaryPath);
             const result = await this.runTmux(tmuxPath, [
                 'respawn-window',
                 '-k',
@@ -873,7 +921,7 @@ export class ArkSessionManager {
             void vscode.window.showWarningMessage('ark.tmux.manageKernel=false: 请手动在该窗口启动 Ark kernel。');
             return windowName;
         }
-        const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile);
+        const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile, rBinaryPath);
         const createResult = await this.runTmux(tmuxPath, [
             'new-window',
             '-t',
@@ -950,7 +998,7 @@ export class ArkSessionManager {
         fs.writeFileSync(connectionFile, JSON.stringify(payload, null, 2));
     }
 
-    private async buildKernelCommand(connectionFile: string, startupFile: string): Promise<string> {
+    private async buildKernelCommand(connectionFile: string, startupFile: string, rBinaryPath?: string): Promise<string> {
         const arkPath = this.getArkPath();
         const sessionMode = this.getSessionMode();
         const kernelTemplate = this.getKernelCommandTemplate();
@@ -970,7 +1018,7 @@ export class ArkSessionManager {
             this.outputChannel.appendLine(`Ark backend log level set to ${arkLogLevel}.`);
         }
 
-        const rHome = await this.resolveRHome();
+        const rHome = await this.resolveRHome(rBinaryPath);
         if (rHome) {
             envParts.push(`R_HOME=${shellEscape(rHome)}`);
         }
@@ -978,12 +1026,13 @@ export class ArkSessionManager {
         return `${envParts.join(' ')} ${kernelCommand}`;
     }
 
-    private async resolveRHome(): Promise<string | undefined> {
-        const rPath = await getRBinaryPath();
+    private async resolveRHome(rBinaryPath?: string): Promise<string | undefined> {
+        const rPath = rBinaryPath ?? await getRBinaryPath();
         if (!rPath) {
             return undefined;
         }
 
+        this.outputChannel.appendLine(`Resolving R_HOME from: ${rPath}`);
         const result = await util.spawnAsync(rPath, ['RHOME'], { env: process.env });
         const lines = (result.stdout || '')
             .split(/\r?\n/)
