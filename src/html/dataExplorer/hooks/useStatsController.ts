@@ -121,7 +121,7 @@ export class StatsController {
         if (this.statsRefreshDebounceId !== undefined) {
             window.clearTimeout(this.statsRefreshDebounceId);
         }
-        const preserveScrollTop = ['histogram-bins', 'histogram-method', 'frequency-limit'].includes(reason);
+        const preserveScrollTop = ['histogram-bins', 'frequency-limit'].includes(reason);
         this.statsRefreshDebounceId = window.setTimeout(() => {
             this.requestColumnProfiles(reason, { preserveScrollTop });
         }, STATS_REFRESH_DEBOUNCE_MS);
@@ -307,10 +307,6 @@ export class StatsController {
         requestAnimationFrame(() => {
             this.statsCharts.resize();
         });
-    }
-
-    handleStatsMethodChange(): void {
-        this.scheduleStatsRefresh('histogram-method');
     }
 
     handleHistogramBinsInput(source: 'slider' | 'input'): void {

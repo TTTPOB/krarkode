@@ -82,7 +82,8 @@
     let renderColumns: Array<{ column: ColumnSchema; schemaIndex: number }> = $state([]);
     let leftSpacerWidth = $state(0);
     let rightSpacerWidth = $state(0);
-    let tableMetaText = $state('');
+    let tableMetaError = $state('');
+    const tableMetaText = $derived(tableMetaError || tableSetupController.buildTableMetaText());
 
     // Derived values
     const resolvedColumnWidths = $derived(dataStore.visibleSchema.map((column) => resolveColumnWidth(dataStore.columnWidths.get(column.column_index))));
@@ -264,10 +265,6 @@
 
     // Effects
     $effect(() => {
-        tableMetaText = tableSetupController.buildTableMetaText();
-    });
-
-    $effect(() => {
         tableLayoutController.attachTableBodyObserver(tableBodyEl);
     });
 
@@ -282,10 +279,13 @@
     });
 
     const messageHandler = createMessageHandler({
-        onInit: (msg) => initController.handleInit(msg),
+        onInit: (msg) => {
+            tableMetaError = '';
+            initController.handleInit(msg);
+        },
         onRows: (message) => rowDataController.handleRows(message),
         onError: (message) => {
-            tableMetaText = message;
+            tableMetaError = message;
         },
         onSearchSchemaResult: (matches) => schemaController.handleSearchSchemaResult(matches),
         onExportResult: (data, format) => exportController.handleExportResult(data, format),
@@ -468,7 +468,6 @@
             statsStore.histogramBins = e.value;
             statsController.handleHistogramBinsInput(e.source);
         }}
-        onMethodChange={() => statsController.handleStatsMethodChange()}
         onLimitInput={(e) => {
             statsStore.frequencyLimit = e.value;
             statsController.handleFrequencyLimitInput(e.source);

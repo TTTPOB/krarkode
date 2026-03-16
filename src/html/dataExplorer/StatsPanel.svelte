@@ -23,7 +23,6 @@
         onColumnChange,
         onToggleSection,
         onBinsInput,
-        onMethodChange,
         onLimitInput,
         onStartResize,
     }: {
@@ -42,7 +41,6 @@
         onColumnChange?: () => void;
         onToggleSection?: (data: { sectionId: string }) => void;
         onBinsInput?: (data: { source: 'slider' | 'input'; value: number }) => void;
-        onMethodChange?: () => void;
         onLimitInput?: (data: { source: 'slider' | 'input'; value: number }) => void;
         onStartResize?: (data: { event: MouseEvent }) => void;
     } = $props();
@@ -110,7 +108,7 @@
                                         <td class="stats-empty" colspan="2">{statsStore.overviewEmptyMessage}</td>
                                     </tr>
                                 {:else}
-                                    {#each statsStore.overviewRows as row}
+                                    {#each statsStore.overviewRows as row (row.label)}
                                         <tr>
                                             <td>{row.label}</td>
                                             <td>{row.value}</td>
@@ -133,12 +131,10 @@
                     bind:histogramContainer={histogramContainer}
                     histogramVisible={statsStore.histogramVisible}
                     histogramBins={statsStore.histogramBins}
-                    histogramMethod={statsStore.histogramMethod}
                     statsControlsEnabled={statsStore.controlsEnabled}
                     collapsed={collapsedSections.has('distribution')}
                     onToggle={() => onToggleSection?.({ sectionId: 'distribution' })}
                     onBinsInput={(data) => onBinsInput?.(data)}
-                    onMethodChange={() => onMethodChange?.()}
                 />
                 <StatsFrequencySection
                     bind:frequencyContainer={frequencyContainer}

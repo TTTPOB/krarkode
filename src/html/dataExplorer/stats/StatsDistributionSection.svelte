@@ -2,23 +2,19 @@
     let {
         histogramVisible = false,
         histogramBins = 0,
-        histogramMethod = 'freedman_diaconis',
         statsControlsEnabled = false,
         collapsed = false,
         histogramContainer = $bindable<HTMLDivElement | undefined>(),
         onToggle,
         onBinsInput,
-        onMethodChange,
     }: {
         histogramVisible?: boolean;
         histogramBins?: number;
-        histogramMethod?: string;
         statsControlsEnabled?: boolean;
         collapsed?: boolean;
         histogramContainer?: HTMLDivElement | undefined;
         onToggle?: () => void;
         onBinsInput?: (data: { source: 'slider' | 'input'; value: number }) => void;
-        onMethodChange?: () => void;
     } = $props();
 
     function readInputValue(event: Event): number {
@@ -66,12 +62,6 @@
                 disabled={!statsControlsEnabled}
                 oninput={(event) => handleBinsInput('input', event)}
             >
-            <select id="histogram-method" bind:value={histogramMethod} disabled={!statsControlsEnabled} onchange={() => onMethodChange?.()}>
-                <option value="freedman_diaconis">Auto (F-D)</option>
-                <option value="sturges">Sturges</option>
-                <option value="scott">Scott</option>
-                <option value="fixed">Fixed</option>
-            </select>
         </div>
     </div>
 </div>
