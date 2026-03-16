@@ -22,13 +22,15 @@ pub(crate) fn completion_response_to_suggestions(
         Some(CompletionResponse::List(list)) => list.items,
         None => return vec![],
     };
+    let token = current_completion_token(buffer, cursor_byte_offset);
 
     debug!(
         item_count = items.len(),
-        "completion: mapping CompletionItems to Suggestions"
+        token = token,
+        "completion: filtering CompletionItems for console suggestions"
     );
 
-    items
+    filter_completion_items(&items, token)
         .iter()
         .map(|item| completion_item_to_suggestion(item, buffer, cursor_byte_offset))
         .collect()
@@ -40,8 +42,7 @@ fn completion_item_to_suggestion(
     buffer: &str,
     cursor_byte_offset: usize,
 ) -> Suggestion {
-    let insert_text = extract_insert_text(item);
-    let clean_text = strip_snippet_syntax(&insert_text, item.insert_text_format);
+    let clean_text = completion_item_replacement_text(item);
     let span = compute_span(item, buffer, cursor_byte_offset);
 
     Suggestion {
@@ -54,6 +55,66 @@ fn completion_item_to_suggestion(
         display_override: None,
         match_indices: None,
     }
+}
+
+fn filter_completion_items<'a>(
+    items: &'a [CompletionItem],
+    token: &str,
+) -> Vec<&'a CompletionItem> {
+    let case_sensitive_matches: Vec<_> = items
+        .iter()
+        .filter(|item| completion_item_replacement_text(item).starts_with(token))
+        .collect();
+
+    let case_insensitive_matches = if case_sensitive_matches.is_empty() {
+        items
+            .iter()
+            .filter(|item| starts_with_ignore_case(&completion_item_replacement_text(item), token))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let case_sensitive_count = case_sensitive_matches.len();
+    let case_insensitive_count = case_insensitive_matches.len();
+
+    let (strategy, filtered) = if !case_sensitive_matches.is_empty() {
+        ("case_sensitive_prefix", case_sensitive_matches)
+    } else if !case_insensitive_matches.is_empty() {
+        ("case_insensitive_prefix", case_insensitive_matches)
+    } else {
+        ("fallback_original", items.iter().collect())
+    };
+
+    debug!(
+        token = token,
+        original_count = items.len(),
+        case_sensitive_matches = case_sensitive_count,
+        case_insensitive_matches = case_insensitive_count,
+        returned_count = filtered.len(),
+        strategy = strategy,
+        "completion: selected console completion candidates"
+    );
+
+    filtered
+}
+
+fn current_completion_token(buffer: &str, cursor_byte_offset: usize) -> &str {
+    let cursor_byte_offset = cursor_byte_offset.min(buffer.len());
+    let word_start = find_word_start(buffer, cursor_byte_offset);
+    &buffer[word_start..cursor_byte_offset]
+}
+
+fn completion_item_replacement_text(item: &CompletionItem) -> String {
+    let insert_text = extract_insert_text(item);
+    strip_snippet_syntax(&insert_text, item.insert_text_format)
+}
+
+fn starts_with_ignore_case(text: &str, prefix: &str) -> bool {
+    if prefix.is_empty() {
+        return true;
+    }
+
+    text.to_lowercase().starts_with(&prefix.to_lowercase())
 }
 
 /// Extract the text to insert from a CompletionItem.
@@ -303,6 +364,17 @@ mod tests {
         assert_eq!(extract_insert_text(&item), "View");
     }
 
+    #[test]
+    fn replacement_text_uses_snippet_cleaning() {
+        let item = CompletionItem {
+            label: "ignored".to_string(),
+            insert_text: Some("View($0)".to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        };
+        assert_eq!(completion_item_replacement_text(&item), "View()");
+    }
+
     // --- find_word_start ---
 
     #[test]
@@ -328,6 +400,11 @@ mod tests {
     #[test]
     fn word_start_empty() {
         assert_eq!(find_word_start("", 0), 0);
+    }
+
+    #[test]
+    fn current_token_uses_identifier_before_cursor() {
+        assert_eq!(current_completion_token("print(Vi", 8), "Vi");
     }
 
     // --- compute_span ---
@@ -394,5 +471,118 @@ mod tests {
         assert_eq!(suggestions[0].value, "View");
         assert_eq!(suggestions[0].description, Some("{utils}".to_string()));
         assert_eq!(suggestions[1].value, "Visibility");
+    }
+
+    #[test]
+    fn filters_to_case_sensitive_prefix_matches() {
+        let response = CompletionResponse::Array(vec![
+            CompletionItem {
+                label: "View".to_string(),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "Visibility".to_string(),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "deviance".to_string(),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "activeBindingFunction".to_string(),
+                ..Default::default()
+            },
+        ]);
+
+        let suggestions = completion_response_to_suggestions(Some(response), "Vi", 2);
+        let values: Vec<_> = suggestions
+            .into_iter()
+            .map(|suggestion| suggestion.value)
+            .collect();
+
+        assert_eq!(values, vec!["View".to_string(), "Visibility".to_string()]);
+    }
+
+    #[test]
+    fn falls_back_to_case_insensitive_prefix_matches() {
+        let response = CompletionResponse::Array(vec![
+            CompletionItem {
+                label: "View".to_string(),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "Visibility".to_string(),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "deviance".to_string(),
+                ..Default::default()
+            },
+        ]);
+
+        let suggestions = completion_response_to_suggestions(Some(response), "vi", 2);
+        let values: Vec<_> = suggestions
+            .into_iter()
+            .map(|suggestion| suggestion.value)
+            .collect();
+
+        assert_eq!(values, vec!["View".to_string(), "Visibility".to_string()]);
+    }
+
+    #[test]
+    fn falls_back_to_original_items_when_no_prefix_matches_exist() {
+        let response = CompletionResponse::Array(vec![
+            CompletionItem {
+                label: "deviance".to_string(),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "activeBindingFunction".to_string(),
+                ..Default::default()
+            },
+        ]);
+
+        let suggestions = completion_response_to_suggestions(Some(response), "Vi", 2);
+        let values: Vec<_> = suggestions
+            .into_iter()
+            .map(|suggestion| suggestion.value)
+            .collect();
+
+        assert_eq!(
+            values,
+            vec!["deviance".to_string(), "activeBindingFunction".to_string()]
+        );
+    }
+
+    #[test]
+    fn prefix_filter_uses_insert_text_and_text_edit_not_just_label() {
+        let response = CompletionResponse::Array(vec![
+            CompletionItem {
+                label: "not_view".to_string(),
+                insert_text: Some("View($0)".to_string()),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "not_vision".to_string(),
+                text_edit: Some(lsp_types::CompletionTextEdit::Edit(TextEdit {
+                    range: Range::default(),
+                    new_text: "Vision".to_string(),
+                })),
+                ..Default::default()
+            },
+            CompletionItem {
+                label: "deviance".to_string(),
+                ..Default::default()
+            },
+        ]);
+
+        let suggestions = completion_response_to_suggestions(Some(response), "Vi", 2);
+        let values: Vec<_> = suggestions
+            .into_iter()
+            .map(|suggestion| suggestion.value)
+            .collect();
+
+        assert_eq!(values, vec!["View()".to_string(), "Vision".to_string()]);
     }
 }
