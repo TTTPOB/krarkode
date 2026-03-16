@@ -12,6 +12,7 @@ export interface ArkSessionEntry {
     tmuxSessionName?: string;
     tmuxWindowName?: string;
     pid?: number;
+    rBinaryPath?: string;
     createdAt: string;
     lastAttachedAt?: string;
 }
