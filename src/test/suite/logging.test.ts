@@ -92,26 +92,29 @@ suite('Logging', () => {
 
     test('LoggerService filters output below channel level', async () => {
         const config = vscode.workspace.getConfiguration('krarkode.logging');
-        const previousSetting = config.get('channels.runtime');
+        const previousSetting = config.get('runtime');
         const { calls, restore } = stubOutputChannel();
         const logger = new LoggerService();
         try {
-            await config.update('channels.runtime', 'warn', vscode.ConfigurationTarget.Global);
+            await config.update('runtime', 'warn', vscode.ConfigurationTarget.Global);
             logger.write('runtime', 'info message', { level: 'info', newLine: true });
             assert.strictEqual(calls.info.length, 0);
             logger.write('runtime', 'warn message', { level: 'warn', newLine: true });
             assert.strictEqual(calls.warn.length, 1);
         } finally {
-            await config.update('channels.runtime', previousSetting ?? undefined, vscode.ConfigurationTarget.Global);
+            await config.update('runtime', previousSetting ?? undefined, vscode.ConfigurationTarget.Global);
             restore();
             logger.dispose();
         }
     });
 
-    test('LoggerService prepends category prefix to messages', () => {
+    test('LoggerService prepends category prefix to messages', async () => {
+        const config = vscode.workspace.getConfiguration('krarkode.logging');
+        const previousSetting = config.get('ui');
         const { calls, restore } = stubOutputChannel();
         const logger = new LoggerService();
         try {
+            await config.update('ui', 'info', vscode.ConfigurationTarget.Global);
             logger.write('ui', 'plot opened', {
                 category: LogCategory.Plot,
                 level: 'info',
@@ -120,19 +123,24 @@ suite('Logging', () => {
             assert.strictEqual(calls.info.length, 1);
             assert.strictEqual(calls.info[0], '[plot] plot opened');
         } finally {
+            await config.update('ui', previousSetting ?? undefined, vscode.ConfigurationTarget.Global);
             restore();
             logger.dispose();
         }
     });
 
-    test('LoggerService omits category prefix when category is absent', () => {
+    test('LoggerService omits category prefix when category is absent', async () => {
+        const config = vscode.workspace.getConfiguration('krarkode.logging');
+        const previousSetting = config.get('lsp');
         const { calls, restore } = stubOutputChannel();
         const logger = new LoggerService();
         try {
+            await config.update('lsp', 'info', vscode.ConfigurationTarget.Global);
             logger.write('lsp', 'lsp trace', { level: 'info', newLine: true });
             assert.strictEqual(calls.info.length, 1);
             assert.strictEqual(calls.info[0], 'lsp trace');
         } finally {
+            await config.update('lsp', previousSetting ?? undefined, vscode.ConfigurationTarget.Global);
             restore();
             logger.dispose();
         }
