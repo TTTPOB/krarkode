@@ -1,6 +1,4 @@
-import * as path from 'path';
-import * as vscode from 'vscode';
-import { substituteVariables, getRfromEnvPath, isExecutableFile, getConfiguredRBinaryPaths } from './util';
+import { getRfromEnvPath, isExecutableFile, getConfiguredRBinaryPaths, resolvePixiManifestPath } from './util';
 import { resolvePixiEnvironments } from './pixi/pixiResolver';
 import { getLogger, LogCategory } from './logging/logger';
 
@@ -86,25 +84,4 @@ export async function collectRBinaryCandidates(): Promise<RBinaryCandidate[]> {
 
     log.debug('runtime', LogCategory.Core, `Total R binary candidates: ${candidates.length}`);
     return candidates;
-}
-
-/**
- * Resolve the pixi manifest path from settings, defaulting to workspace root.
- */
-function resolvePixiManifestPath(): string | undefined {
-    const config = vscode.workspace.getConfiguration('krarkode.pixi');
-    let manifestPath = config.get<string>('manifestPath') || '';
-
-    if (manifestPath) {
-        manifestPath = substituteVariables(manifestPath);
-        return manifestPath;
-    }
-
-    // Default: pixi.toml at workspace root
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders && workspaceFolders.length > 0) {
-        return path.join(workspaceFolders[0].uri.fsPath, 'pixi.toml');
-    }
-
-    return undefined;
 }

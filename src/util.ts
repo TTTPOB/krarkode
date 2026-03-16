@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import { getExtensionContext } from './context';
 import { getLogger, LogCategory } from './logging/logger';
+import { resolvePixiEnvironments } from './pixi/pixiResolver';
 
 export interface SpawnResult {
     status: number | null;
@@ -68,6 +69,24 @@ async function getRpathFromSystem(): Promise<string> {
     return rpath;
 }
 
+async function getRpathFromPixi(): Promise<string> {
+    const manifestPath = resolvePixiManifestPath();
+    if (!manifestPath) {
+        return '';
+    }
+
+    try {
+        const pixiEnvs = await resolvePixiEnvironments({
+            manifestPath,
+            logger: (message) => getLogger().debug('runtime', LogCategory.Core, message),
+        });
+        return pixiEnvs[0]?.rBinaryPath ?? '';
+    } catch (error) {
+        getLogger().debug('runtime', LogCategory.Core, `pixi resolution error: ${error}`);
+        return '';
+    }
+}
+
 /**
  * Normalize the r.binaryPath setting (string or string[]) into an array of paths.
  */
@@ -95,13 +114,15 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
         }
     }
 
+    rpath ||= await getRpathFromPixi();
+
     rpath ||= await getRpathFromSystem();
 
     rpath ||= undefined;
 
     if (!rpath) {
         void vscode.window.showErrorMessage(
-            `Cannot find R to use for Ark kernel. Change setting krarkode.r.binaryPath to R path.`,
+            'Cannot find R to use for Ark kernel. Configure krarkode.r.binaryPath, add pixi.toml with R, or ensure R is in PATH.',
         );
     } else if (!isExecutableFile(rpath)) {
         void vscode.window.showErrorMessage(
@@ -116,6 +137,23 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
     }
 
     return rpath;
+}
+
+export function resolvePixiManifestPath(): string | undefined {
+    const config = vscode.workspace.getConfiguration('krarkode.pixi');
+    let manifestPath = config.get<string>('manifestPath') || '';
+
+    if (manifestPath) {
+        manifestPath = substituteVariables(manifestPath);
+        return manifestPath;
+    }
+
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders && workspaceFolders.length > 0) {
+        return path.join(workspaceFolders[0].uri.fsPath, 'pixi.toml');
+    }
+
+    return undefined;
 }
 
 export function isExecutableFile(filePath: string): boolean {
