@@ -4,19 +4,22 @@
 // with highlighter, validator, completer, and history, then enters the
 // read-execute-display loop.
 
+use std::sync::Arc;
+
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, Emacs, KeyCode, KeyModifiers, MenuBuilder, Reedline,
     ReedlineEvent, ReedlineMenu, Signal,
 };
 use std::sync::mpsc as std_mpsc;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
-use super::completer::{CompletionBridgeRequest, JupyterCompleter};
+use super::completer::LspCompleter;
 use super::highlighter::RHighlighter;
 use super::history::create_history;
 use super::kernel_loop::ConsoleRequest;
 use super::output::ExecutionEvent;
 use super::validator::RValidator;
+use crate::lsp_client::LspClient;
 
 /// The R console prompt.
 fn make_prompt() -> reedline::DefaultPrompt {
@@ -32,7 +35,8 @@ fn make_prompt() -> reedline::DefaultPrompt {
 pub(crate) fn run_reedline_loop(
     request_tx: tokio::sync::mpsc::Sender<ConsoleRequest>,
     exec_output_rx: std_mpsc::Receiver<ExecutionEvent>,
-    complete_tx: tokio::sync::mpsc::Sender<CompletionBridgeRequest>,
+    lsp_client: Option<Arc<LspClient>>,
+    runtime_handle: tokio::runtime::Handle,
 ) {
     debug!("Console reedline_loop: building editor");
 
@@ -59,10 +63,19 @@ pub(crate) fn run_reedline_loop(
     // Build reedline editor
     let mut editor = Reedline::create()
         .with_highlighter(Box::new(RHighlighter))
-        .with_validator(Box::new(RValidator))
-        .with_completer(Box::new(JupyterCompleter::new(complete_tx)))
-        .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
-        .with_edit_mode(edit_mode);
+        .with_validator(Box::new(RValidator));
+
+    // Attach LSP completer if available
+    if let Some(client) = lsp_client {
+        info!("Console reedline_loop: LSP completion enabled");
+        editor = editor
+            .with_completer(Box::new(LspCompleter::new(client, runtime_handle)))
+            .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
+            .with_edit_mode(edit_mode);
+    } else {
+        info!("Console reedline_loop: no LSP client, completion disabled");
+        editor = editor.with_edit_mode(edit_mode);
+    }
 
     // Attach history (non-fatal if it fails)
     match create_history() {

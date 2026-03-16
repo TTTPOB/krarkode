@@ -2,20 +2,20 @@
 //
 // Bridges the blocking reedline loop with the Jupyter kernel via
 // tokio::select! over shell, iopub, and request channels.
+// Completion is handled directly by LspCompleter over TCP,
+// so this loop only manages execute requests and output.
 
 use anyhow::{Context, Result};
-use std::collections::HashMap;
 use std::sync::mpsc as std_mpsc;
 use tracing::{debug, error, warn};
 
 use runtimelib::{
-    create_client_iopub_connection, CompleteRequest, ExecuteRequest, ExecutionState,
-    JupyterMessage, JupyterMessageContent,
+    create_client_iopub_connection, ExecuteRequest, ExecutionState, JupyterMessage,
+    JupyterMessageContent,
 };
 
 use crate::connection::create_shell_connection;
 
-use super::completer::{complete_reply_to_suggestions, CompletionBridgeRequest};
 use super::output::{format_iopub_content, ExecutionEvent};
 
 /// Request sent from the reedline loop to the kernel loop.
@@ -30,14 +30,12 @@ pub(crate) enum ConsoleRequest {
 ///
 /// This function coordinates between:
 /// - `request_rx`: execute/exit requests from the reedline loop
-/// - `complete_rx`: completion requests from the JupyterCompleter
 /// - `exec_output_tx`: real-time execution output back to the reedline loop
 /// - Jupyter shell/iopub sockets
 pub(crate) async fn run_kernel_loop(
     connection_info: &runtimelib::ConnectionInfo,
     session_id: &str,
     mut request_rx: tokio::sync::mpsc::Receiver<ConsoleRequest>,
-    mut complete_rx: tokio::sync::mpsc::Receiver<CompletionBridgeRequest>,
     exec_output_tx: std_mpsc::Sender<ExecutionEvent>,
 ) -> Result<()> {
     debug!("Console kernel_loop: connecting to kernel");
@@ -53,10 +51,6 @@ pub(crate) async fn run_kernel_loop(
 
     // Track the current execute_request msg_id to correlate iopub output
     let mut current_exec_msg_id: Option<String> = None;
-
-    // Track pending completion requests: msg_id -> reply sender
-    let mut pending_completions: HashMap<String, std_mpsc::Sender<Vec<reedline::Suggestion>>> =
-        HashMap::new();
 
     loop {
         tokio::select! {
@@ -80,23 +74,6 @@ pub(crate) async fn run_kernel_loop(
                     Some(ConsoleRequest::Exit) | None => {
                         debug!("Console kernel_loop: exit requested");
                         break;
-                    }
-                }
-            }
-
-            // Handle completion requests from the JupyterCompleter
-            complete_req = complete_rx.recv() => {
-                if let Some(req) = complete_req {
-                    debug!(cursor_pos = req.cursor_pos, "Console kernel_loop: complete request");
-                    let complete_request = CompleteRequest {
-                        code: req.code,
-                        cursor_pos: req.cursor_pos,
-                    };
-                    let message = JupyterMessage::new(complete_request, None);
-                    let msg_id = message.header.msg_id.clone();
-                    pending_completions.insert(msg_id, req.reply_tx);
-                    if let Err(err) = shell.send(message).await {
-                        error!(error = ?err, "Console kernel_loop: failed to send complete_request");
                     }
                 }
             }
@@ -149,33 +126,16 @@ pub(crate) async fn run_kernel_loop(
                 }
             }
 
-            // Handle shell replies (complete_reply, execute_reply, etc.)
+            // Handle shell replies (execute_reply, etc.)
             shell_result = shell.read() => {
                 match shell_result {
                     Ok(message) => {
-                        let parent_msg_id = message
-                            .parent_header
-                            .as_ref()
-                            .map(|h| h.msg_id.clone())
-                            .unwrap_or_default();
-
                         debug!(
                             msg_type = %message.content.message_type(),
-                            parent = %parent_msg_id,
                             "Console kernel_loop: shell reply"
                         );
 
                         match message.content {
-                            JupyterMessageContent::CompleteReply(reply) => {
-                                if let Some(reply_tx) = pending_completions.remove(&parent_msg_id) {
-                                    let suggestions = complete_reply_to_suggestions(
-                                        &reply.matches,
-                                        reply.cursor_start,
-                                        reply.cursor_end,
-                                    );
-                                    let _ = reply_tx.send(suggestions);
-                                }
-                            }
                             JupyterMessageContent::ExecuteReply(_) => {
                                 // Execute result comes via iopub; this is just the status
                                 debug!("Console kernel_loop: execute_reply received");
