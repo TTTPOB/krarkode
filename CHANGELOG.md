@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Sidecar Console**: Built-in reedline-based REPL replacing `jupyter console`, with R syntax highlighting, bracket validation, XDG history persistence, and LSP-powered tab completion.
+- **LSP Client**: Embedded LSP client in sidecar for console code completions via JSON-RPC over TCP.
+- **Multi R Binary Support**: `krarkode.r.rBinaryPath` accepts a string or array; session creation shows a QuickPick for binary selection.
+- **Pixi Environment Discovery**: Automatic detection of R from pixi environments; `Doctor` command reports pixi status.
+- **Template Variables in Paths**: All path configuration settings now support `{arkPath}`, `{connectionFile}`, etc.
+- **ConfigurationWatcher**: Centralized, debounced watcher for configuration changes.
+- **Bundled Ark Binary**: Ark binary is bundled in the VSIX and used as default.
+- **Data Explorer**: Histogram axis labels formatted to 3 significant digits.
+
+### Improvements
+
+- Sidecar CLI migrated from manual argument parsing to clap subcommands.
+- Console completions prefer prefix matches and use column-first layout.
+- Logging channels reorganized: runtime, ui, kernel, lsp, sidecar, doctor.
+- Dropped Windows target and testthat integration.
+
+### Fixes
+
+- Sidecar responds to LSP server requests during completion flow.
+- Preserve existing `RUST_LOG` directives when setting log level.
+- Validate R binary path is an executable file, not a directory.
+
 ## 0.1.0 (2026-03-15)
 
 Initial release of krarkode, providing Positron-like R development experience in VS Code via Ark kernel integration.
