@@ -10,6 +10,7 @@ import { collectRBinaryCandidates } from '../rBinaryResolver';
 import type { RBinaryCandidate } from '../rBinaryResolver';
 import { getLogger, LogCategory } from '../logging/logger';
 import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
+import * as tmuxUtil from './tmuxUtil';
 
 type ArkKernelStatus = 'idle' | 'busy' | 'starting' | 'reconnecting' | 'unknown';
 
@@ -23,8 +24,6 @@ interface ArkAnnouncePayload {
 }
 
 const DEFAULT_SIGNATURE_SCHEME = 'hmac-sha256';
-const DEFAULT_TMUX_PATH = 'tmux';
-const DEFAULT_TMUX_SESSION_NAME = 'krarkode-ark';
 
 function nowIso(): string {
     return new Date().toISOString();
@@ -369,15 +368,6 @@ export class ArkSessionManager {
         );
     }
 
-    private getTmuxPath(): string {
-        const configured = util.substituteVariables((util.config().get<string>('krarkode.ark.tmux.path') || '').trim());
-        return configured || DEFAULT_TMUX_PATH;
-    }
-
-    private getTmuxSessionName(): string {
-        return DEFAULT_TMUX_SESSION_NAME;
-    }
-
     private getTmuxWindowName(name: string): string {
         const normalized = normalizeSessionName(name);
         return normalized || 'ark';
@@ -720,7 +710,7 @@ export class ArkSessionManager {
     private async stopSessionEntry(entry: ArkSessionEntry): Promise<void> {
         if (entry.mode === 'tmux') {
             if (entry.tmuxSessionName && entry.tmuxWindowName) {
-                await this.killTmuxWindow(entry.tmuxSessionName, entry.tmuxWindowName);
+                await tmuxUtil.killTmuxWindow(entry.tmuxSessionName, entry.tmuxWindowName);
             } else {
                 void vscode.window.showWarningMessage('Missing tmux window info. Cannot stop the Ark kernel.');
             }
@@ -830,13 +820,13 @@ export class ArkSessionManager {
     }
 
     private async ensureTmuxSession(): Promise<{ name: string; created: boolean } | undefined> {
-        const tmuxPath = this.getTmuxPath();
-        const tmuxSessionName = this.getTmuxSessionName();
-        const exists = await this.tmuxHasSession(tmuxSessionName);
+        const tmuxPath = tmuxUtil.getTmuxPath();
+        const tmuxSessionName = tmuxUtil.getTmuxSessionName();
+        const exists = await tmuxUtil.tmuxHasSession(tmuxSessionName);
         if (exists) {
             return { name: tmuxSessionName, created: false };
         }
-        const createResult = await this.runTmux(tmuxPath, ['new-session', '-d', '-s', tmuxSessionName]);
+        const createResult = await tmuxUtil.runTmux(tmuxPath, ['new-session', '-d', '-s', tmuxSessionName]);
         if (createResult.status !== 0) {
             const message =
                 createResult.stderr || createResult.stdout || createResult.error?.message || 'Unknown error';
@@ -853,10 +843,10 @@ export class ArkSessionManager {
         startupFile: string,
         rBinaryPath?: string,
     ): Promise<string | undefined> {
-        const tmuxPath = this.getTmuxPath();
+        const tmuxPath = tmuxUtil.getTmuxPath();
         const tmuxSessionName = tmuxSession.name;
         const windowName = this.getTmuxWindowName(name);
-        const windows = await this.listTmuxWindows(tmuxSessionName);
+        const windows = await tmuxUtil.listTmuxWindows(tmuxSessionName);
         if (windows.includes(windowName)) {
             void vscode.window.showWarningMessage(`tmux window "${windowName}" already exists. Please use Attach to bind first.`);
             return undefined;
@@ -864,13 +854,13 @@ export class ArkSessionManager {
 
         const manageKernel = this.getManageKernel();
         if (tmuxSession.created) {
-            const baseTarget = await this.getFirstTmuxWindowTarget(tmuxSessionName);
+            const baseTarget = await tmuxUtil.getFirstTmuxWindowTarget(tmuxSessionName);
             if (!baseTarget) {
                 void vscode.window.showWarningMessage('Failed to find the initial tmux window.');
                 return undefined;
             }
             if (!manageKernel) {
-                const result = await this.runTmux(tmuxPath, ['rename-window', '-t', baseTarget, windowName]);
+                const result = await tmuxUtil.runTmux(tmuxPath, ['rename-window', '-t', baseTarget, windowName]);
                 if (result.status !== 0) {
                     const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';
                     void vscode.window.showWarningMessage(`Failed to rename tmux window: ${message}`);
@@ -880,7 +870,7 @@ export class ArkSessionManager {
                 return windowName;
             }
             const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile, rBinaryPath);
-            const result = await this.runTmux(tmuxPath, [
+            const result = await tmuxUtil.runTmux(tmuxPath, [
                 'respawn-window',
                 '-k',
                 '-t',
@@ -894,12 +884,12 @@ export class ArkSessionManager {
                 void vscode.window.showWarningMessage(`Failed to start Ark in tmux window: ${message}`);
                 return undefined;
             }
-            await this.renameTmuxWindow(baseTarget, windowName);
+            await tmuxUtil.renameTmuxWindow(baseTarget, windowName);
             return windowName;
         }
 
         if (!manageKernel) {
-            const result = await this.runTmux(tmuxPath, ['new-window', '-t', tmuxSessionName, '-n', windowName]);
+            const result = await tmuxUtil.runTmux(tmuxPath, ['new-window', '-t', tmuxSessionName, '-n', windowName]);
             if (result.status !== 0) {
                 const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';
                 void vscode.window.showWarningMessage(`Failed to create tmux window: ${message}`);
@@ -909,7 +899,7 @@ export class ArkSessionManager {
             return windowName;
         }
         const kernelCommandWithEnv = await this.buildKernelCommand(connectionFile, startupFile, rBinaryPath);
-        const createResult = await this.runTmux(tmuxPath, [
+        const createResult = await tmuxUtil.runTmux(tmuxPath, [
             'new-window',
             '-t',
             tmuxSessionName,
@@ -929,44 +919,6 @@ export class ArkSessionManager {
         return windowName;
     }
 
-    private async tmuxHasSession(sessionName: string): Promise<boolean> {
-        const result = await this.runTmux(this.getTmuxPath(), ['has-session', '-t', sessionName]);
-        return result.status === 0;
-    }
-
-    private async killTmuxWindow(sessionName: string, windowName: string): Promise<void> {
-        const target = `${sessionName}:${windowName}`;
-        const result = await this.runTmux(this.getTmuxPath(), ['kill-window', '-t', target]);
-        if (result.status !== 0) {
-            const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';
-            void vscode.window.showWarningMessage(`Failed to kill tmux window ${target}: ${message}`);
-        }
-    }
-
-    private async runTmux(command: string, args: string[]): Promise<util.SpawnResult> {
-        const result = await util.spawnAsync(command, args, { env: process.env });
-        if (result.error) {
-            getLogger().log('runtime', LogCategory.Session, 'error', `tmux error: ${String(result.error)}`);
-        }
-        return result;
-    }
-
-    private async listTmuxWindows(sessionName: string): Promise<string[]> {
-        const result = await this.runTmux(this.getTmuxPath(), [
-            'list-windows',
-            '-t',
-            sessionName,
-            '-F',
-            '#{window_name}',
-        ]);
-        if (result.status !== 0) {
-            return [];
-        }
-        return (result.stdout || '')
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0);
-    }
 
     private async writeConnectionFile(connectionFile: string): Promise<void> {
         const ipAddress = '127.0.0.1';
@@ -1033,34 +985,7 @@ export class ArkSessionManager {
         return path.resolve(path.dirname(rPath), '..');
     }
 
-    private async getFirstTmuxWindowTarget(sessionName: string): Promise<string | undefined> {
-        const result = await this.runTmux(this.getTmuxPath(), [
-            'list-windows',
-            '-t',
-            sessionName,
-            '-F',
-            '#{window_index}',
-        ]);
-        if (result.status !== 0) {
-            return undefined;
-        }
-        const lines = (result.stdout || '')
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter((line) => line.length > 0);
-        if (lines.length === 0) {
-            return undefined;
-        }
-        return `${sessionName}:${lines[0]}`;
-    }
 
-    private async renameTmuxWindow(target: string, name: string): Promise<void> {
-        const result = await this.runTmux(this.getTmuxPath(), ['rename-window', '-t', target, name]);
-        if (result.status !== 0) {
-            const message = result.stderr || result.stdout || result.error?.message || 'Unknown error';
-            void vscode.window.showWarningMessage(`Failed to rename tmux window: ${message}`);
-        }
-    }
 
     private async allocatePorts(host: string, count: number): Promise<number[]> {
         const ports: number[] = [];
