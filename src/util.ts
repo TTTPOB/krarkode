@@ -50,7 +50,7 @@ export function substituteVariables(str: string): string {
     return result;
 }
 
-function getRfromEnvPath(): string {
+export function getRfromEnvPath(): string {
     const osPaths: string[] = process.env.PATH ? process.env.PATH.split(':') : [];
     for (const osPath of osPaths) {
         const osRPath: string = path.join(osPath, 'R');
@@ -99,7 +99,7 @@ export async function getRBinaryPath(quote = false): Promise<string | undefined>
     return rpath;
 }
 
-function isExecutableFile(filePath: string): boolean {
+export function isExecutableFile(filePath: string): boolean {
     try {
         const stat = fs.statSync(filePath);
         if (!stat.isFile()) {
