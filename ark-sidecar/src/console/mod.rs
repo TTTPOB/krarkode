@@ -1,5 +1,6 @@
 mod highlighter;
 mod r_parser;
+mod validator;
 
 use anyhow::Result;
 use runtimelib::ConnectionInfo;
