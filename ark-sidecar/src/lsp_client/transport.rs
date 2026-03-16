@@ -31,9 +31,12 @@ struct JsonRpcNotification<'a, P: Serialize> {
 }
 
 /// JSON-RPC 2.0 response envelope.
+///
+/// Also used to (leniently) deserialize server-initiated notifications:
+/// notifications lack `id`/`result`/`error` but serde maps missing
+/// `Option` fields to `None`, so they parse without error.
 #[derive(Deserialize, Debug)]
 struct JsonRpcResponse {
-    #[allow(dead_code)]
     id: Option<Value>,
     result: Option<Value>,
     error: Option<JsonRpcError>,
@@ -86,6 +89,9 @@ impl LspTransport {
     ///
     /// This is a blocking call that holds both reader and writer locks.
     /// Only one request should be in flight at a time.
+    ///
+    /// Server-initiated notifications (messages without an `id`) are
+    /// skipped automatically so they don't shadow the expected response.
     pub async fn request<P: Serialize, R: for<'de> Deserialize<'de>>(
         &self,
         method: &str,
@@ -111,26 +117,52 @@ impl LspTransport {
         trace!(body = %String::from_utf8_lossy(&body), "LspTransport: request body");
 
         self.write_message(&body).await?;
-        let response_body = self.read_message().await?;
 
-        trace!(
-            body = %String::from_utf8_lossy(&response_body),
-            "LspTransport: response body"
-        );
+        // Read messages until we get a response with a matching id.
+        // Server-initiated notifications (no id) and responses to other
+        // requests (mismatched id) are logged and skipped.
+        loop {
+            let response_body = self.read_message().await?;
 
-        let response: JsonRpcResponse = serde_json::from_slice(&response_body)
-            .context("Failed to parse JSON-RPC response")?;
+            trace!(
+                body = %String::from_utf8_lossy(&response_body),
+                "LspTransport: received message"
+            );
 
-        if let Some(err) = response.error {
-            return Err(anyhow!("{}", err));
+            let response: JsonRpcResponse = serde_json::from_slice(&response_body)
+                .context("Failed to parse JSON-RPC response")?;
+
+            // Check if this is a server-initiated notification (no id)
+            match &response.id {
+                None => {
+                    // Server notification (e.g. publishDiagnostics, logMessage) — skip
+                    debug!("LspTransport: skipping server notification while waiting for response id={id}");
+                    continue;
+                }
+                Some(resp_id) => {
+                    let expected_id = Value::Number(serde_json::Number::from(id));
+                    if *resp_id != expected_id {
+                        debug!(
+                            expected_id = id,
+                            actual_id = %resp_id,
+                            "LspTransport: skipping response with mismatched id"
+                        );
+                        continue;
+                    }
+                }
+            }
+
+            if let Some(err) = response.error {
+                return Err(anyhow!("{}", err));
+            }
+
+            let result_value = response.result.unwrap_or(Value::Null);
+            let result: R = serde_json::from_value(result_value)
+                .context("Failed to deserialize JSON-RPC result")?;
+
+            debug!(method = %method, id = id, "LspTransport: request completed");
+            return Ok(result);
         }
-
-        let result_value = response.result.unwrap_or(Value::Null);
-        let result: R = serde_json::from_value(result_value)
-            .context("Failed to deserialize JSON-RPC result")?;
-
-        debug!(method = %method, id = id, "LspTransport: request completed");
-        Ok(result)
     }
 
     /// Send a JSON-RPC notification (no response expected).
