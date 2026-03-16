@@ -28,7 +28,7 @@ use crate::lsp_client::LspClient;
 /// The R console prompt.
 fn make_prompt() -> reedline::DefaultPrompt {
     reedline::DefaultPrompt::new(
-        reedline::DefaultPromptSegment::Basic("R> ".to_string()),
+        reedline::DefaultPromptSegment::Empty,
         reedline::DefaultPromptSegment::Empty,
     )
 }
@@ -315,6 +315,12 @@ pub(crate) fn run_reedline_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use reedline::Prompt;
+
+    #[test]
+    fn prompt_is_empty() {
+        assert_eq!(make_prompt().render_prompt_left(), "");
+    }
 
     #[test]
     fn quit_call_simple() {
