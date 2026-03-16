@@ -4,9 +4,9 @@ import { HelpService } from '../../help/helpService';
 
 suite('Help service', () => {
     test('showHelpContent pushes entries and updates navigation', async () => {
-        const requests: Array<{ method: string; params: unknown }> = [];
-        const service = new HelpService(vscode.Uri.file('/tmp'), (method, params) => {
-            requests.push({ method, params });
+        const requests: Array<{ id: string; method: string; params?: unknown }> = [];
+        const service = new HelpService(vscode.Uri.file('/tmp'), (request) => {
+            requests.push(request);
         });
 
         await service.showHelpContent('<title>Intro</title><p>Hi</p>', 'html', false);

@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { HelpEntry, createHelpEntry } from './helpEntry';
 import { MAX_HISTORY_ENTRIES } from './helpIds';
@@ -18,6 +19,12 @@ export interface IKrarkodeHelpService {
     find(): void;
 }
 
+export interface HelpRpcRequest {
+    id: string;
+    method: string;
+    params?: unknown;
+}
+
 export class HelpService implements IKrarkodeHelpService {
     private readonly helpEntriesStack: HelpEntry[] = [];
     private currentIndex = -1;
@@ -28,7 +35,7 @@ export class HelpService implements IKrarkodeHelpService {
 
     constructor(
         private readonly extensionUri: vscode.Uri,
-        private readonly sendRpcRequest: (method: string, params: unknown) => void,
+        private readonly sendRpcRequest: (request: HelpRpcRequest) => void,
     ) {}
 
     public get helpEntries(): HelpEntry[] {
@@ -51,7 +58,11 @@ export class HelpService implements IKrarkodeHelpService {
     }
 
     public async showHelpTopic(topic: string): Promise<boolean> {
-        this.sendRpcRequest('show_help_topic', { topic });
+        this.sendRpcRequest({
+            id: `help-${crypto.randomUUID()}`,
+            method: 'show_help_topic',
+            params: { topic },
+        });
         return true;
     }
 

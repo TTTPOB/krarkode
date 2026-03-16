@@ -178,12 +178,9 @@ export function activate(context: vscode.ExtensionContext): void {
     // Track help comm ID
     let helpCommId: string | undefined;
 
-    helpService = new HelpService(context.extensionUri, (method, params) => {
+    helpService = new HelpService(context.extensionUri, (request) => {
         if (helpCommId && sidecarManager) {
-            sidecarManager.sendCommMessage(helpCommId, {
-                method,
-                params,
-            });
+            sidecarManager.sendCommMessage(helpCommId, request);
         } else {
             const message = 'Help communication channel not available. Start or attach an Ark session.';
             helpManager?.showErrorBanner(message, 'Use "Krarkode: Create Ark Session" to start an R session.');
