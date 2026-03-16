@@ -221,10 +221,16 @@ export class ArkLanguageService implements vscode.Disposable {
     }
 
     private async resolveRHome(): Promise<string | undefined> {
-        const rPath = await util.getRBinaryPath();
+        // Prefer session-specific R binary if available
+        const activeSession = sessionRegistry.getActiveSession();
+        const rPath = activeSession?.rBinaryPath ?? await util.getRBinaryPath();
         if (!rPath) {
             return undefined;
         }
+
+        this.runtimeOutputChannel.appendLine(
+            this.formatLogMessage(`Resolving R_HOME from: ${rPath} (source: ${activeSession?.rBinaryPath ? 'session' : 'global'})`, 'session'),
+        );
 
         const result = await util.spawnAsync(rPath, ['RHOME'], { env: process.env });
         const lines = (result.stdout || '')
