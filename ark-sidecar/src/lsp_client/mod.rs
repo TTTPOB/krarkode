@@ -12,10 +12,9 @@ use std::sync::Mutex;
 
 use anyhow::{Context, Result};
 use lsp_types::{
-    ClientCapabilities, CompletionClientCapabilities, CompletionItemCapability,
-    CompletionParams, CompletionResponse, InitializeParams, InitializeResult,
-    InitializedParams, TextDocumentClientCapabilities, TextDocumentPositionParams,
-    TextDocumentSyncClientCapabilities,
+    ClientCapabilities, CompletionClientCapabilities, CompletionItemCapability, CompletionParams,
+    CompletionResponse, InitializeParams, InitializeResult, InitializedParams,
+    TextDocumentClientCapabilities, TextDocumentPositionParams, TextDocumentSyncClientCapabilities,
 };
 use tracing::{debug, info};
 

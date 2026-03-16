@@ -7,11 +7,10 @@ use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::atomic::{AtomicI64, Ordering};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 /// JSON-RPC 2.0 request (has id, expects response).
 #[derive(Serialize)]
@@ -30,16 +29,42 @@ struct JsonRpcNotification<'a, P: Serialize> {
     params: P,
 }
 
-/// JSON-RPC 2.0 response envelope.
+/// JSON-RPC 2.0 message envelope.
 ///
-/// Also used to (leniently) deserialize server-initiated notifications:
-/// notifications lack `id`/`result`/`error` but serde maps missing
-/// `Option` fields to `None`, so they parse without error.
+/// Used to deserialize:
+/// - Responses (`id` + `result`/`error`)
+/// - Server requests (`id` + `method`)
+/// - Server notifications (`method` only)
 #[derive(Deserialize, Debug)]
-struct JsonRpcResponse {
+struct JsonRpcMessage {
     id: Option<Value>,
+    method: Option<String>,
+    params: Option<Value>,
     result: Option<Value>,
     error: Option<JsonRpcError>,
+}
+
+/// JSON-RPC 2.0 success response envelope.
+#[derive(Serialize)]
+struct JsonRpcSuccessResponse {
+    jsonrpc: &'static str,
+    id: Value,
+    result: Value,
+}
+
+/// JSON-RPC 2.0 error response envelope.
+#[derive(Serialize)]
+struct JsonRpcErrorResponse {
+    jsonrpc: &'static str,
+    id: Value,
+    error: JsonRpcResponseError,
+}
+
+/// JSON-RPC 2.0 error response object.
+#[derive(Serialize)]
+struct JsonRpcResponseError {
+    code: i64,
+    message: String,
 }
 
 /// JSON-RPC 2.0 error object.
@@ -63,8 +88,8 @@ impl std::fmt::Display for JsonRpcError {
 /// Reader and writer are behind Mutexes for future-proofing but current usage
 /// is strictly sequential.
 pub(crate) struct LspTransport {
-    reader: Mutex<BufReader<OwnedReadHalf>>,
-    writer: Mutex<OwnedWriteHalf>,
+    reader: Mutex<BufReader<Box<dyn AsyncRead + Unpin + Send>>>,
+    writer: Mutex<Box<dyn AsyncWrite + Unpin + Send>>,
     next_id: AtomicI64,
 }
 
@@ -78,11 +103,19 @@ impl LspTransport {
         debug!("LspTransport: connected");
 
         let (read_half, write_half) = stream.into_split();
-        Ok(Self {
-            reader: Mutex::new(BufReader::new(read_half)),
-            writer: Mutex::new(write_half),
+        Ok(Self::from_io(read_half, write_half))
+    }
+
+    fn from_io<R, W>(reader: R, writer: W) -> Self
+    where
+        R: AsyncRead + Unpin + Send + 'static,
+        W: AsyncWrite + Unpin + Send + 'static,
+    {
+        Self {
+            reader: Mutex::new(BufReader::new(Box::new(reader))),
+            writer: Mutex::new(Box::new(writer)),
             next_id: AtomicI64::new(1),
-        })
+        }
     }
 
     /// Send a JSON-RPC request and wait for the response.
@@ -105,8 +138,7 @@ impl LspTransport {
             params,
         };
 
-        let body = serde_json::to_vec(&request)
-            .context("Failed to serialize JSON-RPC request")?;
+        let body = serde_json::to_vec(&request).context("Failed to serialize JSON-RPC request")?;
 
         debug!(
             method = %method,
@@ -129,14 +161,32 @@ impl LspTransport {
                 "LspTransport: received message"
             );
 
-            let response: JsonRpcResponse = serde_json::from_slice(&response_body)
+            let message: JsonRpcMessage = serde_json::from_slice(&response_body)
                 .context("Failed to parse JSON-RPC response")?;
 
-            // Check if this is a server-initiated notification (no id)
-            match &response.id {
+            if let Some(method) = message.method.as_deref() {
+                if let Some(request_id) = message.id.clone() {
+                    self.handle_server_request(request_id, method, message.params.as_ref())
+                        .await
+                        .with_context(|| {
+                            format!(
+                                "Failed to handle server request '{method}' while waiting for response id={id}"
+                            )
+                        })?;
+                } else {
+                    debug!(
+                        method = %method,
+                        "LspTransport: skipping server notification while waiting for response id={id}"
+                    );
+                }
+                continue;
+            }
+
+            match &message.id {
                 None => {
-                    // Server notification (e.g. publishDiagnostics, logMessage) — skip
-                    debug!("LspTransport: skipping server notification while waiting for response id={id}");
+                    debug!(
+                        "LspTransport: skipping id-less message while waiting for response id={id}"
+                    );
                     continue;
                 }
                 Some(resp_id) => {
@@ -152,11 +202,11 @@ impl LspTransport {
                 }
             }
 
-            if let Some(err) = response.error {
+            if let Some(err) = message.error {
                 return Err(anyhow!("{}", err));
             }
 
-            let result_value = response.result.unwrap_or(Value::Null);
+            let result_value = message.result.unwrap_or(Value::Null);
             let result: R = serde_json::from_value(result_value)
                 .context("Failed to deserialize JSON-RPC result")?;
 
@@ -166,11 +216,7 @@ impl LspTransport {
     }
 
     /// Send a JSON-RPC notification (no response expected).
-    pub async fn notify<P: Serialize>(
-        &self,
-        method: &str,
-        params: &P,
-    ) -> Result<()> {
+    pub async fn notify<P: Serialize>(&self, method: &str, params: &P) -> Result<()> {
         let notification = JsonRpcNotification {
             jsonrpc: "2.0",
             method,
@@ -189,6 +235,75 @@ impl LspTransport {
 
         self.write_message(&body).await?;
         Ok(())
+    }
+
+    async fn handle_server_request(
+        &self,
+        id: Value,
+        method: &str,
+        _params: Option<&Value>,
+    ) -> Result<()> {
+        match method {
+            "client/registerCapability" | "client/unregisterCapability" => {
+                debug!(
+                    id = %id,
+                    method = %method,
+                    "LspTransport: acknowledging server capability request"
+                );
+                self.send_success_response(id, Value::Null).await
+            }
+            "workspace/configuration" => {
+                debug!(
+                    id = %id,
+                    method = %method,
+                    "LspTransport: replying to workspace/configuration with empty settings"
+                );
+                self.send_success_response(id, Value::Array(vec![])).await
+            }
+            _ => {
+                warn!(
+                    id = %id,
+                    method = %method,
+                    "LspTransport: received unsupported server request"
+                );
+                self.send_error_response(
+                    id,
+                    -32601,
+                    format!("Unsupported server request method: {method}"),
+                )
+                .await
+            }
+        }
+    }
+
+    async fn send_success_response(&self, id: Value, result: Value) -> Result<()> {
+        let response = JsonRpcSuccessResponse {
+            jsonrpc: "2.0",
+            id,
+            result,
+        };
+        let body = serde_json::to_vec(&response)
+            .context("Failed to serialize JSON-RPC success response")?;
+        trace!(
+            body = %String::from_utf8_lossy(&body),
+            "LspTransport: success response body"
+        );
+        self.write_message(&body).await
+    }
+
+    async fn send_error_response(&self, id: Value, code: i64, message: String) -> Result<()> {
+        let response = JsonRpcErrorResponse {
+            jsonrpc: "2.0",
+            id,
+            error: JsonRpcResponseError { code, message },
+        };
+        let body =
+            serde_json::to_vec(&response).context("Failed to serialize JSON-RPC error response")?;
+        trace!(
+            body = %String::from_utf8_lossy(&body),
+            "LspTransport: error response body"
+        );
+        self.write_message(&body).await
     }
 
     /// Write a Content-Length framed message.
@@ -285,20 +400,112 @@ mod tests {
     }
 
     #[test]
-    fn json_rpc_response_deserialization() {
+    fn json_rpc_message_response_deserialization() {
         let json = r#"{"jsonrpc":"2.0","id":1,"result":{"capabilities":{}}}"#;
-        let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
+        let response: JsonRpcMessage = serde_json::from_str(json).unwrap();
+        assert!(response.method.is_none());
         assert!(response.error.is_none());
         assert!(response.result.is_some());
     }
 
     #[test]
-    fn json_rpc_error_deserialization() {
-        let json = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
-        let response: JsonRpcResponse = serde_json::from_str(json).unwrap();
+    fn json_rpc_message_error_deserialization() {
+        let json =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"Method not found"}}"#;
+        let response: JsonRpcMessage = serde_json::from_str(json).unwrap();
         assert!(response.error.is_some());
         let err = response.error.unwrap();
         assert_eq!(err.code, -32601);
         assert_eq!(err.message, "Method not found");
+    }
+
+    #[tokio::test]
+    async fn request_handles_server_request_before_response() {
+        use tokio::io::{duplex, split, ReadHalf, WriteHalf};
+
+        async fn read_framed_message(
+            reader: &mut BufReader<ReadHalf<tokio::io::DuplexStream>>,
+        ) -> Vec<u8> {
+            let mut content_length: Option<usize> = None;
+            loop {
+                let mut header_line = String::new();
+                let bytes_read = reader.read_line(&mut header_line).await.unwrap();
+                assert!(bytes_read > 0);
+
+                let trimmed = header_line.trim();
+                if trimmed.is_empty() {
+                    break;
+                }
+
+                if let Some(value) = trimmed.strip_prefix("Content-Length:") {
+                    content_length = Some(value.trim().parse::<usize>().unwrap());
+                }
+            }
+
+            let length = content_length.expect("missing content length");
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).await.unwrap();
+            body
+        }
+
+        async fn write_framed_message(
+            writer: &mut WriteHalf<tokio::io::DuplexStream>,
+            body: &[u8],
+        ) {
+            let header = format!("Content-Length: {}\r\n\r\n", body.len());
+            writer.write_all(header.as_bytes()).await.unwrap();
+            writer.write_all(body).await.unwrap();
+            writer.flush().await.unwrap();
+        }
+
+        let (client_stream, server_stream) = duplex(8192);
+        let (client_read, client_write) = split(client_stream);
+
+        let server = tokio::spawn(async move {
+            let (read_half, mut write_half) = split(server_stream);
+            let mut reader = BufReader::new(read_half);
+
+            let request_body = read_framed_message(&mut reader).await;
+            let request: Value = serde_json::from_slice(&request_body).unwrap();
+            assert_eq!(request["id"], 1);
+            assert_eq!(request["method"], "textDocument/completion");
+
+            let register_request = serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 0,
+                "method": "client/registerCapability",
+                "params": { "registrations": [] }
+            });
+            write_framed_message(
+                &mut write_half,
+                serde_json::to_vec(&register_request).unwrap().as_slice(),
+            )
+            .await;
+
+            let register_response_body = read_framed_message(&mut reader).await;
+            let register_response: Value = serde_json::from_slice(&register_response_body).unwrap();
+            assert_eq!(register_response["id"], 0);
+            assert_eq!(register_response["result"], Value::Null);
+
+            let completion_response = serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": []
+            });
+            write_framed_message(
+                &mut write_half,
+                serde_json::to_vec(&completion_response).unwrap().as_slice(),
+            )
+            .await;
+        });
+
+        let transport = LspTransport::from_io(client_read, client_write);
+        let response: Vec<Value> = transport
+            .request("textDocument/completion", &serde_json::json!({}))
+            .await
+            .unwrap();
+
+        assert!(response.is_empty());
+        server.await.unwrap();
     }
 }

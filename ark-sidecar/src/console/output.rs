@@ -24,9 +24,7 @@ pub(crate) fn format_iopub_content(content: &JupyterMessageContent) -> Option<St
         JupyterMessageContent::StreamContent(stream) => {
             debug!(stream_name = ?stream.name, "Console: stream output");
             match stream.name {
-                runtimelib::Stdio::Stderr => {
-                    Some(Color::Red.paint(&stream.text).to_string())
-                }
+                runtimelib::Stdio::Stderr => Some(Color::Red.paint(&stream.text).to_string()),
                 runtimelib::Stdio::Stdout => Some(stream.text.clone()),
             }
         }

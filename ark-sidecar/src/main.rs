@@ -36,11 +36,21 @@ fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
 
     // Extract connection_file from any command variant
     let connection_file = match &cli.command {
-        Command::Lsp { connection_file, .. }
-        | Command::Execute { connection_file, .. }
-        | Command::WatchPlot { connection_file, .. }
-        | Command::Check { connection_file, .. }
-        | Command::Console { connection_file, .. } => connection_file,
+        Command::Lsp {
+            connection_file, ..
+        }
+        | Command::Execute {
+            connection_file, ..
+        }
+        | Command::WatchPlot {
+            connection_file, ..
+        }
+        | Command::Check {
+            connection_file, ..
+        }
+        | Command::Console {
+            connection_file, ..
+        } => connection_file,
     };
 
     let connection = read_connection(connection_file)?;
@@ -76,14 +86,8 @@ fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
                 ..
             } => {
                 let code = decode_code(&code, code_base64)?;
-                run_execute_request(
-                    &connection,
-                    &session_id,
-                    &code,
-                    timeout_ms,
-                    wait_for_idle,
-                )
-                .await?;
+                run_execute_request(&connection, &session_id, &code, timeout_ms, wait_for_idle)
+                    .await?;
             }
             Command::WatchPlot { timeout_ms, .. } => {
                 // timeout_ms is available but run_plot_watcher doesn't use it directly

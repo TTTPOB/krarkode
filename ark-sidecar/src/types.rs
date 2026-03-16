@@ -1,7 +1,10 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "vscode-r-ark-sidecar", about = "Ark kernel sidecar for VS Code R extension")]
+#[command(
+    name = "vscode-r-ark-sidecar",
+    about = "Ark kernel sidecar for VS Code R extension"
+)]
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) command: Command,

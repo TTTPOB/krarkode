@@ -49,10 +49,7 @@ impl Completer for LspCompleter {
         }) {
             Ok(Ok(response)) => {
                 let suggestions = completion_response_to_suggestions(response, line, pos);
-                debug!(
-                    count = suggestions.len(),
-                    "LspCompleter: got completions"
-                );
+                debug!(count = suggestions.len(), "LspCompleter: got completions");
                 suggestions
             }
             Ok(Err(err)) => {
@@ -60,7 +57,10 @@ impl Completer for LspCompleter {
                 vec![]
             }
             Err(_) => {
-                debug!("LspCompleter: completion timed out ({}ms)", LSP_COMPLETION_TIMEOUT.as_millis());
+                debug!(
+                    "LspCompleter: completion timed out ({}ms)",
+                    LSP_COMPLETION_TIMEOUT.as_millis()
+                );
                 vec![]
             }
         }

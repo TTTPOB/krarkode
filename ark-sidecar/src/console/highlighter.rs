@@ -100,9 +100,7 @@ fn node_to_token_type(node: &Node, source: &[u8]) -> TokenType {
         | "^" | "$" | "@" | ":" | "!" | "\\" | "special" => TokenType::Operator,
 
         // Punctuation
-        "(" | ")" | "{" | "}" | "[" | "]" | "[[" | "]]" | "comma" | ";" => {
-            TokenType::Punctuation
-        }
+        "(" | ")" | "{" | "}" | "[" | "]" | "[[" | "]]" | "comma" | ";" => TokenType::Punctuation,
 
         // Identifiers
         "identifier" => {

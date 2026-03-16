@@ -79,12 +79,7 @@ mod tests {
 
     #[test]
     fn parse_console_mode() {
-        let cli = parse_from(&[
-            "sidecar",
-            "console",
-            "--connection-file",
-            "connection.json",
-        ]);
+        let cli = parse_from(&["sidecar", "console", "--connection-file", "connection.json"]);
         assert!(matches!(cli.command, Command::Console { .. }));
     }
 

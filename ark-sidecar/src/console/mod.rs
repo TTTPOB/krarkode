@@ -25,10 +25,7 @@ use kernel_loop::{run_kernel_loop, ConsoleRequest};
 /// Sets up channels between the blocking reedline loop and the async
 /// kernel event loop, then runs both concurrently. Optionally initializes
 /// an LSP client for tab completion.
-pub(crate) async fn run_console(
-    connection_info: &ConnectionInfo,
-    session_id: &str,
-) -> Result<()> {
+pub(crate) async fn run_console(connection_info: &ConnectionInfo, session_id: &str) -> Result<()> {
     info!(mode = "console", "Sidecar: starting console mode");
 
     // --- LSP Initialization (best-effort) ---
@@ -56,12 +53,7 @@ pub(crate) async fn run_console(
 
     // Spawn the blocking reedline loop
     let reedline_handle = tokio::task::spawn_blocking(move || {
-        reedline_loop::run_reedline_loop(
-            request_tx,
-            exec_output_rx,
-            lsp_client,
-            runtime_handle,
-        );
+        reedline_loop::run_reedline_loop(request_tx, exec_output_rx, lsp_client, runtime_handle);
     });
 
     // Run the async kernel loop (in the current task)

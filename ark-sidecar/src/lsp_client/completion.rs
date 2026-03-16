@@ -151,11 +151,7 @@ pub(crate) fn strip_snippet_syntax(text: &str, format: Option<InsertTextFormat>)
 ///
 /// If the CompletionItem has a textEdit, convert its LSP range to byte offsets.
 /// Otherwise, find the start of the word being typed before the cursor.
-fn compute_span(
-    item: &CompletionItem,
-    buffer: &str,
-    cursor_byte_offset: usize,
-) -> Span {
+fn compute_span(item: &CompletionItem, buffer: &str, cursor_byte_offset: usize) -> Span {
     if let Some(edit) = &item.text_edit {
         match edit {
             lsp_types::CompletionTextEdit::Edit(text_edit) => {
@@ -197,7 +193,7 @@ fn find_word_start(buffer: &str, cursor: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lsp_types::{CompletionItem, CompletionItemKind, Range, Position, TextEdit};
+    use lsp_types::{CompletionItem, CompletionItemKind, Position, Range, TextEdit};
 
     // --- strip_snippet_syntax ---
 
@@ -342,8 +338,14 @@ mod tests {
             label: "View".to_string(),
             text_edit: Some(lsp_types::CompletionTextEdit::Edit(TextEdit {
                 range: Range {
-                    start: Position { line: 0, character: 6 },
-                    end: Position { line: 0, character: 8 },
+                    start: Position {
+                        line: 0,
+                        character: 6,
+                    },
+                    end: Position {
+                        line: 0,
+                        character: 8,
+                    },
                 },
                 new_text: "View".to_string(),
             })),

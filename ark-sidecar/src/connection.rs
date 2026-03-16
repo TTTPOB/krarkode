@@ -12,11 +12,11 @@ use runtimelib::{
     JupyterMessageContent,
 };
 
-use tracing::debug;
 use crate::types::{
     DATA_EXPLORER_COMM_TARGET, HELP_COMM_TARGET, LSP_COMM_TARGET, UI_COMM_TARGET,
     VARIABLES_COMM_TARGET,
 };
+use tracing::debug;
 
 pub(crate) fn read_connection(path: &str) -> Result<ConnectionInfo> {
     let content = fs::read_to_string(path)?;
@@ -30,7 +30,10 @@ pub(crate) async fn send_comm_open(
     ip_address: &str,
 ) -> Result<()> {
     let mut data = Map::new();
-    data.insert("ip_address".to_string(), Value::String(ip_address.to_string()));
+    data.insert(
+        "ip_address".to_string(),
+        Value::String(ip_address.to_string()),
+    );
     let comm_open = CommOpen {
         comm_id: CommId(comm_id.to_string()),
         target_name: LSP_COMM_TARGET.to_string(),
@@ -38,7 +41,10 @@ pub(crate) async fn send_comm_open(
         target_module: None,
     };
     let message = JupyterMessage::new(comm_open, None);
-    shell.send(message).await.context("Failed to send comm_open")
+    shell
+        .send(message)
+        .await
+        .context("Failed to send comm_open")
 }
 
 pub(crate) async fn send_help_comm_open(
@@ -52,7 +58,10 @@ pub(crate) async fn send_help_comm_open(
         target_module: None,
     };
     let message = JupyterMessage::new(comm_open, None);
-    shell.send(message).await.context("Failed to send help comm_open")
+    shell
+        .send(message)
+        .await
+        .context("Failed to send help comm_open")
 }
 
 pub(crate) async fn send_ui_comm_open(
@@ -66,7 +75,10 @@ pub(crate) async fn send_ui_comm_open(
         target_module: None,
     };
     let message = JupyterMessage::new(comm_open, None);
-    shell.send(message).await.context("Failed to send UI comm_open")
+    shell
+        .send(message)
+        .await
+        .context("Failed to send UI comm_open")
 }
 
 pub(crate) async fn send_variables_comm_open(
@@ -80,7 +92,8 @@ pub(crate) async fn send_variables_comm_open(
         target_module: None,
     };
     let message = JupyterMessage::new(comm_open, None);
-    shell.send(message)
+    shell
+        .send(message)
         .await
         .context("Failed to send variables comm_open")
 }
@@ -96,7 +109,8 @@ pub(crate) async fn send_data_explorer_comm_open(
         target_module: None,
     };
     let message = JupyterMessage::new(comm_open, None);
-    shell.send(message)
+    shell
+        .send(message)
         .await
         .context("Failed to send data explorer comm_open")
 }

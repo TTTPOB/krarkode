@@ -8,7 +8,7 @@ use uuid::Uuid;
 use tracing::{debug, error, info, warn};
 
 use runtimelib::{
-    create_client_iopub_connection, CommId, CommMsg, CommOpen, CommClose, ExecuteRequest,
+    create_client_iopub_connection, CommClose, CommId, CommMsg, CommOpen, ExecuteRequest,
     ExecutionState, JupyterMessage, JupyterMessageContent, KernelInfoRequest,
 };
 
@@ -72,7 +72,10 @@ pub(crate) async fn run_execute_request(
     let message = JupyterMessage::new(execute_request, None);
     let msg_id = message.header.msg_id.clone();
     debug!(code_len = code.len(), "Sidecar: sending execute_request");
-    shell.send(message).await.context("Failed to send execute_request")?;
+    shell
+        .send(message)
+        .await
+        .context("Failed to send execute_request")?;
 
     if wait_for_idle {
         wait_for_iopub_idle(&mut iopub, &msg_id, Duration::from_millis(timeout_ms)).await?;
@@ -379,7 +382,8 @@ pub(crate) async fn run_check(
     let request = KernelInfoRequest {};
     let message = JupyterMessage::new(request, None);
     let msg_id = message.header.msg_id.clone();
-    shell.send(message)
+    shell
+        .send(message)
         .await
         .context("Failed to send kernel_info_request")?;
 

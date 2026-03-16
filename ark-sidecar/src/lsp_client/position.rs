@@ -78,21 +78,69 @@ mod tests {
     #[test]
     fn ascii_single_line() {
         let text = "hello";
-        assert_eq!(byte_offset_to_lsp_position(text, 0), Position { line: 0, character: 0 });
-        assert_eq!(byte_offset_to_lsp_position(text, 3), Position { line: 0, character: 3 });
-        assert_eq!(byte_offset_to_lsp_position(text, 5), Position { line: 0, character: 5 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 0),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 3),
+            Position {
+                line: 0,
+                character: 3
+            }
+        );
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 5),
+            Position {
+                line: 0,
+                character: 5
+            }
+        );
     }
 
     #[test]
     fn multi_line() {
         let text = "line1\nline2\nline3";
-        assert_eq!(byte_offset_to_lsp_position(text, 0), Position { line: 0, character: 0 });
-        assert_eq!(byte_offset_to_lsp_position(text, 5), Position { line: 0, character: 5 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 0),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 5),
+            Position {
+                line: 0,
+                character: 5
+            }
+        );
         // byte 6 = start of "line2"
-        assert_eq!(byte_offset_to_lsp_position(text, 6), Position { line: 1, character: 0 });
-        assert_eq!(byte_offset_to_lsp_position(text, 7), Position { line: 1, character: 1 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 6),
+            Position {
+                line: 1,
+                character: 0
+            }
+        );
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 7),
+            Position {
+                line: 1,
+                character: 1
+            }
+        );
         // byte 12 = start of "line3"
-        assert_eq!(byte_offset_to_lsp_position(text, 12), Position { line: 2, character: 0 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 12),
+            Position {
+                line: 2,
+                character: 0
+            }
+        );
     }
 
     #[test]
@@ -100,37 +148,103 @@ mod tests {
         // Each CJK char: 3 bytes UTF-8, 1 UTF-16 code unit
         let text = "ab\u{4e2d}\u{6587}cd";
         // "ab" = 2 bytes, "中" = 3 bytes (offset 2..5), "文" = 3 bytes (offset 5..8), "cd" = 2 bytes
-        assert_eq!(byte_offset_to_lsp_position(text, 0), Position { line: 0, character: 0 });
-        assert_eq!(byte_offset_to_lsp_position(text, 2), Position { line: 0, character: 2 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 0),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 2),
+            Position {
+                line: 0,
+                character: 2
+            }
+        );
         // After "中" (byte 5)
-        assert_eq!(byte_offset_to_lsp_position(text, 5), Position { line: 0, character: 3 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 5),
+            Position {
+                line: 0,
+                character: 3
+            }
+        );
         // After "文" (byte 8)
-        assert_eq!(byte_offset_to_lsp_position(text, 8), Position { line: 0, character: 4 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 8),
+            Position {
+                line: 0,
+                character: 4
+            }
+        );
         // After "c" (byte 9)
-        assert_eq!(byte_offset_to_lsp_position(text, 9), Position { line: 0, character: 5 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 9),
+            Position {
+                line: 0,
+                character: 5
+            }
+        );
     }
 
     #[test]
     fn emoji_surrogate_pair() {
         // Emoji U+1F600: 4 bytes UTF-8, 2 UTF-16 code units (surrogate pair)
         let text = "a\u{1F600}b";
-        assert_eq!(byte_offset_to_lsp_position(text, 0), Position { line: 0, character: 0 });
-        assert_eq!(byte_offset_to_lsp_position(text, 1), Position { line: 0, character: 1 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 0),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 1),
+            Position {
+                line: 0,
+                character: 1
+            }
+        );
         // After emoji (byte 5)
-        assert_eq!(byte_offset_to_lsp_position(text, 5), Position { line: 0, character: 3 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 5),
+            Position {
+                line: 0,
+                character: 3
+            }
+        );
         // After "b" (byte 6)
-        assert_eq!(byte_offset_to_lsp_position(text, 6), Position { line: 0, character: 4 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 6),
+            Position {
+                line: 0,
+                character: 4
+            }
+        );
     }
 
     #[test]
     fn empty_string() {
-        assert_eq!(byte_offset_to_lsp_position("", 0), Position { line: 0, character: 0 });
+        assert_eq!(
+            byte_offset_to_lsp_position("", 0),
+            Position {
+                line: 0,
+                character: 0
+            }
+        );
     }
 
     #[test]
     fn offset_past_end_clamps() {
         let text = "abc";
-        assert_eq!(byte_offset_to_lsp_position(text, 100), Position { line: 0, character: 3 });
+        assert_eq!(
+            byte_offset_to_lsp_position(text, 100),
+            Position {
+                line: 0,
+                character: 3
+            }
+        );
     }
 
     // --- lsp_position_to_byte_offset ---
@@ -138,42 +252,150 @@ mod tests {
     #[test]
     fn reverse_ascii_single_line() {
         let text = "hello";
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 0 }), 0);
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 3 }), 3);
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 5 }), 5);
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 0
+                }
+            ),
+            0
+        );
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 3
+                }
+            ),
+            3
+        );
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 5
+                }
+            ),
+            5
+        );
     }
 
     #[test]
     fn reverse_multi_line() {
         let text = "line1\nline2\nline3";
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 1, character: 0 }), 6);
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 1, character: 1 }), 7);
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 2, character: 0 }), 12);
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 1,
+                    character: 0
+                }
+            ),
+            6
+        );
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 1,
+                    character: 1
+                }
+            ),
+            7
+        );
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 2,
+                    character: 0
+                }
+            ),
+            12
+        );
     }
 
     #[test]
     fn reverse_cjk() {
         let text = "ab\u{4e2d}\u{6587}cd";
         // character 3 = after "ab中", byte offset = 5
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 3 }), 5);
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 3
+                }
+            ),
+            5
+        );
         // character 4 = after "ab中文", byte offset = 8
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 4 }), 8);
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 4
+                }
+            ),
+            8
+        );
     }
 
     #[test]
     fn reverse_emoji() {
         let text = "a\u{1F600}b";
         // character 1 = after "a", byte offset = 1
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 1 }), 1);
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 1
+                }
+            ),
+            1
+        );
         // character 3 = after emoji (2 UTF-16 units), byte offset = 5
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 3 }), 5);
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 3
+                }
+            ),
+            5
+        );
     }
 
     #[test]
     fn reverse_past_end() {
         let text = "abc";
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 5, character: 0 }), 3);
-        assert_eq!(lsp_position_to_byte_offset(text, &Position { line: 0, character: 100 }), 3);
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 5,
+                    character: 0
+                }
+            ),
+            3
+        );
+        assert_eq!(
+            lsp_position_to_byte_offset(
+                text,
+                &Position {
+                    line: 0,
+                    character: 100
+                }
+            ),
+            3
+        );
     }
 
     #[test]
