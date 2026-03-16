@@ -57,7 +57,12 @@ function renderDataTable(overrides: Record<string, unknown> = {}) {
 
 describe('DataTable', () => {
     test('renders visible column action labels', () => {
-        renderDataTable();
+        renderDataTable({
+            columnWidths: new Map<number, number>([
+                [0, 240],
+                [1, 240],
+            ]),
+        });
 
         const ageHeader = screen.getByRole('columnheader', { name: 'age' });
         expect(within(ageHeader).getByText('Filter')).toBeInTheDocument();
@@ -65,13 +70,35 @@ describe('DataTable', () => {
         expect(within(ageHeader).getByText('Hide')).toBeInTheDocument();
     });
 
-    test('dispatches column action callbacks without triggering sort', async () => {
+    test('collapses narrow-column action labels to icon-only buttons', () => {
+        renderDataTable({
+            columnWidths: new Map<number, number>([
+                [0, 120],
+                [1, 120],
+            ]),
+        });
+
+        const ageHeader = screen.getByRole('columnheader', { name: 'age' });
+        expect(within(ageHeader).queryByText('Filter')).not.toBeInTheDocument();
+        expect(within(ageHeader).queryByText('Stats')).not.toBeInTheDocument();
+        expect(within(ageHeader).queryByText('Hide')).not.toBeInTheDocument();
+
+        expect(within(ageHeader).getByRole('button', { name: 'Filter rows by this column' })).toBeInTheDocument();
+        expect(within(ageHeader).getByRole('button', { name: 'Show statistics for this column' })).toBeInTheDocument();
+        expect(within(ageHeader).getByRole('button', { name: 'Hide this column' })).toBeInTheDocument();
+    });
+
+    test('dispatches narrow-column action callbacks without triggering sort', async () => {
         const onSort = vi.fn();
         const onOpenRowFilter = vi.fn();
         const onOpenStats = vi.fn();
         const onHideColumn = vi.fn();
 
         renderDataTable({
+            columnWidths: new Map<number, number>([
+                [0, 120],
+                [1, 120],
+            ]),
             onSort,
             onOpenRowFilter,
             onOpenStats,

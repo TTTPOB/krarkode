@@ -12,6 +12,8 @@
         MIN_COLUMN_WIDTH,
     } from './types';
 
+    const HEADER_ACTION_LABEL_MIN_WIDTH = 180;
+
     type RenderColumn = {
         column: ColumnSchema;
         schemaIndex: number;
@@ -115,6 +117,10 @@
         return ['NULL', 'NA', 'NaN', 'NaT', 'None', 'Inf', '-Inf', 'UNKNOWN'].includes(value);
     }
 
+    function shouldShowHeaderActionLabels(schemaIndex: number): boolean {
+        return (resolvedColumnWidths[schemaIndex] ?? COLUMN_WIDTH) >= HEADER_ACTION_LABEL_MIN_WIDTH;
+    }
+
     function handleHeaderSort(event: Event, columnIndex: number): void {
         if (ignoreHeaderSortClick) {
             event.preventDefault();
@@ -168,6 +174,7 @@
             {/if}
             {#each renderColumns as entry (entry.column.column_index)}
                 {@const column = entry.column}
+                {@const showHeaderActionLabels = shouldShowHeaderActionLabels(entry.schemaIndex)}
                 <div
                     class="table-cell header-cell"
                     class:sortable={sortSupported}
@@ -197,38 +204,47 @@
                             <span class="header-label" title={getColumnLabel(column)}>{getColumnLabel(column)}</span>
                             <span class="sort-indicator">{getSortIndicator(column.column_index)}</span>
                         </div>
-                        <div class="header-actions" aria-label="Column actions">
+                        <div
+                            class={`header-actions${showHeaderActionLabels ? '' : ' header-actions-compact'}`}
+                            aria-label="Column actions"
+                        >
                             <button
                                 type="button"
-                                class="header-action"
+                                class={`header-action${showHeaderActionLabels ? '' : ' header-action-icon-only'}`}
                                 title="Filter rows by this column"
                                 aria-label="Filter rows by this column"
                                 disabled={!rowFilterSupported}
                                 onclick={(e) => { e.stopPropagation(); onOpenRowFilter?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-filter"></span>
-                                <span class="header-action-label">Filter</span>
+                                {#if showHeaderActionLabels}
+                                    <span class="header-action-label">Filter</span>
+                                {/if}
                             </button>
                             <button
                                 type="button"
-                                class="header-action"
+                                class={`header-action${showHeaderActionLabels ? '' : ' header-action-icon-only'}`}
                                 title="Show statistics for this column"
                                 aria-label="Show statistics for this column"
                                 onclick={(e) => { e.stopPropagation(); onOpenStats?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-graph"></span>
-                                <span class="header-action-label">Stats</span>
+                                {#if showHeaderActionLabels}
+                                    <span class="header-action-label">Stats</span>
+                                {/if}
                             </button>
                             <button
                                 type="button"
-                                class="header-action"
+                                class={`header-action${showHeaderActionLabels ? '' : ' header-action-icon-only'}`}
                                 title="Hide this column"
                                 aria-label="Hide this column"
                                 disabled={schema.length <= 1}
                                 onclick={(e) => { e.stopPropagation(); onHideColumn?.({ columnIndex: column.column_index }); }}
                             >
                                 <span class="codicon codicon-eye-closed"></span>
-                                <span class="header-action-label">Hide</span>
+                                {#if showHeaderActionLabels}
+                                    <span class="header-action-label">Hide</span>
+                                {/if}
                             </button>
                         </div>
                     </div>
@@ -377,6 +393,11 @@
         border-top: 1px solid var(--vscode-editorWidget-border);
     }
 
+    .header-actions-compact {
+        grid-template-columns: repeat(3, auto);
+        justify-content: start;
+    }
+
     .header-action {
         min-width: 0;
         background: var(--vscode-button-secondaryBackground);
@@ -412,6 +433,12 @@
 
     .header-action .codicon {
         font-size: 1.1em;
+    }
+
+    .header-action-icon-only {
+        min-width: 28px;
+        padding: 2px 4px;
+        gap: 0;
     }
 
     .header-action-label {
