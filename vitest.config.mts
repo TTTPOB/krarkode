@@ -8,6 +8,21 @@ export default mergeConfig(
     rootConfig,
     defineConfig({
         plugins: [
+            // Mark 'vscode' as a resolved virtual module so vi.mock('vscode')
+            // works without Vite trying to find a real package on disk.
+            {
+                name: 'virtual-vscode',
+                resolveId(id) {
+                    if (id === 'vscode') {
+                        return 'vscode';
+                    }
+                },
+                load(id) {
+                    if (id === 'vscode') {
+                        return 'export default {}';
+                    }
+                },
+            },
             svelte({
                 hot: !process.env.VITEST,
                 preprocess: sveltePreprocess({ typescript: { tsconfigFile: './tsconfig.webview.json' } }),
