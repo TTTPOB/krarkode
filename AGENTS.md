@@ -69,12 +69,11 @@ All scripts are run via `pnpm run <script>`. Never use `npm run` or `yarn`.
 | Script | Description |
 |--------|-------------|
 | `clean` | Remove `dist/` directory (via rimraf) |
-| `build:webview-static` | Copy static webview assets to dist |
 | `build:extension` | Build the main extension via `vite build` (vite.config.ts) |
 | `build:dataexplorer` | Build data explorer webview via `vite build --config vite.dataexplorer.config.ts` |
 | `build:variables` | Build variables webview via `vite build --config vite.variables.config.ts` |
 | `build:plotviewer` | Build plot viewer webview via `vite build --config vite.plotviewer.config.ts` |
-| `build` | **Full build**: generate types → build static → build extension → build all webviews |
+| `build` | **Full build**: generate types → build extension → build all webviews |
 | `compile` | Alias for `build` |
 | `compile:dev` | Alias for `build` |
 
