@@ -22,6 +22,7 @@ use super::output::{format_iopub_content, kernel_disconnect_message, ConsoleUiEv
 
 const EXIT_AFTER_EXEC_TIMEOUT: Duration = Duration::from_secs(5);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
+const HEARTBEAT_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEARTBEAT_FAILURE_THRESHOLD: u32 = 2;
 
@@ -333,14 +334,50 @@ async fn run_heartbeat_monitor(
         interval.tick().await;
 
         if heartbeat.is_none() {
-            debug!("Console heartbeat: creating heartbeat connection");
-            match create_client_heartbeat_connection(&connection_info).await {
-                Ok(connection) => heartbeat = Some(connection),
-                Err(err) => {
+            let failures_before = state.consecutive_failures();
+            debug!(
+                failures_before = failures_before,
+                timeout_ms = HEARTBEAT_CONNECT_TIMEOUT.as_millis(),
+                "Console heartbeat: creating heartbeat connection"
+            );
+            match tokio::time::timeout(
+                HEARTBEAT_CONNECT_TIMEOUT,
+                create_client_heartbeat_connection(&connection_info),
+            )
+            .await
+            {
+                Ok(Ok(connection)) => {
+                    debug!(
+                        failures_before = failures_before,
+                        "Console heartbeat: heartbeat connection created"
+                    );
+                    heartbeat = Some(connection);
+                }
+                Err(_) => {
+                    warn!(
+                        failures_before = failures_before,
+                        timeout_ms = HEARTBEAT_CONNECT_TIMEOUT.as_millis(),
+                        "Console heartbeat: timed out creating heartbeat connection"
+                    );
+                    if record_heartbeat_failure(
+                        &mut state,
+                        &disconnect_tx,
+                        format!(
+                            "heartbeat connection timed out after {}ms",
+                            HEARTBEAT_CONNECT_TIMEOUT.as_millis()
+                        ),
+                    )
+                    .await
+                    {
+                        break;
+                    }
+                    continue;
+                }
+                Ok(Err(err)) => {
                     let err_text = format!("{err:?}");
                     warn!(
                         error = %err_text,
-                        failures = state.consecutive_failures(),
+                        failures_before = failures_before,
                         "Console heartbeat: failed to create heartbeat connection"
                     );
                     if record_heartbeat_failure(
@@ -363,8 +400,12 @@ async fn run_heartbeat_monitor(
 
         match tokio::time::timeout(HEARTBEAT_TIMEOUT, connection.single_heartbeat()).await {
             Ok(Ok(())) => {
+                let failures_before = state.consecutive_failures();
                 if state.record_success() {
-                    debug!("Console heartbeat: probe succeeded after previous failures");
+                    debug!(
+                        failures_before = failures_before,
+                        "Console heartbeat: probe succeeded after previous failures"
+                    );
                 } else {
                     debug!("Console heartbeat: probe succeeded");
                 }
@@ -372,9 +413,10 @@ async fn run_heartbeat_monitor(
             Ok(Err(err)) => {
                 heartbeat = None;
                 let err_text = format!("{err:?}");
+                let failures_before = state.consecutive_failures();
                 warn!(
                     error = %err_text,
-                    failures = state.consecutive_failures(),
+                    failures_before = failures_before,
                     "Console heartbeat: probe failed"
                 );
                 if record_heartbeat_failure(
@@ -389,8 +431,9 @@ async fn run_heartbeat_monitor(
             }
             Err(_) => {
                 heartbeat = None;
+                let failures_before = state.consecutive_failures();
                 warn!(
-                    failures = state.consecutive_failures(),
+                    failures_before = failures_before,
                     timeout_ms = HEARTBEAT_TIMEOUT.as_millis(),
                     "Console heartbeat: probe timed out"
                 );
@@ -418,9 +461,12 @@ async fn record_heartbeat_failure(
     disconnect_tx: &tokio::sync::mpsc::Sender<String>,
     reason: String,
 ) -> bool {
+    let failures_before = state.consecutive_failures();
     let threshold_reached = state.record_failure();
+    let failures_after = state.consecutive_failures();
     warn!(
-        failures = state.consecutive_failures(),
+        failures_before = failures_before,
+        failures_after = failures_after,
         threshold = HEARTBEAT_FAILURE_THRESHOLD,
         threshold_reached = threshold_reached,
         reason = %reason,
@@ -519,6 +565,33 @@ mod tests {
             assert_eq!(state.consecutive_failures(), 1);
             assert!(record_heartbeat_failure(&mut state, &tx, "second".to_string()).await);
             assert_eq!(rx.recv().await.as_deref(), Some("second"));
+        });
+    }
+
+    #[test]
+    fn heartbeat_connection_failure_counts_toward_disconnect_threshold() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("build tokio runtime");
+
+        runtime.block_on(async {
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let mut state = HeartbeatMonitorState::default();
+
+            assert!(
+                !record_heartbeat_failure(
+                    &mut state,
+                    &tx,
+                    "heartbeat connection timed out after 1000ms".to_string(),
+                )
+                .await
+            );
+            assert_eq!(state.consecutive_failures(), 1);
+            assert!(
+                record_heartbeat_failure(&mut state, &tx, "heartbeat probe failed".to_string())
+                    .await
+            );
+            assert_eq!(rx.recv().await.as_deref(), Some("heartbeat probe failed"));
         });
     }
 
