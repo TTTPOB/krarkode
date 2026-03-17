@@ -24,5 +24,15 @@ export default defineConfig({
         outDir: 'dist/html/dataExplorer',
         sourcemap: false,
         minify: true,
+        rollupOptions: {
+            output: {
+                assetFileNames: (assetInfo) => {
+                    if (assetInfo.name?.endsWith('.css')) {
+                        return 'dataExplorer.css';
+                    }
+                    return 'assets/[name]-[hash][extname]';
+                },
+            },
+        },
     },
 });

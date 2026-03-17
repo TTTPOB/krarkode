@@ -1,3 +1,4 @@
+import '@vscode/codicons/dist/codicon.css';
 import App from './App.svelte';
 import { mount } from 'svelte';
 import { getVsCodeApi } from './types';
