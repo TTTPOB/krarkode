@@ -30,17 +30,14 @@ use crate::lsp_client::LspClient;
 type SharedUiReceiver = Arc<Mutex<std_mpsc::Receiver<ConsoleUiEvent>>>;
 
 #[derive(Debug)]
-struct DisconnectExitSentinel;
-
-#[derive(Debug, Default)]
-struct IdleDisconnectController {
-    exit_on_next_idle_tick: bool,
+struct DisconnectExitSentinel {
+    message: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 enum IdleUiAction {
     Print(String),
-    Exit,
+    Exit(Option<String>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -194,33 +191,34 @@ fn classify_execution_event(event: ConsoleUiEvent) -> ExecutionUiAction {
     }
 }
 
-impl IdleDisconnectController {
-    fn drain_actions(&mut self, shared_ui_rx: &SharedUiReceiver) -> Vec<IdleUiAction> {
-        let mut actions = Vec::new();
-        let mut printed_disconnect_this_tick = false;
+/// Drain pending UI events and return actions.
+///
+/// When a disconnect is detected (either an explicit `KernelDisconnected`
+/// event or the channel sender being dropped), an `Exit` action is
+/// returned immediately — no extra idle tick delay.
+fn drain_idle_actions(shared_ui_rx: &SharedUiReceiver) -> Vec<IdleUiAction> {
+    let mut actions = Vec::new();
 
-        loop {
-            match try_recv_ui_event(shared_ui_rx) {
-                Ok(ConsoleUiEvent::Output(text)) => actions.push(IdleUiAction::Print(text)),
-                Ok(ConsoleUiEvent::ExecutionDone) => {}
-                Ok(ConsoleUiEvent::KernelDisconnected(message)) => {
-                    if !self.exit_on_next_idle_tick {
-                        actions.push(IdleUiAction::Print(message));
-                        self.exit_on_next_idle_tick = true;
-                        printed_disconnect_this_tick = true;
-                    }
-                }
-                Err(std_mpsc::TryRecvError::Empty) => break,
-                Err(std_mpsc::TryRecvError::Disconnected) => break,
+    loop {
+        match try_recv_ui_event(shared_ui_rx) {
+            Ok(ConsoleUiEvent::Output(text)) => actions.push(IdleUiAction::Print(text)),
+            Ok(ConsoleUiEvent::ExecutionDone) => {}
+            Ok(ConsoleUiEvent::KernelDisconnected(message)) => {
+                debug!("Console idle: received KernelDisconnected, triggering immediate exit");
+                actions.push(IdleUiAction::Exit(Some(message)));
+                return actions;
+            }
+            Err(std_mpsc::TryRecvError::Empty) => break,
+            Err(std_mpsc::TryRecvError::Disconnected) => {
+                // Kernel loop exited and dropped the sender — treat as disconnect
+                debug!("Console idle: ui event channel disconnected, triggering exit");
+                actions.push(IdleUiAction::Exit(None));
+                return actions;
             }
         }
-
-        if self.exit_on_next_idle_tick && !printed_disconnect_this_tick {
-            actions.push(IdleUiAction::Exit);
-        }
-
-        actions
     }
+
+    actions
 }
 
 /// Run the blocking reedline loop.
@@ -247,13 +245,17 @@ pub(crate) fn run_reedline_loop(
 
     match result {
         Ok(()) => {}
-        Err(payload) => {
-            if payload.is::<DisconnectExitSentinel>() {
+        Err(payload) => match payload.downcast::<DisconnectExitSentinel>() {
+            Ok(sentinel) => {
                 debug!("Console reedline_loop: idle disconnect exit");
-            } else {
-                resume_unwind(payload);
+                // Print the disconnect message now that reedline is dropped
+                // and the terminal is restored to cooked mode.
+                if let Some(message) = sentinel.message {
+                    print_dimmed_message(&message);
+                }
             }
-        }
+            Err(other) => resume_unwind(other),
+        },
     }
 }
 
@@ -299,7 +301,6 @@ fn run_reedline_loop_inner(
     let printer = ExternalPrinter::default();
     let printer_sender = printer.sender();
     let idle_ui_rx = Arc::clone(&shared_ui_rx);
-    let mut idle_controller = IdleDisconnectController::default();
 
     // Build reedline editor
     let mut editor = Reedline::create()
@@ -307,12 +308,14 @@ fn run_reedline_loop_inner(
         .with_validator(Box::new(RValidator))
         .with_external_printer(printer)
         .with_idle_callback(Box::new(move || {
-            for action in idle_controller.drain_actions(&idle_ui_rx) {
+            for action in drain_idle_actions(&idle_ui_rx) {
                 match action {
                     IdleUiAction::Print(text) => {
                         let _ = printer_sender.send(text);
                     }
-                    IdleUiAction::Exit => panic_any(DisconnectExitSentinel),
+                    IdleUiAction::Exit(message) => {
+                        panic_any(DisconnectExitSentinel { message })
+                    }
                 }
             }
         }));
@@ -526,21 +529,29 @@ mod tests {
     }
 
     #[test]
-    fn idle_disconnect_prints_then_exits_on_next_tick() {
+    fn idle_disconnect_exits_immediately() {
         let (tx, rx) = std_mpsc::channel();
         let shared_rx = Arc::new(Mutex::new(rx));
-        let mut controller = IdleDisconnectController::default();
 
         tx.send(ConsoleUiEvent::KernelDisconnected("bye".to_string()))
             .expect("send disconnect");
 
         assert_eq!(
-            controller.drain_actions(&shared_rx),
-            vec![IdleUiAction::Print("bye".to_string())]
+            drain_idle_actions(&shared_rx),
+            vec![IdleUiAction::Exit(Some("bye".to_string()))]
         );
+    }
+
+    #[test]
+    fn idle_channel_disconnect_exits() {
+        let (tx, rx) = std_mpsc::channel();
+        let shared_rx = Arc::new(Mutex::new(rx));
+
+        drop(tx); // Simulate kernel_loop exiting
+
         assert_eq!(
-            controller.drain_actions(&shared_rx),
-            vec![IdleUiAction::Exit]
+            drain_idle_actions(&shared_rx),
+            vec![IdleUiAction::Exit(None)]
         );
     }
 
@@ -548,15 +559,14 @@ mod tests {
     fn idle_output_is_printed_without_exiting() {
         let (tx, rx) = std_mpsc::channel();
         let shared_rx = Arc::new(Mutex::new(rx));
-        let mut controller = IdleDisconnectController::default();
 
         tx.send(ConsoleUiEvent::Output("hello\n".to_string()))
             .expect("send output");
 
         assert_eq!(
-            controller.drain_actions(&shared_rx),
+            drain_idle_actions(&shared_rx),
             vec![IdleUiAction::Print("hello\n".to_string())]
         );
-        assert!(controller.drain_actions(&shared_rx).is_empty());
+        assert!(drain_idle_actions(&shared_rx).is_empty());
     }
 }
