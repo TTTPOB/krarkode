@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use runtimelib::{
-    create_client_iopub_connection, ConnectionInfo, ExecuteRequest, ExecutionState,
-    JupyterMessage, JupyterMessageContent,
+    create_client_iopub_connection, ConnectionInfo, ExecuteRequest, ExecutionState, JupyterMessage,
+    JupyterMessageContent,
 };
 use std::sync::mpsc as std_mpsc;
 use tokio::signal::unix::{signal, SignalKind};
@@ -72,8 +72,8 @@ pub(crate) async fn run_console(
     // is replaced BEFORE the reedline loop starts. Previously this was inside
     // tokio::spawn, creating a race where SIGINT could arrive before the
     // spawned task was polled — killing the sidecar instead of interrupting Ark.
-    let mut sigint = signal(SignalKind::interrupt())
-        .context("Failed to register SIGINT handler")?;
+    let mut sigint =
+        signal(SignalKind::interrupt()).context("Failed to register SIGINT handler")?;
     debug!("Console: SIGINT handler registered");
 
     let (interrupt_tx, interrupt_rx) = tokio::sync::mpsc::channel::<()>(4);
@@ -91,8 +91,8 @@ pub(crate) async fn run_console(
     // Channel: reedline -> kernel (execute/exit requests)
     let (request_tx, request_rx) = tokio::sync::mpsc::channel::<ConsoleRequest>(16);
 
-    // Channel: kernel -> reedline (real-time execution output)
-    let (exec_output_tx, exec_output_rx) = std_mpsc::channel();
+    // Channel: kernel -> reedline (execution output + disconnect events)
+    let (ui_event_tx, ui_event_rx) = std_mpsc::channel();
 
     // Clone connection info for the blocking task
     let conn_info = connection_info.clone();
@@ -104,7 +104,7 @@ pub(crate) async fn run_console(
     let reedline_handle = tokio::task::spawn_blocking(move || {
         reedline_loop::run_reedline_loop(
             request_tx,
-            exec_output_rx,
+            ui_event_rx,
             lsp_client,
             runtime_handle,
             r_version,
@@ -117,7 +117,7 @@ pub(crate) async fn run_console(
         &conn_info,
         &sess_id,
         request_rx,
-        exec_output_tx,
+        ui_event_tx,
         control,
         interrupt_rx,
     )

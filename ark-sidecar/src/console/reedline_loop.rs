@@ -5,26 +5,50 @@
 // read-execute-display loop.
 
 use std::io::Write;
-use std::sync::Arc;
+use std::panic::{catch_unwind, panic_any, resume_unwind, AssertUnwindSafe};
+use std::sync::mpsc as std_mpsc;
+use std::sync::{Arc, Mutex};
 
 use nu_ansi_term::Color;
 use reedline::{
-    default_emacs_keybindings, ColumnarMenu, Emacs, KeyCode, KeyModifiers, MenuBuilder, Reedline,
-    DefaultPrompt, DefaultPromptSegment, ReedlineEvent, ReedlineMenu, Signal,
-    TraversalDirection,
+    default_emacs_keybindings, ColumnarMenu, DefaultPrompt, DefaultPromptSegment, Emacs,
+    ExternalPrinter, KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu,
+    Signal, TraversalDirection,
 };
-use std::sync::mpsc as std_mpsc;
 use tracing::{debug, error, info};
 
 use super::completer::LspCompleter;
 use super::highlighter::RHighlighter;
 use super::history::create_history;
 use super::kernel_loop::ConsoleRequest;
-use super::output::ExecutionEvent;
+use super::output::ConsoleUiEvent;
 use super::r_parser::parse_r;
 use super::validator::RValidator;
 use crate::lsp_client::virtual_document::DebouncedVirtualDocument;
 use crate::lsp_client::LspClient;
+
+type SharedUiReceiver = Arc<Mutex<std_mpsc::Receiver<ConsoleUiEvent>>>;
+
+#[derive(Debug)]
+struct DisconnectExitSentinel;
+
+#[derive(Debug, Default)]
+struct IdleDisconnectController {
+    exit_on_next_idle_tick: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum IdleUiAction {
+    Print(String),
+    Exit,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ExecutionUiAction {
+    Print(String),
+    ExecutionDone,
+    Exit(String),
+}
 
 /// The R console prompt.
 fn make_prompt() -> DefaultPrompt {
@@ -144,12 +168,98 @@ fn confirm_quit() -> bool {
     }
 }
 
+fn print_dimmed_message(message: &str) {
+    println!();
+    print!("{}", Color::DarkGray.paint(message));
+    if !message.ends_with('\n') {
+        println!();
+    }
+}
+
+fn recv_ui_event(shared_ui_rx: &SharedUiReceiver) -> Result<ConsoleUiEvent, std_mpsc::RecvError> {
+    shared_ui_rx.lock().unwrap().recv()
+}
+
+fn try_recv_ui_event(
+    shared_ui_rx: &SharedUiReceiver,
+) -> Result<ConsoleUiEvent, std_mpsc::TryRecvError> {
+    shared_ui_rx.lock().unwrap().try_recv()
+}
+
+fn classify_execution_event(event: ConsoleUiEvent) -> ExecutionUiAction {
+    match event {
+        ConsoleUiEvent::Output(text) => ExecutionUiAction::Print(text),
+        ConsoleUiEvent::ExecutionDone => ExecutionUiAction::ExecutionDone,
+        ConsoleUiEvent::KernelDisconnected(message) => ExecutionUiAction::Exit(message),
+    }
+}
+
+impl IdleDisconnectController {
+    fn drain_actions(&mut self, shared_ui_rx: &SharedUiReceiver) -> Vec<IdleUiAction> {
+        let mut actions = Vec::new();
+        let mut printed_disconnect_this_tick = false;
+
+        loop {
+            match try_recv_ui_event(shared_ui_rx) {
+                Ok(ConsoleUiEvent::Output(text)) => actions.push(IdleUiAction::Print(text)),
+                Ok(ConsoleUiEvent::ExecutionDone) => {}
+                Ok(ConsoleUiEvent::KernelDisconnected(message)) => {
+                    if !self.exit_on_next_idle_tick {
+                        actions.push(IdleUiAction::Print(message));
+                        self.exit_on_next_idle_tick = true;
+                        printed_disconnect_this_tick = true;
+                    }
+                }
+                Err(std_mpsc::TryRecvError::Empty) => break,
+                Err(std_mpsc::TryRecvError::Disconnected) => break,
+            }
+        }
+
+        if self.exit_on_next_idle_tick && !printed_disconnect_this_tick {
+            actions.push(IdleUiAction::Exit);
+        }
+
+        actions
+    }
+}
+
 /// Run the blocking reedline loop.
 ///
 /// This function should be called inside `tokio::task::spawn_blocking`.
 pub(crate) fn run_reedline_loop(
     request_tx: tokio::sync::mpsc::Sender<ConsoleRequest>,
-    exec_output_rx: std_mpsc::Receiver<ExecutionEvent>,
+    ui_event_rx: std_mpsc::Receiver<ConsoleUiEvent>,
+    lsp_client: Option<Arc<LspClient>>,
+    runtime_handle: tokio::runtime::Handle,
+    r_version: Option<String>,
+    r_binary_path: Option<String>,
+) {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        run_reedline_loop_inner(
+            request_tx,
+            ui_event_rx,
+            lsp_client,
+            runtime_handle,
+            r_version,
+            r_binary_path,
+        );
+    }));
+
+    match result {
+        Ok(()) => {}
+        Err(payload) => {
+            if payload.is::<DisconnectExitSentinel>() {
+                debug!("Console reedline_loop: idle disconnect exit");
+            } else {
+                resume_unwind(payload);
+            }
+        }
+    }
+}
+
+fn run_reedline_loop_inner(
+    request_tx: tokio::sync::mpsc::Sender<ConsoleRequest>,
+    ui_event_rx: std_mpsc::Receiver<ConsoleUiEvent>,
     lsp_client: Option<Arc<LspClient>>,
     runtime_handle: tokio::runtime::Handle,
     r_version: Option<String>,
@@ -160,6 +270,7 @@ pub(crate) fn run_reedline_loop(
     // Print startup banner
     print_banner(r_version.as_deref(), r_binary_path.as_deref());
 
+    let shared_ui_rx = Arc::new(Mutex::new(ui_event_rx));
     let virtual_document = lsp_client
         .as_ref()
         .map(|client| DebouncedVirtualDocument::new(client.clone(), runtime_handle.clone()));
@@ -185,10 +296,26 @@ pub(crate) fn run_reedline_loop(
             .with_traversal_direction(TraversalDirection::Vertical),
     );
 
+    let printer = ExternalPrinter::default();
+    let printer_sender = printer.sender();
+    let idle_ui_rx = Arc::clone(&shared_ui_rx);
+    let mut idle_controller = IdleDisconnectController::default();
+
     // Build reedline editor
     let mut editor = Reedline::create()
         .with_highlighter(Box::new(RHighlighter::new(virtual_document.clone())))
-        .with_validator(Box::new(RValidator));
+        .with_validator(Box::new(RValidator))
+        .with_external_printer(printer)
+        .with_idle_callback(Box::new(move || {
+            for action in idle_controller.drain_actions(&idle_ui_rx) {
+                match action {
+                    IdleUiAction::Print(text) => {
+                        let _ = printer_sender.send(text);
+                    }
+                    IdleUiAction::Exit => panic_any(DisconnectExitSentinel),
+                }
+            }
+        }));
 
     // Attach LSP completer if available
     if let Some(virtual_document) = virtual_document {
@@ -220,7 +347,7 @@ pub(crate) fn run_reedline_loop(
 
     debug!("Console reedline_loop: entering main loop");
 
-    loop {
+    'console: loop {
         match editor.read_line(&prompt) {
             Ok(Signal::Success(line)) => {
                 let trimmed = line.trim();
@@ -233,20 +360,30 @@ pub(crate) fn run_reedline_loop(
                 // Intercept q()/quit() calls with confirmation
                 if is_quit_call(trimmed) {
                     if confirm_quit() {
-                        debug!("Console reedline_loop: user confirmed q(), sending execute-and-exit");
+                        debug!(
+                            "Console reedline_loop: user confirmed q(), sending execute-and-exit"
+                        );
                         if request_tx
                             .blocking_send(ConsoleRequest::ExecuteAndExit(line))
                             .is_err()
                         {
                             debug!("Console reedline_loop: request channel closed, exiting");
+                            break;
                         }
+
                         // Drain remaining output before exiting
                         loop {
-                            match exec_output_rx.recv() {
-                                Ok(ExecutionEvent::Output(text)) => {
-                                    print!("{}", text);
-                                }
-                                Ok(ExecutionEvent::Done) | Err(_) => {
+                            match recv_ui_event(&shared_ui_rx) {
+                                Ok(event) => match classify_execution_event(event) {
+                                    ExecutionUiAction::Print(text) => print!("{}", text),
+                                    ExecutionUiAction::ExecutionDone => break,
+                                    ExecutionUiAction::Exit(message) => {
+                                        print_dimmed_message(&message);
+                                        break 'console;
+                                    }
+                                },
+                                Err(_) => {
+                                    debug!("Console reedline_loop: ui event channel closed during quit drain");
                                     break;
                                 }
                             }
@@ -266,18 +403,19 @@ pub(crate) fn run_reedline_loop(
                     break;
                 }
 
-                // Real-time output loop: receive and print output until Done
+                // Real-time output loop: receive and print output until execution completes
                 loop {
-                    match exec_output_rx.recv() {
-                        Ok(ExecutionEvent::Output(text)) => {
-                            print!("{}", text);
-                        }
-                        Ok(ExecutionEvent::Done) => {
-                            break;
-                        }
+                    match recv_ui_event(&shared_ui_rx) {
+                        Ok(event) => match classify_execution_event(event) {
+                            ExecutionUiAction::Print(text) => print!("{}", text),
+                            ExecutionUiAction::ExecutionDone => break,
+                            ExecutionUiAction::Exit(message) => {
+                                print_dimmed_message(&message);
+                                break 'console;
+                            }
+                        },
                         Err(_) => {
-                            debug!("Console reedline_loop: output channel closed");
-                            // Send exit and return
+                            debug!("Console reedline_loop: ui event channel closed");
                             let _ = request_tx.blocking_send(ConsoleRequest::Exit);
                             return;
                         }
@@ -378,5 +516,47 @@ mod tests {
         // Wrong namespace
         assert!(!is_quit_call("utils::q()"));
         assert!(!is_quit_call("foo::quit()"));
+    }
+
+    #[test]
+    fn execution_disconnect_event_requests_exit() {
+        let action =
+            classify_execution_event(ConsoleUiEvent::KernelDisconnected("bye".to_string()));
+        assert_eq!(action, ExecutionUiAction::Exit("bye".to_string()));
+    }
+
+    #[test]
+    fn idle_disconnect_prints_then_exits_on_next_tick() {
+        let (tx, rx) = std_mpsc::channel();
+        let shared_rx = Arc::new(Mutex::new(rx));
+        let mut controller = IdleDisconnectController::default();
+
+        tx.send(ConsoleUiEvent::KernelDisconnected("bye".to_string()))
+            .expect("send disconnect");
+
+        assert_eq!(
+            controller.drain_actions(&shared_rx),
+            vec![IdleUiAction::Print("bye".to_string())]
+        );
+        assert_eq!(
+            controller.drain_actions(&shared_rx),
+            vec![IdleUiAction::Exit]
+        );
+    }
+
+    #[test]
+    fn idle_output_is_printed_without_exiting() {
+        let (tx, rx) = std_mpsc::channel();
+        let shared_rx = Arc::new(Mutex::new(rx));
+        let mut controller = IdleDisconnectController::default();
+
+        tx.send(ConsoleUiEvent::Output("hello\n".to_string()))
+            .expect("send output");
+
+        assert_eq!(
+            controller.drain_actions(&shared_rx),
+            vec![IdleUiAction::Print("hello\n".to_string())]
+        );
+        assert!(controller.drain_actions(&shared_rx).is_empty());
     }
 }

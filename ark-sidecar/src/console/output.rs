@@ -6,13 +6,23 @@ use nu_ansi_term::{Color, Style};
 use runtimelib::{media::MediaType, JupyterMessageContent};
 use tracing::debug;
 
-/// Execution event sent from kernel_loop to reedline_loop.
-#[derive(Debug)]
-pub(crate) enum ExecutionEvent {
+/// UI event sent from kernel_loop to reedline_loop.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ConsoleUiEvent {
     /// A line of formatted output to print to stdout.
     Output(String),
     /// Execution is complete (kernel returned to idle).
-    Done,
+    ExecutionDone,
+    /// The kernel is no longer reachable and the console should exit.
+    KernelDisconnected(String),
+}
+
+const DISCONNECT_MESSAGE: &str = "Ark kernel disconnected. Closing console.\n\
+     If the Ark session is restarted, reconnect with:\n  \
+     vscode-r-ark-sidecar console --connection-file <path>\n";
+
+pub(crate) fn kernel_disconnect_message() -> String {
+    DISCONNECT_MESSAGE.to_string()
 }
 
 /// Format an iopub message content for terminal display.
