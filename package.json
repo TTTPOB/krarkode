@@ -6,7 +6,7 @@
   "license": "MIT",
   "author": "TTTPOB",
   "publisher": "tttpob",
-  "icon": "resources/ark-icon.png",
+  "icon": "resources/krarkode-icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/TTTPOB/krarkode"
@@ -45,7 +45,7 @@
       "activitybar": [
         {
           "id": "krarkode-activity-bar",
-          "title": "Ark",
+          "title": "Krarkode Variables",
           "icon": "resources/variables-icon.svg"
         }
       ]
