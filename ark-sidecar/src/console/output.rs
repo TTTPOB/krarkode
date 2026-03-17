@@ -17,8 +17,8 @@ pub(crate) enum ConsoleUiEvent {
     KernelDisconnected(String),
 }
 
-const DISCONNECT_MESSAGE: &str = "Ark kernel disconnected. Closing console.\n\
-     If the Ark session is restarted, reconnect with:\n  \
+const DISCONNECT_MESSAGE: &str = "Lost connection to the Ark kernel. Closing console.\n\
+     The R session may still be running. Reconnect with:\n  \
      vscode-r-ark-sidecar console --connection-file <path>\n";
 
 pub(crate) fn kernel_disconnect_message() -> String {

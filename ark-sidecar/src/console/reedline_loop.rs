@@ -10,6 +10,7 @@ use std::sync::mpsc as std_mpsc;
 use std::sync::{Arc, Mutex};
 
 use nu_ansi_term::Color;
+use once_cell::sync::Lazy;
 use reedline::{
     default_emacs_keybindings, ColumnarMenu, DefaultPrompt, DefaultPromptSegment, Emacs,
     ExternalPrinter, KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu,
@@ -28,6 +29,7 @@ use crate::lsp_client::virtual_document::DebouncedVirtualDocument;
 use crate::lsp_client::LspClient;
 
 type SharedUiReceiver = Arc<Mutex<std_mpsc::Receiver<ConsoleUiEvent>>>;
+static DISCONNECT_PANIC_HOOK_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 #[derive(Debug)]
 struct DisconnectExitSentinel {
@@ -226,6 +228,16 @@ pub(crate) fn run_reedline_loop(
     r_version: Option<String>,
     r_binary_path: Option<String>,
 ) {
+    let _panic_hook_lock = DISCONNECT_PANIC_HOOK_LOCK.lock().unwrap();
+    let previous_hook = Arc::new(std::panic::take_hook());
+    let delegated_hook = Arc::clone(&previous_hook);
+    std::panic::set_hook(Box::new(move |info| {
+        if info.payload().is::<DisconnectExitSentinel>() {
+            return;
+        }
+        delegated_hook.as_ref()(info);
+    }));
+
     let result = catch_unwind(AssertUnwindSafe(|| {
         run_reedline_loop_inner(
             request_tx,
@@ -236,6 +248,9 @@ pub(crate) fn run_reedline_loop(
             r_binary_path,
         );
     }));
+
+    let restore_hook = Arc::clone(&previous_hook);
+    std::panic::set_hook(Box::new(move |info| restore_hook.as_ref()(info)));
 
     match result {
         Ok(()) => {}
