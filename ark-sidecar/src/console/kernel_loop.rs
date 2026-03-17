@@ -337,11 +337,19 @@ async fn run_heartbeat_monitor(
             match create_client_heartbeat_connection(&connection_info).await {
                 Ok(connection) => heartbeat = Some(connection),
                 Err(err) => {
-                    warn!(error = ?err, failures = state.consecutive_failures(), "Console heartbeat: failed to create heartbeat connection");
+                    let err_text = format!("{err:?}");
+                    let immediate_disconnect = is_transport_disconnect_error(&err_text);
+                    warn!(
+                        error = %err_text,
+                        failures = state.consecutive_failures(),
+                        immediate_disconnect = immediate_disconnect,
+                        "Console heartbeat: failed to create heartbeat connection"
+                    );
                     if record_heartbeat_failure(
                         &mut state,
                         &disconnect_tx,
                         format!("failed to connect heartbeat socket: {err}"),
+                        immediate_disconnect,
                     )
                     .await
                     {
@@ -366,11 +374,19 @@ async fn run_heartbeat_monitor(
             }
             Ok(Err(err)) => {
                 heartbeat = None;
-                warn!(error = ?err, failures = state.consecutive_failures(), "Console heartbeat: probe failed");
+                let err_text = format!("{err:?}");
+                let immediate_disconnect = is_transport_disconnect_error(&err_text);
+                warn!(
+                    error = %err_text,
+                    failures = state.consecutive_failures(),
+                    immediate_disconnect = immediate_disconnect,
+                    "Console heartbeat: probe failed"
+                );
                 if record_heartbeat_failure(
                     &mut state,
                     &disconnect_tx,
                     format!("heartbeat probe failed: {err}"),
+                    immediate_disconnect,
                 )
                 .await
                 {
@@ -391,6 +407,7 @@ async fn run_heartbeat_monitor(
                         "heartbeat probe timed out after {}ms",
                         HEARTBEAT_TIMEOUT.as_millis()
                     ),
+                    false,
                 )
                 .await
                 {
@@ -407,7 +424,18 @@ async fn record_heartbeat_failure(
     state: &mut HeartbeatMonitorState,
     disconnect_tx: &tokio::sync::mpsc::Sender<String>,
     reason: String,
+    immediate_disconnect: bool,
 ) -> bool {
+    if immediate_disconnect {
+        warn!(
+            failures = state.consecutive_failures(),
+            reason = %reason,
+            "Console heartbeat: immediate disconnect evidence observed"
+        );
+        let _ = disconnect_tx.send(reason).await;
+        return true;
+    }
+
     let threshold_reached = state.record_failure();
     warn!(
         failures = state.consecutive_failures(),
@@ -461,6 +489,9 @@ fn is_transport_disconnect_error(err_text: &str) -> bool {
         "Connection reset by peer",
         "Connection refused",
         "Network is unreachable",
+        "NoMessage",
+        "No message received",
+        "Server disconnected",
     ]
     .iter()
     .any(|needle| err_text.contains(needle))
@@ -490,11 +521,50 @@ mod tests {
     }
 
     #[test]
+    fn immediate_heartbeat_disconnect_emits_without_threshold() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("build tokio runtime");
+
+        runtime.block_on(async {
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let mut state = HeartbeatMonitorState::default();
+
+            assert!(
+                record_heartbeat_failure(&mut state, &tx, "peer lost".to_string(), true).await
+            );
+            assert_eq!(state.consecutive_failures(), 0);
+            assert_eq!(rx.recv().await.as_deref(), Some("peer lost"));
+        });
+    }
+
+    #[test]
+    fn thresholded_heartbeat_disconnect_emits_on_second_failure() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("build tokio runtime");
+
+        runtime.block_on(async {
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let mut state = HeartbeatMonitorState::default();
+
+            assert!(
+                !record_heartbeat_failure(&mut state, &tx, "first".to_string(), false).await
+            );
+            assert!(rx.try_recv().is_err());
+            assert!(record_heartbeat_failure(&mut state, &tx, "second".to_string(), false).await);
+            assert_eq!(rx.recv().await.as_deref(), Some("second"));
+        });
+    }
+
+    #[test]
     fn transport_disconnect_error_matches_known_patterns() {
         assert!(is_transport_disconnect_error("Broken pipe (os error 32)"));
         assert!(is_transport_disconnect_error(
             "Not connected to peers. Unable to send messages"
         ));
+        assert!(is_transport_disconnect_error("ZmqError(NoMessage)"));
+        assert!(is_transport_disconnect_error("No message received"));
         assert!(!is_transport_disconnect_error(
             "missing field `execution_count`"
         ));
