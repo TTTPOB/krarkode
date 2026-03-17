@@ -367,12 +367,12 @@
       },
       {
         "command": "krarkode.attachArkSession",
-        "title": "Attach Ark Session",
+        "title": "Use Session from Current Console",
         "category": "Krarkode"
       },
       {
         "command": "krarkode.openArkConsole",
-        "title": "Open Ark Console",
+        "title": "Open Console for Session",
         "category": "Krarkode"
       },
       {
