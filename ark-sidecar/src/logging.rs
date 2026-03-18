@@ -11,16 +11,30 @@ pub(crate) struct LogReloadHandle {
     handle: reload::Handle<EnvFilter, tracing_subscriber::Registry>,
 }
 
-pub(crate) fn init_logging() -> LogReloadHandle {
+pub(crate) fn init_logging(console_mode: bool) -> LogReloadHandle {
     let filter = build_env_filter();
     let show_target = matches!(filter.max_level_hint(), Some(level) if level >= LevelFilter::DEBUG);
     let (reload_layer, handle) = reload::Layer::new(filter);
-    let subscriber = tracing_subscriber::registry().with(reload_layer).with(
-        tracing_subscriber::fmt::layer()
-            .json()
-            .with_target(show_target),
-    );
-    let _ = subscriber.try_init();
+
+    if console_mode {
+        // Human-readable compact format on stderr for console mode
+        let subscriber = tracing_subscriber::registry().with(reload_layer).with(
+            tracing_subscriber::fmt::layer()
+                .compact()
+                .with_writer(std::io::stderr)
+                .with_target(show_target),
+        );
+        let _ = subscriber.try_init();
+    } else {
+        // JSON format on stdout for extension consumption
+        let subscriber = tracing_subscriber::registry().with(reload_layer).with(
+            tracing_subscriber::fmt::layer()
+                .json()
+                .with_target(show_target),
+        );
+        let _ = subscriber.try_init();
+    }
+
     LogReloadHandle { handle }
 }
 

@@ -21,8 +21,10 @@ use crate::protocol::{emit_event, SidecarEvent};
 use crate::types::{Command, SUPPORTED_SIGNATURE_SCHEME};
 
 fn main() {
-    let log_handle = init_logging();
-    if let Err(err) = run(log_handle) {
+    let cli = parse_args();
+    let console_mode = matches!(cli.command, Command::Console { .. });
+    let log_handle = init_logging(console_mode);
+    if let Err(err) = run(cli, log_handle) {
         error!(error = ?err, "Ark sidecar error");
         emit_event(SidecarEvent::Error {
             message: err.to_string(),
@@ -31,8 +33,7 @@ fn main() {
     }
 }
 
-fn run(log_handle: crate::logging::LogReloadHandle) -> Result<()> {
-    let cli = parse_args();
+fn run(cli: crate::types::Cli, log_handle: crate::logging::LogReloadHandle) -> Result<()> {
 
     // Extract connection_file from any command variant
     let connection_file = match &cli.command {
