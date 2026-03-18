@@ -79,21 +79,33 @@ impl LogReloadHandle {
 /// When reedline has the terminal in raw mode, a bare `\n` only moves
 /// the cursor down without returning to column 0. This wrapper ensures
 /// every newline is a full `\r\n` so log lines start at the left edge.
-struct RawTerminalWriter;
+///
+/// Each instance is created per log event by `tracing_subscriber`. The
+/// first write prepends `\r\n` to move the cursor off the prompt line.
+struct RawTerminalWriter {
+    first_write: bool,
+}
 
 impl RawTerminalWriter {
     fn make_writer() -> Self {
-        Self
+        Self { first_write: true }
     }
 }
 
 impl Write for RawTerminalWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut stderr = std::io::stderr().lock();
+
+        // Move cursor to a fresh line before the first write of each event,
+        // so log output doesn't appear on the same line as the R prompt.
+        if self.first_write {
+            stderr.write_all(b"\r\n")?;
+            self.first_write = false;
+        }
+
         let mut start = 0;
         for (i, &byte) in buf.iter().enumerate() {
             if byte == b'\n' {
-                // Flush everything before the \n, then write \r\n
                 if i > start {
                     stderr.write_all(&buf[start..i])?;
                 }
@@ -101,7 +113,6 @@ impl Write for RawTerminalWriter {
                 start = i + 1;
             }
         }
-        // Write remaining bytes after the last \n
         if start < buf.len() {
             stderr.write_all(&buf[start..])?;
         }
