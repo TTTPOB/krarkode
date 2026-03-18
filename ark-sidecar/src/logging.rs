@@ -1,4 +1,5 @@
 use std::io::Write;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -74,6 +75,12 @@ impl LogReloadHandle {
     }
 }
 
+/// Set to `true` when the cursor is on the reedline prompt line.
+/// `RawTerminalWriter` checks and clears this to emit a leading `\r\n`
+/// only for the first log event after the prompt, avoiding blank
+/// lines between consecutive log entries.
+pub(crate) static CONSOLE_ON_PROMPT: AtomicBool = AtomicBool::new(false);
+
 /// A writer that converts `\n` to `\r\n` on stderr.
 ///
 /// When reedline has the terminal in raw mode, a bare `\n` only moves
@@ -90,6 +97,12 @@ impl RawTerminalWriter {
 impl Write for RawTerminalWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut stderr = std::io::stderr().lock();
+
+        // Move to a fresh line if the cursor is still on the prompt line.
+        // swap ensures only the first writer after prompt display does this.
+        if CONSOLE_ON_PROMPT.swap(false, Ordering::Relaxed) {
+            stderr.write_all(b"\r\n")?;
+        }
         let mut start = 0;
         for (i, &byte) in buf.iter().enumerate() {
             if byte == b'\n' {

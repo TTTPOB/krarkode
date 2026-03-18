@@ -356,6 +356,7 @@ fn run_reedline_loop_inner(
     debug!("Console reedline_loop: entering main loop");
 
     'console: loop {
+        crate::logging::CONSOLE_ON_PROMPT.store(true, std::sync::atomic::Ordering::Relaxed);
         match editor.read_line(&prompt) {
             Ok(Signal::Success(line)) => {
                 let trimmed = line.trim();
