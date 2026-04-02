@@ -68,14 +68,14 @@ class UiStore {
         this.collapsedSections = next;
     }
 
-    closeAllPanelsExcept(exceptPanelId?: string): void {
-        if (exceptPanelId !== 'column-visibility') {
+    closeAllPanelsExcept(exceptPanelId?: string, respectPinned = false): void {
+        if (exceptPanelId !== 'column-visibility' && !(respectPinned && this.isPanelPinned('column-visibility-panel'))) {
             this.columnVisibilityOpen = false;
         }
-        if (exceptPanelId !== 'row-filter') {
+        if (exceptPanelId !== 'row-filter' && !(respectPinned && this.isPanelPinned('row-filter-panel'))) {
             this.rowFilterPanelOpen = false;
         }
-        if (exceptPanelId !== 'stats') {
+        if (exceptPanelId !== 'stats' && !(respectPinned && this.isPanelPinned('stats-panel'))) {
             this.statsPanelOpen = false;
         }
         if (exceptPanelId !== 'code') {
