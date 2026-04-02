@@ -49,7 +49,8 @@ export class HtmlViewer implements vscode.Disposable {
         const panel = this.getOrCreatePanel('viewer', title || 'HTML Viewer', viewColumn);
 
         await this.loadHtmlIntoPanel(panel, filePath, title, height);
-        panel.reveal(viewColumn, true);
+        // Don't override user's manual panel placement
+        panel.reveal(undefined, true);
     }
 
     private async showInPlotPane(filePath: string, title: string, height: number): Promise<void> {
@@ -63,7 +64,8 @@ export class HtmlViewer implements vscode.Disposable {
         const panel = this.getOrCreatePanel('plot', title || 'Plot', viewColumn);
 
         await this.loadHtmlIntoPanel(panel, filePath, title, height);
-        panel.reveal(viewColumn, true);
+        // Don't override user's manual panel placement
+        panel.reveal(undefined, true);
     }
 
     private async openInEditor(filePath: string): Promise<void> {

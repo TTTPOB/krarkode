@@ -40,7 +40,8 @@ export class HelpManager implements vscode.Disposable {
         const viewColumn = this.getViewColumn();
 
         if (this.panel) {
-            this.panel.reveal(viewColumn, focus);
+            // Don't override user's manual panel placement
+            this.panel.reveal(undefined, focus);
         } else {
             this.panel = vscode.window.createWebviewPanel(
                 'krarkode.help',

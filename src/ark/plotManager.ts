@@ -443,7 +443,9 @@ export class PlotManager implements vscode.Disposable {
             this.renderWebview();
         }
 
-        this.panel.reveal(viewColumn, true);
+        // Only use configured viewColumn for initial creation;
+        // don't override user's manual panel placement
+        this.panel.reveal(undefined, true);
         this.updateWebviewState();
     }
 
