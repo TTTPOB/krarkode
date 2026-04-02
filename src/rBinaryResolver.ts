@@ -1,3 +1,5 @@
+import * as crypto from 'crypto';
+import * as fs from 'fs';
 import { getRfromEnvPath, isExecutableFile, getConfiguredRBinaryPaths, resolvePixiManifestPath } from './util';
 import { resolvePixiEnvironments } from './pixi/pixiResolver';
 import { getLogger, LogCategory } from './logging/logger';
@@ -25,9 +27,20 @@ let candidateCache: RBinaryCache | undefined;
 const CACHE_TTL_MS = 60_000; // 1 minute safety-net TTL
 
 function buildConfigSnapshot(): string {
+    const pixiManifestPath = resolvePixiManifestPath();
+    let pixiContentHash = '';
+    if (pixiManifestPath) {
+        try {
+            const content = fs.readFileSync(pixiManifestPath, 'utf8');
+            pixiContentHash = crypto.createHash('md5').update(content).digest('hex');
+        } catch {
+            // file missing or unreadable — hash stays empty
+        }
+    }
     return JSON.stringify({
         rBinaryPath: getConfiguredRBinaryPaths(),
-        pixiManifestPath: resolvePixiManifestPath(),
+        pixiManifestPath,
+        pixiContentHash,
     });
 }
 
