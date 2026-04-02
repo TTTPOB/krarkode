@@ -182,6 +182,7 @@ impl LspClient {
     }
 
     /// Send shutdown request and exit notification.
+    #[allow(dead_code)] // Kept for future graceful shutdown support
     pub async fn shutdown(&self) -> Result<()> {
         debug!("LspClient: shutting down");
         // shutdown expects a null result

@@ -6,7 +6,7 @@
 
 use lsp_types::{
     DidChangeTextDocumentParams, DidOpenTextDocumentParams, TextDocumentContentChangeEvent,
-    TextDocumentIdentifier, TextDocumentItem, Uri, VersionedTextDocumentIdentifier,
+    TextDocumentItem, Uri, VersionedTextDocumentIdentifier,
 };
 
 pub(crate) const CONSOLE_DOC_URI: &str = "inmemory://console.R";
@@ -78,12 +78,6 @@ impl ConsoleDocument {
         &self.uri
     }
 
-    /// Get a `TextDocumentIdentifier` for this document.
-    pub fn text_document_identifier(&self) -> TextDocumentIdentifier {
-        TextDocumentIdentifier {
-            uri: self.uri.clone(),
-        }
-    }
 }
 
 #[cfg(test)]
