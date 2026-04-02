@@ -300,12 +300,16 @@
         statsController.initializeStatsDefaults();
         statsController.setStatsMessage('Select a column to view statistics.', 'empty');
         statsController.clearStatsContent();
-        document.addEventListener('click', (e) => windowEventsController.handleDocumentClick(e));
+        const handleClick = (e: MouseEvent) => windowEventsController.handleDocumentClick(e);
+        document.addEventListener('click', handleClick);
         vscode.postMessage({ type: 'ready' });
         log('Data explorer initialized.');
         updateTableAreaTop();
 
-        return () => messageHandler.detach();
+        return () => {
+            messageHandler.detach();
+            document.removeEventListener('click', handleClick);
+        };
     });
 
     onDestroy(() => {
