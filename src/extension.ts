@@ -47,7 +47,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // Create plot backend connected to sidecar
     plotBackend = new ArkCommBackend(sidecarManager);
-    void plotBackend.connect();
+    plotBackend.connect().catch((err) =>
+        getLogger().log('runtime', LogCategory.Core, 'error', `Plot backend connection failed: ${err}`),
+    );
     context.subscriptions.push(plotBackend);
 
     // Create HTML viewer for ShowHtmlFile events
@@ -117,7 +119,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Restart LSP to pick up the new session (or fall back to background kernel)
         if (languageService && connectionChanged) {
-            void languageService.restart();
+            languageService.restart().catch((err) =>
+                getLogger().log('runtime', LogCategory.Core, 'error', `LSP restart failed: ${err}`),
+            );
         }
     });
 
@@ -131,7 +135,9 @@ export function activate(context: vscode.ExtensionContext): void {
                 void vscode.window.showErrorMessage('Ark language server is not running.');
                 return;
             }
-            void languageService.restart();
+            languageService.restart().catch((err) =>
+                getLogger().log('runtime', LogCategory.Core, 'error', `LSP restart failed: ${err}`),
+            );
         }),
     );
 
@@ -160,7 +166,9 @@ export function activate(context: vscode.ExtensionContext): void {
         isLspEnabled: () => !!languageService,
         restartLsp: () => {
             if (languageService) {
-                void languageService.restart();
+                languageService.restart().catch((err) =>
+                    getLogger().log('runtime', LogCategory.Core, 'error', `LSP restart failed: ${err}`),
+                );
             }
         },
         setPlotMaxHistory: (value: number) => {
