@@ -2,6 +2,11 @@ import { dataStore } from '../stores';
 import type { BackendState, ColumnValue, RowsMessage } from '../types';
 import { buildRowBlockRanges, formatSpecialValue } from '../utils';
 
+// Maximum number of cached rows before eviction kicks in.
+// With typical column counts this keeps memory usage reasonable
+// while allowing enough buffer for smooth scrolling.
+const MAX_CACHED_ROWS = 10_000;
+
 type RowDataControllerOptions = {
     log: (message: string, payload?: unknown) => void;
     postMessage: (message: unknown) => void;
@@ -168,6 +173,25 @@ export class RowDataController {
         for (let block = startBlock; block <= endBlock; block += 1) {
             nextLoadingBlocks.delete(block);
             nextLoadedBlocks.add(block);
+        }
+
+        // Evict rows furthest from current viewport when cache exceeds limit
+        if (nextRowCache.size > MAX_CACHED_ROWS) {
+            const viewportCenter = (startIndex + endIndex) / 2;
+            const entries = [...nextRowCache.keys()].sort(
+                (a, b) => Math.abs(a - viewportCenter) - Math.abs(b - viewportCenter),
+            );
+            const toRemove = entries.slice(MAX_CACHED_ROWS);
+            for (const key of toRemove) {
+                nextRowCache.delete(key);
+                nextRowLabelCache.delete(key);
+            }
+            // Recompute loaded blocks to match remaining cache
+            nextLoadedBlocks.clear();
+            for (const rowIndex of nextRowCache.keys()) {
+                nextLoadedBlocks.add(Math.floor(rowIndex / this.rowBlockSize));
+            }
+            this.log('Row cache evicted', { removed: toRemove.length, remaining: nextRowCache.size });
         }
 
         dataStore.rowCache = nextRowCache;
