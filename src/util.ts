@@ -202,7 +202,12 @@ export function spawnAsync(command: string, args: string[], options: cp.SpawnOpt
     });
 }
 
-function getSidecarTarget(): string | undefined {
+/**
+ * Return a `<platform>-<arch>` target string for the current OS,
+ * or `undefined` on unsupported platforms.  Shared by both
+ * `resolveSidecarPath()` and `resolveArkPath()`.
+ */
+function getTargetPlatform(): string | undefined {
     const platform = process.platform;
     const arch = process.arch;
 
@@ -234,7 +239,7 @@ export function resolveSidecarPath(): string {
     const exeName = 'vscode-r-ark-sidecar';
     const context = getExtensionContext();
 
-    const packagedTarget = getSidecarTarget();
+    const packagedTarget = getTargetPlatform();
     if (packagedTarget) {
         const packagedPath = context.asAbsolutePath(path.join('sidecar', packagedTarget, exeName));
         logDebug(`Checking packaged sidecar path: ${packagedPath}`);
@@ -264,26 +269,6 @@ export function resolveSidecarPath(): string {
     return exeName;
 }
 
-function getArkTarget(): string | undefined {
-    const platform = process.platform;
-    const arch = process.arch;
-
-    if (platform === 'linux' && arch === 'x64') {
-        return 'linux-x64';
-    }
-    if (platform === 'linux' && arch === 'arm64') {
-        return 'linux-arm64';
-    }
-    if (platform === 'darwin' && arch === 'x64') {
-        return 'darwin-x64';
-    }
-    if (platform === 'darwin' && arch === 'arm64') {
-        return 'darwin-arm64';
-    }
-
-    return undefined;
-}
-
 /**
  * Resolve the Ark executable path.
  * Priority: user config → bundled binary (ark/<target>/ark) → PATH fallback.
@@ -300,7 +285,7 @@ export function resolveArkPath(): string {
     const exeName = 'ark';
     const context = getExtensionContext();
 
-    const target = getArkTarget();
+    const target = getTargetPlatform();
     if (target) {
         const packagedPath = context.asAbsolutePath(path.join('ark', target, exeName));
         logDebug(`Checking packaged ark path: ${packagedPath}`);
