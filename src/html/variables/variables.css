@@ -124,12 +124,13 @@ body {
 }
 
 .var-actions {
-    display: none;
+    display: flex;
+    visibility: hidden;
     margin-left: 6px;
 }
 
 .variable-item:hover .var-actions {
-    display: flex;
+    visibility: visible;
 }
 
 .variable-meta,
