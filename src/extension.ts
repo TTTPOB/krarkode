@@ -17,6 +17,7 @@ import type { ArkSessionEntry } from './ark/sessionRegistry';
 import { getLogger, LogCategory } from './logging/logger';
 import { runDoctor } from './doctor';
 import { ConfigurationWatcher } from './configurationWatcher';
+import { invalidateRBinaryCache } from './rBinaryResolver';
 
 let sessionManager: ArkSessionManager | undefined;
 let languageService: ArkLanguageService | undefined;
@@ -163,6 +164,7 @@ export function activate(context: vscode.ExtensionContext): void {
         setPlotMaxHistory: (value: number) => {
             plotManager?.setMaxHistory(value);
         },
+        invalidateRBinaryCache,
     });
     context.subscriptions.push(configurationWatcher);
 

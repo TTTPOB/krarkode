@@ -12,6 +12,7 @@ export interface ConfigurationWatcherDeps {
     isLspEnabled: () => boolean;
     restartLsp: () => void;
     setPlotMaxHistory: (value: number) => void;
+    invalidateRBinaryCache: () => void;
 }
 
 // Keys whose change auto-restarts the LSP (debounced)
@@ -56,6 +57,7 @@ export class ConfigurationWatcher implements vscode.Disposable {
 
         this.handleLspEnabled(event);
         this.handlePlotMaxHistory(event);
+        this.handleRBinaryConfigKeys(event);
         this.handleLspRestartKeys(event);
         this.handlePromptRestartKeys(event);
         this.handleNextSessionKeys(event);
@@ -78,6 +80,17 @@ export class ConfigurationWatcher implements vscode.Disposable {
             getLogger().log('runtime', LogCategory.Core, 'info',
                 '[ConfigurationWatcher] LSP disabled by configuration change');
             this.deps.disableLsp();
+        }
+    }
+
+    // --- Hot: R binary cache invalidation ---
+
+    private handleRBinaryConfigKeys(event: vscode.ConfigurationChangeEvent): void {
+        if (event.affectsConfiguration('krarkode.r.binaryPath') ||
+            event.affectsConfiguration('krarkode.pixi.manifestPath')) {
+            getLogger().debug('runtime', LogCategory.Core,
+                '[ConfigurationWatcher] R binary config changed, invalidating cache');
+            this.deps.invalidateRBinaryCache();
         }
     }
 
