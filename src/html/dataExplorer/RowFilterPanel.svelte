@@ -10,6 +10,7 @@
         SetRowFiltersFeatures,
     } from './types';
     import { ROW_FILTER_TYPE_LABELS, ROW_FILTER_SECTION_MAP } from './types';
+    import { getColumnLabel } from './utils';
 
     let {
         open = false,
@@ -38,12 +39,6 @@
         onCancel?: () => void;
         onStartResize?: (data: { event: MouseEvent }) => void;
     } = $props();
-
-    function getColumnLabel(column: ColumnSchema): string {
-        const rawLabel = column.column_label ?? column.column_name;
-        const trimmed = rawLabel?.trim();
-        return trimmed || `Unnamed ${column.column_index + 1}`;
-    }
 
     function supportsRowFilterConditions(): boolean {
         const supportStatus = rowFilterSupport?.supports_conditions;

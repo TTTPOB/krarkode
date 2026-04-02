@@ -1,6 +1,7 @@
 <script lang="ts">
     import type { RowFilter, ColumnSchema, RowFilterType } from './types';
     import { ROW_FILTER_TYPE_LABELS } from './types';
+    import { getColumnLabel } from './utils';
 
     let {
         rowFilters = [],
@@ -17,12 +18,6 @@
         onEditFilter?: (data: { filter: RowFilter; index: number }) => void;
         onRemoveFilter?: (data: { index: number }) => void;
     } = $props();
-
-    function getColumnLabel(column: ColumnSchema): string {
-        const rawLabel = column.column_label ?? column.column_name;
-        const trimmed = rawLabel?.trim();
-        return trimmed || `Unnamed ${column.column_index + 1}`;
-    }
 
     function formatRowFilterChip(filter: RowFilter, index: number): string {
         const columnLabel = getColumnLabel(filter.column_schema);

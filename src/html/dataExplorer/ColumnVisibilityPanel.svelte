@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onDestroy } from 'svelte';
     import type { ColumnSchema } from './types';
+    import { getColumnLabel } from './utils';
 
     let {
         open = false,
@@ -36,12 +37,6 @@
 
     let searchInput: HTMLInputElement;
     let debounceId: number | undefined;
-
-    function getColumnLabel(column: ColumnSchema): string {
-        const rawLabel = column.column_label ?? column.column_name;
-        const trimmed = rawLabel?.trim();
-        return trimmed || `Unnamed ${column.column_index + 1}`;
-    }
 
     function resolveVisibleSchema(): ColumnSchema[] {
         return displayedColumns.filter((column) => !hiddenColumnIndices.has(column.column_index));
