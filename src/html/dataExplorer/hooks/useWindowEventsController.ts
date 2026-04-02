@@ -50,56 +50,58 @@ export class WindowEventsController {
         this.onResize = options.onResize;
     }
 
+    /**
+     * Returns true when a click landed outside both the panel and its
+     * toggle button, meaning the panel should close.
+     */
+    private shouldCloseOnClick(
+        target: Node,
+        panelEl: HTMLElement | undefined,
+        buttonEl: HTMLElement | undefined,
+    ): boolean {
+        return (
+            !!panelEl &&
+            !panelEl.contains(target) &&
+            !!buttonEl &&
+            !buttonEl.contains(target)
+        );
+    }
+
     handleDocumentClick(event: MouseEvent): void {
         const target = event.target as Node;
+
         const columnMenuEl = this.getColumnMenuEl();
         if (uiStore.columnMenuOpen && columnMenuEl && !columnMenuEl.contains(target)) {
             uiStore.closeColumnMenu();
         }
-        const statsPanelEl = this.getStatsPanelEl();
-        const statsButtonEl = this.getStatsButtonEl();
+
         if (
             uiStore.statsPanelOpen &&
-            statsPanelEl &&
-            !statsPanelEl.contains(target) &&
-            statsButtonEl &&
-            !statsButtonEl.contains(target) &&
-            !uiStore.isPanelPinned('stats-panel')
+            !uiStore.isPanelPinned('stats-panel') &&
+            this.shouldCloseOnClick(target, this.getStatsPanelEl(), this.getStatsButtonEl())
         ) {
             uiStore.statsPanelOpen = false;
         }
-        const columnVisibilityPanelEl = this.getColumnVisibilityPanelEl();
-        const columnsButtonEl = this.getColumnsButtonEl();
+
         if (
             uiStore.columnVisibilityOpen &&
-            columnVisibilityPanelEl &&
-            !columnVisibilityPanelEl.contains(target) &&
-            columnsButtonEl &&
-            !columnsButtonEl.contains(target) &&
-            !uiStore.isPanelPinned('column-visibility-panel')
+            !uiStore.isPanelPinned('column-visibility-panel') &&
+            this.shouldCloseOnClick(target, this.getColumnVisibilityPanelEl(), this.getColumnsButtonEl())
         ) {
             uiStore.columnVisibilityOpen = false;
         }
-        const codeModalEl = this.getCodeModalEl();
-        const codeButtonEl = this.getCodeButtonEl();
+
         if (
             uiStore.codeModalOpen &&
-            codeModalEl &&
-            !codeModalEl.contains(target) &&
-            codeButtonEl &&
-            !codeButtonEl.contains(target)
+            this.shouldCloseOnClick(target, this.getCodeModalEl(), this.getCodeButtonEl())
         ) {
             uiStore.codeModalOpen = false;
         }
-        const rowFilterPanelEl = this.getRowFilterPanelEl();
-        const addRowFilterButtonEl = this.getAddRowFilterButtonEl();
+
         if (
             uiStore.rowFilterPanelOpen &&
-            rowFilterPanelEl &&
-            !rowFilterPanelEl.contains(target) &&
-            addRowFilterButtonEl &&
-            !addRowFilterButtonEl.contains(target) &&
-            !uiStore.isPanelPinned('row-filter-panel')
+            !uiStore.isPanelPinned('row-filter-panel') &&
+            this.shouldCloseOnClick(target, this.getRowFilterPanelEl(), this.getAddRowFilterButtonEl())
         ) {
             uiStore.rowFilterPanelOpen = false;
         }
