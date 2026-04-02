@@ -491,7 +491,14 @@ export class ArkSessionManager {
      */
     private async selectRBinary(): Promise<string | undefined> {
         this.outputChannel.appendLine('Collecting R binary candidates...');
-        const candidates = await collectRBinaryCandidates();
+        const candidates = await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: 'Detecting R environments\u2026',
+                cancellable: false,
+            },
+            () => collectRBinaryCandidates(),
+        );
 
         if (candidates.length === 0) {
             void vscode.window.showErrorMessage(
