@@ -1,57 +1,35 @@
-import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
 import { getNonce, isDebugLoggingEnabled } from '../util';
-import { getLogger, LogCategory, logWebviewMessage } from '../logging/logger';
+import { getLogger, LogCategory } from '../logging/logger';
 import {
     BackendState,
-    ColumnFilter,
-    ColumnHistogramParamsMethod,
-    ColumnProfileSpec,
-    ColumnProfileRequest,
-    ColumnProfileType,
     ColumnSelection,
-    ColumnSortKey,
-    ExportFormat,
-    ReturnColumnProfilesParams,
-    RowFilter,
-    SearchSchemaSortOrder,
-    TableSelectionKind,
     TableSchema,
 } from './protocol';
+import { DataExplorerMessageHandler, type DataExplorerPanelContext } from './dataExplorerMessageHandler';
 
 type RowRangeRequest = {
     startIndex: number;
     endIndex: number;
 };
 
-const DEFAULT_HISTOGRAM_NUM_BINS = 20;
-const DEFAULT_FREQUENCY_TABLE_LIMIT = 10;
 const INITIAL_ROW_BLOCK_SIZE = 200;
-
-type HistogramParamsInput = {
-    method?: string;
-    num_bins?: number;
-    quantiles?: number[];
-};
-
-type FrequencyParamsInput = {
-    limit?: number;
-};
 
 class DataExplorerPanel implements vscode.Disposable {
     private readonly panel: vscode.WebviewPanel;
-    private readonly session: DataExplorerSession;
+    readonly session: DataExplorerSession;
     private readonly disposables: vscode.Disposable[] = [];
-    private state: BackendState | undefined;
-    private schema: TableSchema | undefined;
+    private readonly messageHandler: DataExplorerMessageHandler;
+    state: BackendState | undefined;
+    schema: TableSchema | undefined;
+    sortInFlight = false;
+    filterInFlight = false;
+    exportInFlight = false;
+    readonly pendingProfileCallbacks = new Map<string, { columnIndex: number }>();
     private pendingRanges: RowRangeRequest[] = [];
     private requestInFlight = false;
-    private sortInFlight = false;
-    private filterInFlight = false;
-    private exportInFlight = false;
-    private readonly pendingProfileCallbacks = new Map<string, { columnIndex: number }>();
     private disposed = false;
 
     constructor(
@@ -74,9 +52,39 @@ class DataExplorerPanel implements vscode.Disposable {
         this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
         this.session = new DataExplorerSession(sidecarManager, commId, outputChannel);
 
+        const ctx: DataExplorerPanelContext = {
+            session: this.session,
+            webview: this.panel.webview,
+            get state() { return self.state; },
+            set state(v) { self.state = v; },
+            get schema() { return self.schema; },
+            set schema(v) { self.schema = v; },
+            get sortInFlight() { return self.sortInFlight; },
+            set sortInFlight(v) { self.sortInFlight = v; },
+            get filterInFlight() { return self.filterInFlight; },
+            set filterInFlight(v) { self.filterInFlight = v; },
+            get exportInFlight() { return self.exportInFlight; },
+            set exportInFlight(v) { self.exportInFlight = v; },
+            pendingProfileCallbacks: this.pendingProfileCallbacks,
+            log: (msg) => this.log(msg),
+            initialize: () => this.initialize(),
+        };
+        const self = this;
+        this.messageHandler = new DataExplorerMessageHandler(ctx);
+
         this.disposables.push(
             this.panel.onDidDispose(() => this.cleanup()),
-            this.panel.webview.onDidReceiveMessage((message) => this.handleWebviewMessage(message)),
+            this.panel.webview.onDidReceiveMessage((message) => {
+                // Handle row requests directly (they use the panel's queue)
+                if (message.type === 'requestRows' && typeof message.startIndex === 'number' && typeof message.endIndex === 'number') {
+                    void this.enqueueRowRequest({
+                        startIndex: message.startIndex,
+                        endIndex: message.endIndex,
+                    });
+                    return;
+                }
+                this.messageHandler.handleWebviewMessage(message);
+            }),
             this.session.onDidReceiveEvent((event) => {
                 if (event.method === 'schema_update' || event.method === 'data_update') {
                     this.log(`Received ${event.method}; refreshing.`);
@@ -84,10 +92,14 @@ class DataExplorerPanel implements vscode.Disposable {
                     return;
                 }
                 if (event.method === 'return_column_profiles') {
-                    this.handleReturnColumnProfiles(event.params);
+                    this.messageHandler.handleReturnColumnProfiles(event.params);
                 }
             }),
         );
+    }
+
+    get webview(): vscode.Webview {
+        return this.panel.webview;
     }
 
     reveal(): void {
@@ -112,7 +124,7 @@ class DataExplorerPanel implements vscode.Disposable {
         this.session.dispose();
     }
 
-    private async initialize(): Promise<void> {
+    async initialize(): Promise<void> {
         try {
             this.log(`Initializing data explorer for comm ${this.commId}.`);
             const state = await this.session.getState();
@@ -146,512 +158,6 @@ class DataExplorerPanel implements vscode.Disposable {
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             this.log(`Failed to initialize data explorer: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        }
-    }
-
-    private handleWebviewMessage(message: { type?: string; [key: string]: unknown }): void {
-        switch (message.type) {
-            case 'log': {
-                const logMessage = typeof message.message === 'string' ? message.message : 'Webview log message.';
-                const payload = message.payload;
-                const detail = payload !== undefined ? JSON.stringify(payload) : undefined;
-                logWebviewMessage('ui', LogCategory.DataExplorer, logMessage, detail);
-                return;
-            }
-            case 'ready':
-                void this.initialize();
-                return;
-            case 'refresh':
-                void this.initialize();
-                return;
-            case 'requestRows':
-                if (typeof message.startIndex === 'number' && typeof message.endIndex === 'number') {
-                    void this.enqueueRowRequest({
-                        startIndex: message.startIndex,
-                        endIndex: message.endIndex,
-                    });
-                }
-                return;
-            case 'setSort': {
-                const sortKey = this.parseSortKey(message.sortKey);
-                void this.applySort(sortKey);
-                return;
-            }
-            case 'searchSchema': {
-                if (!Array.isArray(message.filters)) {
-                    this.log('Search schema request missing filters.');
-                    return;
-                }
-                const filters = message.filters as ColumnFilter[];
-                const sortOrder = this.resolveSearchSchemaSortOrder(message.sortOrder);
-                void this.searchSchema(filters, sortOrder);
-                return;
-            }
-            case 'setColumnFilters': {
-                if (!Array.isArray(message.filters)) {
-                    this.log('Column filter request missing filters.');
-                    return;
-                }
-                const filters = message.filters as ColumnFilter[];
-                void this.applyColumnFilters(filters);
-                return;
-            }
-            case 'setRowFilters': {
-                if (!Array.isArray(message.filters)) {
-                    this.log('Row filter request missing filters.');
-                    return;
-                }
-                const filters = message.filters as RowFilter[];
-                void this.applyRowFilters(filters);
-                return;
-            }
-            case 'getColumnProfiles': {
-                if (typeof message.columnIndex !== 'number' || !Array.isArray(message.profileTypes)) {
-                    this.log('Column profiles request missing required fields.');
-                    return;
-                }
-                const columnIndex = message.columnIndex;
-                const profileTypes = message.profileTypes as string[];
-                const histogramParams = isRecord(message.histogramParams)
-                    ? (message.histogramParams as HistogramParamsInput)
-                    : undefined;
-                const frequencyParams = isRecord(message.frequencyParams)
-                    ? (message.frequencyParams as FrequencyParamsInput)
-                    : undefined;
-                void this.getColumnProfiles(columnIndex, profileTypes, histogramParams, frequencyParams);
-                return;
-            }
-            case 'exportData': {
-                if (typeof message.format !== 'string') {
-                    this.log('Export request missing format.');
-                    return;
-                }
-                const format = message.format as ExportFormat;
-                void this.exportData(format);
-                return;
-            }
-            case 'convertToCode': {
-                if (typeof message.syntax !== 'string') {
-                    this.log('Convert to code request missing syntax.');
-                    return;
-                }
-                const syntax = message.syntax;
-                void this.convertToCode(syntax);
-                return;
-            }
-            case 'suggestCodeSyntax': {
-                void this.suggestCodeSyntax();
-                return;
-            }
-        }
-    }
-
-    private parseSortKey(value: unknown): { columnIndex: number; direction: 'asc' | 'desc' } | null {
-        if (!value || typeof value !== 'object') {
-            return null;
-        }
-        const candidate = value as { columnIndex?: unknown; direction?: unknown };
-        if (typeof candidate.columnIndex !== 'number') {
-            return null;
-        }
-        if (candidate.direction !== 'asc' && candidate.direction !== 'desc') {
-            return null;
-        }
-        return { columnIndex: candidate.columnIndex, direction: candidate.direction };
-    }
-
-    private async applySort(sortKey: { columnIndex: number; direction: 'asc' | 'desc' } | null): Promise<void> {
-        if (!this.state) {
-            return;
-        }
-        if (!this.isSortSupported()) {
-            this.log('Sort request ignored; backend does not support set_sort_columns.');
-            return;
-        }
-        if (this.sortInFlight) {
-            this.log('Sort request ignored; sort already in flight.');
-            return;
-        }
-
-        const sortKeys: ColumnSortKey[] = sortKey
-            ? [{ column_index: sortKey.columnIndex, ascending: sortKey.direction === 'asc' }]
-            : [];
-
-        const description = sortKey ? `column ${sortKey.columnIndex} ${sortKey.direction}` : 'cleared';
-        this.log(`Applying sort: ${description}.`);
-
-        this.sortInFlight = true;
-        try {
-            await this.session.setSortColumns(sortKeys);
-            await this.initialize();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to apply sort: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        } finally {
-            this.sortInFlight = false;
-        }
-    }
-
-    private isSortSupported(): boolean {
-        const supportStatus = this.state?.supported_features?.set_sort_columns?.support_status;
-        if (!supportStatus) {
-            return true;
-        }
-        return supportStatus === 'supported';
-    }
-
-    private isFeatureSupported(featureKey: string): boolean {
-        const features = this.state?.supported_features as Record<string, { support_status?: string }> | undefined;
-        const supportStatus = features?.[featureKey]?.support_status;
-        if (!supportStatus) {
-            return true;
-        }
-        return supportStatus === 'supported';
-    }
-
-    private handleReturnColumnProfiles(params: unknown): void {
-        if (!params || typeof params !== 'object') {
-            this.log('Column profiles response missing params.');
-            return;
-        }
-
-        const payload = params as ReturnColumnProfilesParams;
-        const callbackId = payload.callback_id;
-        if (!callbackId) {
-            this.log('Column profiles response missing callback_id.');
-            return;
-        }
-
-        const pending = this.pendingProfileCallbacks.get(callbackId);
-        if (!pending) {
-            this.log(`Unexpected column profiles callback: ${callbackId}.`);
-            return;
-        }
-
-        this.pendingProfileCallbacks.delete(callbackId);
-        const errorMessage = payload.error_message;
-        if (errorMessage) {
-            this.log(`Column profiles error: ${errorMessage}`);
-        }
-
-        void this.panel.webview.postMessage({
-            type: 'columnProfilesResult',
-            columnIndex: pending.columnIndex,
-            profiles: payload.profiles ?? [],
-            errorMessage,
-        });
-    }
-
-    private async searchSchema(filters: ColumnFilter[], sortOrder: SearchSchemaSortOrder): Promise<void> {
-        if (!this.state) {
-            return;
-        }
-        if (!this.isFeatureSupported('search_schema')) {
-            this.log('Search schema ignored; backend does not support search_schema.');
-            return;
-        }
-        this.log(`Searching schema with ${filters.length} filters, sort: ${sortOrder}`);
-        try {
-            const result = await this.session.searchSchema(filters, sortOrder);
-            void this.panel.webview.postMessage({
-                type: 'searchSchemaResult',
-                matches: result.matches,
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to search schema: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        }
-    }
-
-    private async applyColumnFilters(filters: ColumnFilter[]): Promise<void> {
-        if (!this.state) {
-            return;
-        }
-        if (!this.isFeatureSupported('set_column_filters')) {
-            this.log('Column filter request ignored; backend does not support set_column_filters.');
-            return;
-        }
-        if (this.filterInFlight) {
-            this.log('Column filter request ignored; filter already in flight.');
-            return;
-        }
-        this.log(`Applying ${filters.length} column filters.`);
-        this.filterInFlight = true;
-        try {
-            await this.session.setColumnFilters(filters);
-            await this.initialize();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to apply column filters: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        } finally {
-            this.filterInFlight = false;
-        }
-    }
-
-    private async applyRowFilters(filters: RowFilter[]): Promise<void> {
-        if (!this.state) {
-            return;
-        }
-        if (!this.isFeatureSupported('set_row_filters')) {
-            this.log('Row filter request ignored; backend does not support set_row_filters.');
-            return;
-        }
-        if (this.filterInFlight) {
-            this.log('Row filter request ignored; filter already in flight.');
-            return;
-        }
-        this.log(`Applying ${filters.length} row filters.`);
-        this.filterInFlight = true;
-        try {
-            const result = await this.session.setRowFilters(filters);
-            this.log(`Row filter applied, ${result.selected_num_rows} rows selected.`);
-            await this.initialize();
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to apply row filters: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        } finally {
-            this.filterInFlight = false;
-        }
-    }
-
-    private async getColumnProfiles(
-        columnIndex: number,
-        profileTypes: string[],
-        histogramParams?: HistogramParamsInput,
-        frequencyParams?: FrequencyParamsInput,
-    ): Promise<void> {
-        if (!this.state) {
-            return;
-        }
-        if (!this.isFeatureSupported('get_column_profiles')) {
-            this.log('Column profiles request ignored; backend does not support get_column_profiles.');
-            return;
-        }
-        const resolvedProfileTypes = profileTypes.filter((profileType): profileType is ColumnProfileType =>
-            Object.values(ColumnProfileType).includes(profileType as ColumnProfileType),
-        );
-        if (resolvedProfileTypes.length === 0) {
-            this.log('Column profiles request ignored; no profile types selected.');
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message: 'Please select at least one profile type.',
-            });
-            return;
-        }
-        this.log(`Getting column profiles for column ${columnIndex}: ${resolvedProfileTypes.join(', ')}`);
-        if (histogramParams || frequencyParams) {
-            this.log(
-                `Column profile params histogram=${JSON.stringify(histogramParams ?? {})} frequency=${JSON.stringify(frequencyParams ?? {})}`,
-            );
-        }
-        const callbackId = crypto.randomUUID();
-        const profiles: ColumnProfileRequest[] = [
-            {
-                column_index: columnIndex,
-                profiles: resolvedProfileTypes.map((profileType) =>
-                    this.buildColumnProfileSpec(profileType, histogramParams, frequencyParams),
-                ),
-            },
-        ];
-        try {
-            this.pendingProfileCallbacks.set(callbackId, { columnIndex });
-            await this.session.getColumnProfiles(callbackId, profiles, DEFAULT_FORMAT_OPTIONS);
-        } catch (error) {
-            this.pendingProfileCallbacks.delete(callbackId);
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to get column profiles: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        }
-    }
-
-    private buildColumnProfileSpec(
-        profileType: ColumnProfileType,
-        histogramParams?: HistogramParamsInput,
-        frequencyParams?: FrequencyParamsInput,
-    ): ColumnProfileSpec {
-        if (profileType === ColumnProfileType.SmallHistogram || profileType === ColumnProfileType.LargeHistogram) {
-            const resolvedHistogramParams = this.resolveHistogramParams(histogramParams);
-            return {
-                profile_type: profileType,
-                params: resolvedHistogramParams,
-            };
-        }
-        if (
-            profileType === ColumnProfileType.SmallFrequencyTable ||
-            profileType === ColumnProfileType.LargeFrequencyTable
-        ) {
-            return {
-                profile_type: profileType,
-                params: {
-                    limit: this.resolveFrequencyLimit(frequencyParams),
-                },
-            };
-        }
-        return { profile_type: profileType };
-    }
-
-    private resolveHistogramParams(histogramParams?: HistogramParamsInput): {
-        method: ColumnHistogramParamsMethod;
-        num_bins: number;
-        quantiles?: number[];
-    } {
-        const method = this.resolveHistogramMethod(histogramParams?.method);
-        const numBins = this.resolveHistogramBins(histogramParams?.num_bins);
-        const quantiles = Array.isArray(histogramParams?.quantiles)
-            ? histogramParams?.quantiles.filter(
-                  (quantile) => typeof quantile === 'number' && quantile >= 0 && quantile <= 1,
-              )
-            : undefined;
-        return {
-            method,
-            num_bins: numBins,
-            ...(quantiles && quantiles.length > 0 ? { quantiles } : {}),
-        };
-    }
-
-    private resolveHistogramMethod(method?: string): ColumnHistogramParamsMethod {
-        switch (method) {
-            case ColumnHistogramParamsMethod.Sturges:
-                return ColumnHistogramParamsMethod.Sturges;
-            case ColumnHistogramParamsMethod.Scott:
-                return ColumnHistogramParamsMethod.Scott;
-            case ColumnHistogramParamsMethod.Fixed:
-                return ColumnHistogramParamsMethod.Fixed;
-            case ColumnHistogramParamsMethod.FreedmanDiaconis:
-            default:
-                return ColumnHistogramParamsMethod.FreedmanDiaconis;
-        }
-    }
-
-    private resolveHistogramBins(numBins?: number): number {
-        if (typeof numBins !== 'number' || !Number.isFinite(numBins)) {
-            return DEFAULT_HISTOGRAM_NUM_BINS;
-        }
-        return Math.max(5, Math.round(numBins));
-    }
-
-    private resolveFrequencyLimit(frequencyParams?: FrequencyParamsInput): number {
-        const limit = frequencyParams?.limit;
-        if (typeof limit !== 'number' || !Number.isFinite(limit)) {
-            return DEFAULT_FREQUENCY_TABLE_LIMIT;
-        }
-        return Math.max(5, Math.round(limit));
-    }
-
-    private async exportData(format: ExportFormat): Promise<void> {
-        if (!this.state) {
-            return;
-        }
-        if (!this.isFeatureSupported('export_data_selection')) {
-            this.log('Export request ignored; backend does not support export_data_selection.');
-            return;
-        }
-        if (this.exportInFlight) {
-            this.log('Export request ignored; export already in flight.');
-            return;
-        }
-        if (this.state.table_shape.num_rows === 0) {
-            this.log('Export request ignored; table has no rows.');
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message: 'No rows available to export.',
-            });
-            return;
-        }
-        this.log(`Exporting data as ${format}.`);
-        this.exportInFlight = true;
-        try {
-            const selection = {
-                kind: TableSelectionKind.RowRange,
-                selection: {
-                    first_index: 0,
-                    last_index: this.state.table_shape.num_rows - 1,
-                },
-            };
-            const result = await this.session.exportDataSelection(selection, format);
-            this.log(`Export complete, ${result.data.length} characters.`);
-            void this.panel.webview.postMessage({
-                type: 'exportResult',
-                data: result.data,
-                format: result.format,
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to export data: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        } finally {
-            this.exportInFlight = false;
-        }
-    }
-
-    private async convertToCode(syntax: string): Promise<void> {
-        if (!this.state) {
-            return;
-        }
-        if (!this.isFeatureSupported('convert_to_code')) {
-            this.log('Convert to code ignored; backend does not support convert_to_code.');
-            return;
-        }
-        this.log(`Converting current view to ${syntax} code.`);
-        try {
-            const columnFilters = this.state.column_filters ?? [];
-            const rowFilters = this.state.row_filters ?? [];
-            const sortKeys = this.state.sort_keys ?? [];
-            const result = await this.session.convertToCode(columnFilters, rowFilters, sortKeys, syntax);
-            const code = result.converted_code.join('\n');
-            this.log(`Converted to ${syntax}, ${code.length} characters.`);
-            void this.panel.webview.postMessage({
-                type: 'convertToCodeResult',
-                code,
-                syntax,
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to convert to code: ${message}`);
-            void this.panel.webview.postMessage({
-                type: 'error',
-                message,
-            });
-        }
-    }
-
-    private async suggestCodeSyntax(): Promise<void> {
-        this.log('Requesting code syntax suggestion.');
-        try {
-            const result = await this.session.suggestCodeSyntax();
-            void this.panel.webview.postMessage({
-                type: 'suggestCodeSyntaxResult',
-                syntax: result.code_syntax_name,
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            this.log(`Failed to suggest code syntax: ${message}`);
             void this.panel.webview.postMessage({
                 type: 'error',
                 message,
@@ -770,19 +276,8 @@ class DataExplorerPanel implements vscode.Disposable {
             </html>`;
     }
 
-    private log(message: string): void {
+    log(message: string): void {
         this.outputChannel.appendLine(message);
-    }
-
-    private resolveSearchSchemaSortOrder(value: unknown): SearchSchemaSortOrder {
-        if (typeof value !== 'string') {
-            return SearchSchemaSortOrder.Original;
-        }
-        const allowed = Object.values(SearchSchemaSortOrder);
-        if (allowed.includes(value as SearchSchemaSortOrder)) {
-            return value as SearchSchemaSortOrder;
-        }
-        return SearchSchemaSortOrder.Original;
     }
 
     private applyRowFilterConditionSupport(state: BackendState): void {
@@ -833,13 +328,10 @@ export class DataExplorerManager implements vscode.Disposable {
     }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null;
-}
-
 function isDataExplorerMetadata(value: unknown): boolean {
-    if (!isRecord(value)) {
+    if (typeof value !== 'object' || value === null) {
         return false;
     }
-    return typeof value.title === 'string' && value.title.length > 0;
+    const record = value as Record<string, unknown>;
+    return typeof record.title === 'string' && record.title.length > 0;
 }
