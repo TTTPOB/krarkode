@@ -1,4 +1,8 @@
 import { tick } from 'svelte';
+import * as echarts from 'echarts/core';
+import { BarChart } from 'echarts/charts';
+import { GridComponent, TitleComponent, TooltipComponent } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { uiStore, statsStore } from '../stores';
 import type {
     ColumnProfileResult,
@@ -18,7 +22,6 @@ import {
     SMALL_HISTOGRAM_MAX_BINS,
     STATS_REFRESH_DEBOUNCE_MS,
 } from '../types';
-import type { StatsChartsController } from './useStatsCharts';
 import {
     buildColumnProfileRequest,
     buildSummaryRows,
@@ -27,31 +30,40 @@ import {
     formatStatValue,
     getColumnLabel,
     mergeColumnProfiles,
+    renderFrequencyTableChart,
+    renderHistogramChart,
 } from '../utils';
+
+echarts.use([BarChart, GridComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
 type StatsControllerOptions = {
     log: (message: string, payload?: unknown) => void;
     postMessage: (message: unknown) => void;
-    statsCharts: StatsChartsController;
     getVisibleSchema: () => ColumnSchema[];
     getStatsResultsEl: () => HTMLDivElement | undefined;
+    getHistogramContainer: () => HTMLDivElement | undefined;
+    getFrequencyContainer: () => HTMLDivElement | undefined;
 };
 
 export class StatsController {
     private readonly log: (message: string, payload?: unknown) => void;
     private readonly postMessage: (message: unknown) => void;
-    private readonly statsCharts: StatsChartsController;
     private readonly getVisibleSchema: () => ColumnSchema[];
     private readonly getStatsResultsEl: () => HTMLDivElement | undefined;
+    private readonly getHistogramContainer: () => HTMLDivElement | undefined;
+    private readonly getFrequencyContainer: () => HTMLDivElement | undefined;
     private readonly statsRefreshDebouncer: Debouncer;
     private pendingStatsScrollTop: number | null = null;
+    private histogramChart: echarts.ECharts | null = null;
+    private frequencyChart: echarts.ECharts | null = null;
 
     constructor(options: StatsControllerOptions) {
         this.log = options.log;
         this.postMessage = options.postMessage;
-        this.statsCharts = options.statsCharts;
         this.getVisibleSchema = options.getVisibleSchema;
         this.getStatsResultsEl = options.getStatsResultsEl;
+        this.getHistogramContainer = options.getHistogramContainer;
+        this.getFrequencyContainer = options.getFrequencyContainer;
         this.statsRefreshDebouncer = new Debouncer(STATS_REFRESH_DEBOUNCE_MS);
     }
 
@@ -67,15 +79,39 @@ export class StatsController {
         statsStore.controlsEnabled = true;
     }
 
+    private ensureHistogramChart(): echarts.ECharts | null {
+        const container = this.getHistogramContainer();
+        if (!container) {
+            return null;
+        }
+        if (!this.histogramChart) {
+            this.histogramChart = echarts.init(container);
+            this.log('Histogram chart created');
+        }
+        return this.histogramChart;
+    }
+
+    private ensureFrequencyChart(): echarts.ECharts | null {
+        const container = this.getFrequencyContainer();
+        if (!container) {
+            return null;
+        }
+        if (!this.frequencyChart) {
+            this.frequencyChart = echarts.init(container);
+            this.log('Frequency chart created');
+        }
+        return this.frequencyChart;
+    }
+
     private clearHistogram(): void {
         statsStore.histogramVisible = false;
-        this.statsCharts.clearHistogram();
+        this.histogramChart?.clear();
     }
 
     private clearFrequency(): void {
         statsStore.frequencyVisible = false;
         statsStore.frequencyFootnote = '';
-        this.statsCharts.clearFrequency();
+        this.frequencyChart?.clear();
     }
 
     clearStatsContent(options: { preserveScrollTop?: boolean } = {}): void {
@@ -211,21 +247,33 @@ export class StatsController {
     }
 
     private renderHistogram(histogram: ColumnHistogram | undefined, columnLabel: string): void {
-        const rendered = this.statsCharts.renderHistogram(histogram, columnLabel);
+        const chart = this.ensureHistogramChart();
+        if (!chart) {
+            this.clearHistogram();
+            return;
+        }
+        const rendered = renderHistogramChart(chart, histogram, columnLabel);
         statsStore.histogramVisible = rendered;
         if (rendered) {
             this.log('Rendering histogram', { columnLabel, bins: histogram?.bin_counts?.length ?? 0 });
         } else {
+            chart.clear();
             this.clearHistogram();
         }
     }
 
     private renderFrequencyChart(frequency: ColumnFrequencyTable | undefined): void {
-        const rendered = this.statsCharts.renderFrequency(frequency);
+        const chart = this.ensureFrequencyChart();
+        if (!chart) {
+            this.clearFrequency();
+            return;
+        }
+        const rendered = renderFrequencyTableChart(chart, frequency, this.getFrequencyContainer() ?? null);
         statsStore.frequencyVisible = rendered;
         if (rendered) {
             this.log('Rendering frequency chart', { values: frequency?.values?.length ?? 0 });
         } else {
+            chart.clear();
             this.clearFrequency();
         }
     }
@@ -304,7 +352,7 @@ export class StatsController {
     toggleStatsSection(sectionId: string): void {
         uiStore.toggleSectionCollapsed(sectionId);
         requestAnimationFrame(() => {
-            this.statsCharts.resize();
+            this.resizeCharts();
         });
     }
 
@@ -351,11 +399,20 @@ export class StatsController {
             this.clearStatsContent();
         }
         requestAnimationFrame(() => {
-            this.statsCharts.resize();
+            this.resizeCharts();
         });
+    }
+
+    resizeCharts(): void {
+        this.histogramChart?.resize();
+        this.frequencyChart?.resize();
     }
 
     dispose(): void {
         this.statsRefreshDebouncer.cancel();
+        this.histogramChart?.dispose();
+        this.frequencyChart?.dispose();
+        this.histogramChart = null;
+        this.frequencyChart = null;
     }
 }

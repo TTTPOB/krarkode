@@ -1,7 +1,6 @@
 <script lang="ts">
     import { onDestroy, onMount } from 'svelte';
     import { VirtualizerManager, type VirtualRow } from './hooks/useVirtualizer';
-    import { StatsCharts } from './hooks/useStatsCharts';
     import { createMessageHandler } from './hooks/useVscodeMessages';
     import { StatsController } from './hooks/useStatsController';
     import { SchemaController } from './hooks/useSchemaController';
@@ -114,12 +113,6 @@
         log,
     });
 
-    const statsCharts = new StatsCharts({
-        getHistogramContainer: () => histogramContainer,
-        getFrequencyContainer: () => frequencyContainer,
-        log,
-    });
-
     const tableController = new TableController({
         log,
         postMessage: (message) => vscode.postMessage(message),
@@ -149,16 +142,17 @@
         setRightSpacerWidth: (value) => {
             rightSpacerWidth = value;
         },
-        onSidePanelResize: () => statsCharts.resize(),
+        onSidePanelResize: () => statsController.resizeCharts(),
         openRowFilterEditor: (filter, index, columnIndex) => rowFilterController.openRowFilterEditor(filter, index, columnIndex),
     });
 
     const statsController = new StatsController({
         log,
         postMessage: (message) => vscode.postMessage(message),
-        statsCharts,
         getVisibleSchema: () => dataStore.visibleSchema,
         getStatsResultsEl: () => statsResultsEl,
+        getHistogramContainer: () => histogramContainer,
+        getFrequencyContainer: () => frequencyContainer,
     });
 
     const rowDataController = new RowDataController({
@@ -220,7 +214,7 @@
         finishSidePanelResize: () => tableController.finishSidePanelResize(),
         handleColumnResizeEnd: () => tableController.handleColumnResizeEnd(),
         onResize: () => {
-            statsCharts.resize();
+            statsController.resizeCharts();
             updateTableAreaTop();
         },
     });
@@ -329,7 +323,6 @@
         rowDataController.dispose();
         tableController.dispose();
         virtualizer.dispose();
-        statsCharts.dispose();
     });
 
     function handleContextMenuKeydown(event: KeyboardEvent): void {
