@@ -1,8 +1,7 @@
 repo_ref
 
 # Staged binaries for VSIX packaging (build artifacts)
-/ark/
-/sidecar/
+/resources/binaries/
 
 # pixi environments
 .pixi/*

@@ -241,7 +241,7 @@ export function resolveSidecarPath(): string {
 
     const packagedTarget = getTargetPlatform();
     if (packagedTarget) {
-        const packagedPath = context.asAbsolutePath(path.join('sidecar', packagedTarget, exeName));
+        const packagedPath = context.asAbsolutePath(path.join('resources', 'binaries', packagedTarget, exeName));
         logDebug(`Checking packaged sidecar path: ${packagedPath}`);
         if (fs.existsSync(packagedPath)) {
             logDebug(`Using packaged sidecar path: ${packagedPath}`);
@@ -271,7 +271,7 @@ export function resolveSidecarPath(): string {
 
 /**
  * Resolve the Ark executable path.
- * Priority: user config → bundled binary (ark/<target>/ark) → PATH fallback.
+ * Priority: user config → bundled binary (resources/binaries/<target>/ark) → PATH fallback.
  */
 export function resolveArkPath(): string {
     const config = vscode.workspace.getConfiguration('krarkode.ark');
@@ -287,7 +287,7 @@ export function resolveArkPath(): string {
 
     const target = getTargetPlatform();
     if (target) {
-        const packagedPath = context.asAbsolutePath(path.join('ark', target, exeName));
+        const packagedPath = context.asAbsolutePath(path.join('resources', 'binaries', target, exeName));
         logDebug(`Checking packaged ark path: ${packagedPath}`);
         if (fs.existsSync(packagedPath)) {
             logDebug(`Using packaged ark path: ${packagedPath}`);

@@ -41,7 +41,7 @@ function main() {
     }
 
     const assetName = `ark-${ARK_VERSION}-${suffix}.zip`;
-    const destDir = path.resolve('ark', target);
+    const destDir = path.resolve('resources', 'binaries', target);
 
     console.log(`[download-ark] version=${ARK_VERSION}  target=${target}  asset=${assetName}`);
 

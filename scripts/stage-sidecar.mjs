@@ -60,7 +60,7 @@ function main() {
 
     // Stage binary
     const srcPath = path.join('ark-sidecar', 'target', rustTarget, profile, exeName);
-    const destDir = path.join('sidecar', target);
+    const destDir = path.join('resources', 'binaries', target);
     mkdirSync(destDir, { recursive: true });
     const destPath = path.join(destDir, exeName);
 
