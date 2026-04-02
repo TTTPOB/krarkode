@@ -79,7 +79,7 @@ export class VariablesService implements vscode.Disposable {
         const message = data;
         const method = typeof message.method === 'string' ? message.method : undefined;
         this.log(`Received comm message: method=${method ?? 'none'}, id=${message.id ?? 'none'}`);
-        this.log(`[Trace] Received comm message data: ${JSON.stringify(data)}`);
+        getLogger().log('ui', LogCategory.Variables, 'trace', `Received comm message data: ${JSON.stringify(data)}`);
 
         if (message.error) {
             const detail = JSON.stringify(message.error);
