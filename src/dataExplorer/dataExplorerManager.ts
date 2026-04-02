@@ -69,6 +69,7 @@ class DataExplorerPanel implements vscode.Disposable {
             log: (msg) => this.log(msg),
             initialize: () => this.initialize(),
         };
+        // eslint-disable-next-line @typescript-eslint/no-this-alias -- needed for getter/setter delegation in ctx
         const self = this;
         this.messageHandler = new DataExplorerMessageHandler(ctx);
 
