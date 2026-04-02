@@ -2,8 +2,6 @@
 
 VS Code extension using Ark as the R kernel.
 
-> **v0.1.0 released, ready for daily interactive use.**
-
 [中文](README.cn.md)
 
 ---
