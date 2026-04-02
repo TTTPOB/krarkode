@@ -73,7 +73,7 @@ Ark does not expose one. The comm protocol is Ark's public contract—using it m
 
 ## 4. Template-Based Session Configuration
 
-**The problem**: Users have wildly different setups—Ark installed via Positron, built from source, managed by pixi, or wrapped in a container. Console mode might use tmux, an external terminal, or a custom launcher.
+**The problem**: Users have wildly different setups—Ark installed via Positron, built from source, managed by pixi, or wrapped in a container.
 
 **The choice**: All launch commands are Go-style templates with named substitution variables:
 
@@ -88,9 +88,6 @@ Ark does not expose one. The comm protocol is Ark's public contract—using it m
 Additional template variables for path settings: `${userHome}`, `${workspaceFolder}`, `${fileWorkspaceFolder}`, `${fileDirname}`.
 
 Users override the default templates in settings to match their environment.
-
-**Why not auto-discovery?**
-Auto-discovery works for simple cases but breaks in non-standard setups (pixi environments, NixOS, Docker, remote SSH). Templates make the failure mode explicit and user-controlled.
 
 ---
 
