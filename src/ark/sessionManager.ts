@@ -463,52 +463,66 @@ export class ArkSessionManager {
         }
         fs.mkdirSync(sessionDir, { recursive: true });
 
-        const connectionFile = path.join(sessionDir, 'connection.json');
-        await this.writeConnectionFile(connectionFile);
+        await vscode.window.withProgress(
+            {
+                location: vscode.ProgressLocation.Notification,
+                title: `Creating Ark session "${sessionName}"…`,
+                cancellable: false,
+            },
+            async (progress) => {
+                const connectionFile = path.join(sessionDir, 'connection.json');
+                await this.writeConnectionFile(connectionFile);
 
-        const announceFile = path.join(sessionDir, 'announce.json');
-        const startupFile = this.resolveStartupFile(sessionName, sessionsDir);
-        this.writeStartupFile(startupFile, sessionName, announceFile);
+                const announceFile = path.join(sessionDir, 'announce.json');
+                const startupFile = this.resolveStartupFile(sessionName, sessionsDir);
+                this.writeStartupFile(startupFile, sessionName, announceFile);
 
-        const ensured = await this.ensureTmuxSession();
-        if (!ensured) {
-            return;
-        }
-        const tmuxSessionName = ensured.name;
-        const windowName = await this.createKernelWindow(ensured, sessionName, connectionFile, startupFile, selectedRBinary);
-        if (!windowName) {
-            return;
-        }
-        const tmuxWindowName = windowName;
+                progress.report({ message: 'Setting up tmux session…' });
+                const ensured = await this.ensureTmuxSession();
+                if (!ensured) {
+                    return;
+                }
+                const tmuxSessionName = ensured.name;
 
-        const entry: ArkSessionEntry = {
-            name: sessionName,
-            mode: 'tmux',
-            connectionFilePath: connectionFile,
-            tmuxSessionName,
-            tmuxWindowName,
-            rBinaryPath: selectedRBinary,
-            createdAt: nowIso(),
-            lastAttachedAt: nowIso(),
-        };
+                progress.report({ message: 'Starting R kernel…' });
+                const windowName = await this.createKernelWindow(ensured, sessionName, connectionFile, startupFile, selectedRBinary);
+                if (!windowName) {
+                    return;
+                }
+                const tmuxWindowName = windowName;
 
-        // Try to get PID from startup announce
-        const payload = await this.waitForAnnounce(announceFile, 5000);
-        if (payload?.pid) {
-            entry.pid = payload.pid;
-        }
+                const entry: ArkSessionEntry = {
+                    name: sessionName,
+                    mode: 'tmux',
+                    connectionFilePath: connectionFile,
+                    tmuxSessionName,
+                    tmuxWindowName,
+                    rBinaryPath: selectedRBinary,
+                    createdAt: nowIso(),
+                    lastAttachedAt: nowIso(),
+                };
 
-        await sessionRegistry.upsertSessionValidated(entry);
-        await this.openConsoleForEntry(entry);
+                progress.report({ message: 'Waiting for kernel announce…' });
+                // Try to get PID from startup announce
+                const payload = await this.waitForAnnounce(announceFile, 5000);
+                if (payload?.pid) {
+                    entry.pid = payload.pid;
+                }
 
-        // Show "Starting" instead of "Unknown" while sidecar connects
-        this.kernelStatus = 'starting';
-        this.updateStatusBar(entry);
+                progress.report({ message: 'Connecting…' });
+                await sessionRegistry.upsertSessionValidated(entry);
+                await this.openConsoleForEntry(entry);
 
-        // If PID wasn't captured during initial announce wait, watch for it via inotify
-        if (!entry.pid) {
-            this.watchForAnnouncePid(entry, announceFile);
-        }
+                // Show "Starting" instead of "Unknown" while sidecar connects
+                this.kernelStatus = 'starting';
+                this.updateStatusBar(entry);
+
+                // If PID wasn't captured during initial announce wait, watch for it via inotify
+                if (!entry.pid) {
+                    this.watchForAnnouncePid(entry, announceFile);
+                }
+            },
+        );
     }
 
     /**
