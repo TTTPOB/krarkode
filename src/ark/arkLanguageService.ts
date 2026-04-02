@@ -506,8 +506,9 @@ export class ArkLanguageService implements vscode.Disposable {
         if (this.client) {
             try {
                 await this.client.stop();
-            } catch {
-                // Client may already be stopped or the connection dead.
+            } catch (err) {
+                getLogger().log('lsp', LogCategory.Session, 'warn',
+                    this.formatLogMessage(`LSP client stop failed (may already be stopped): ${err}`, 'lsp'));
             }
             this.client = undefined;
         }
@@ -525,8 +526,9 @@ export class ArkLanguageService implements vscode.Disposable {
         if (this.connectionDir) {
             try {
                 fs.rmSync(this.connectionDir, { recursive: true, force: true });
-            } catch {
-                // Ignore cleanup errors.
+            } catch (err) {
+                getLogger().log('lsp', LogCategory.Session, 'warn',
+                    this.formatLogMessage(`Failed to clean up connection dir ${this.connectionDir}: ${err}`, 'lsp'));
             }
             this.connectionDir = undefined;
         }
