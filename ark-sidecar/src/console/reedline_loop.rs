@@ -68,7 +68,7 @@ fn print_banner(r_version: Option<&str>, r_binary_path: Option<&str>) {
         banner.push_str(&format!(" ({})", path));
     }
     println!("{}", banner);
-    println!("Ctrl+D to exit console (Ark session continues).");
+    println!("{}", Color::Red.paint("Ctrl+D to exit console (Ark session continues)."));
     println!();
 }
 
