@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { getLogger, LogCategory } from './logging/logger';
 import * as util from './util';
 import { collectRBinaryCandidates } from './rBinaryResolver';
 
@@ -102,7 +101,7 @@ export async function runDoctor(): Promise<void> {
     const bracketedPaste = config.get<boolean>('bracketedPaste') ?? true;
 
     // Format output
-    const output = getLogger().createChannel('doctor', LogCategory.Core);
+    const output = vscode.window.createOutputChannel('Krarkode Doctor');
     output.clear();
     output.appendLine('=== Krarkode Doctor ===');
     output.appendLine('');

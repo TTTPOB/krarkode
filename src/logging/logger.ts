@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-export type LogChannelId = 'runtime' | 'ui' | 'ark-kernel' | 'lsp' | 'sidecar' | 'doctor';
+export type LogChannelId = 'runtime' | 'ui' | 'ark-kernel' | 'lsp' | 'sidecar';
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error';
 export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
 
@@ -43,7 +43,6 @@ const CHANNELS: Record<LogChannelId, { name: string; configKey: string }> = {
     'ark-kernel': { name: 'Krarkode Kernel', configKey: 'arkKernel' },
     lsp: { name: 'Krarkode LSP', configKey: 'lsp' },
     sidecar: { name: 'Krarkode Sidecar', configKey: 'sidecar' },
-    doctor: { name: 'Krarkode Doctor', configKey: 'doctor' },
 };
 
 const DEFAULT_CHANNEL_SETTING: LogChannelSetting = 'error';
