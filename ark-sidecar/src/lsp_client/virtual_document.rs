@@ -120,7 +120,7 @@ impl DebouncedVirtualDocument {
 
     pub fn schedule_sync(self: &Arc<Self>, buffer: &str) {
         let action = {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().expect("virtual document state mutex poisoned");
             state.schedule(buffer, Instant::now(), VIRTUAL_DOCUMENT_DEBOUNCE)
         };
 
@@ -157,7 +157,7 @@ impl DebouncedVirtualDocument {
 
     async fn flush_sync(&self, buffer: &str) -> Result<()> {
         let generation = {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().expect("virtual document state mutex poisoned");
             state.flush(buffer)
         };
 
@@ -174,12 +174,12 @@ impl DebouncedVirtualDocument {
     async fn run_debounce_loop(self: Arc<Self>) {
         loop {
             let pending = {
-                let state = self.state.lock().unwrap();
+                let state = self.state.lock().expect("virtual document state mutex poisoned");
                 state.pending_snapshot()
             };
 
             let Some(pending) = pending else {
-                let mut state = self.state.lock().unwrap();
+                let mut state = self.state.lock().expect("virtual document state mutex poisoned");
                 state.finish_if_idle();
                 debug!("VirtualDocument: debounce loop finished");
                 break;
@@ -202,7 +202,7 @@ impl DebouncedVirtualDocument {
             }
 
             let should_exit = {
-                let mut state = self.state.lock().unwrap();
+                let mut state = self.state.lock().expect("virtual document state mutex poisoned");
                 state.clear_pending_if(pending.generation);
                 state.finish_if_idle()
             };
@@ -218,7 +218,7 @@ impl DebouncedVirtualDocument {
         let _send_guard = self.send_lock.lock().await;
 
         {
-            let state = self.state.lock().unwrap();
+            let state = self.state.lock().expect("virtual document state mutex poisoned");
             if !state.should_sync(generation) {
                 debug!(
                     generation = generation,
@@ -239,7 +239,7 @@ impl DebouncedVirtualDocument {
         );
         self.client.sync_document_if_changed(&buffer).await?;
 
-        let mut state = self.state.lock().unwrap();
+        let mut state = self.state.lock().expect("virtual document state mutex poisoned");
         state.mark_synced(generation);
         Ok(())
     }

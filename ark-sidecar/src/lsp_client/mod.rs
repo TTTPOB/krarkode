@@ -86,7 +86,7 @@ impl LspClient {
             .context("LSP initialized notification failed")?;
 
         // Open the console document
-        let did_open = self.document.lock().unwrap().did_open_params();
+        let did_open = self.document.lock().expect("document mutex poisoned").did_open_params();
         self.transport
             .notify("textDocument/didOpen", &did_open)
             .await
@@ -103,7 +103,7 @@ impl LspClient {
     /// Synchronize the console document if the buffer content changed.
     pub async fn sync_document_if_changed(&self, buffer: &str) -> Result<bool> {
         let did_change = {
-            let mut doc = self.document.lock().unwrap();
+            let mut doc = self.document.lock().expect("document mutex poisoned");
             doc.update_if_changed(buffer)
         };
 
@@ -137,7 +137,7 @@ impl LspClient {
         cursor_byte_offset: usize,
     ) -> Result<Option<CompletionResponse>> {
         let uri = {
-            let doc = self.document.lock().unwrap();
+            let doc = self.document.lock().expect("document mutex poisoned");
             doc.uri().clone()
         };
 

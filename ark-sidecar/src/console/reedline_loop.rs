@@ -176,13 +176,13 @@ fn print_dimmed_message(message: &str) {
 }
 
 fn recv_ui_event(shared_ui_rx: &SharedUiReceiver) -> Result<ConsoleUiEvent, std_mpsc::RecvError> {
-    shared_ui_rx.lock().unwrap().recv()
+    shared_ui_rx.lock().expect("ui event receiver mutex poisoned").recv()
 }
 
 fn try_recv_ui_event(
     shared_ui_rx: &SharedUiReceiver,
 ) -> Result<ConsoleUiEvent, std_mpsc::TryRecvError> {
-    shared_ui_rx.lock().unwrap().try_recv()
+    shared_ui_rx.lock().expect("ui event receiver mutex poisoned").try_recv()
 }
 
 fn classify_execution_event(event: ConsoleUiEvent) -> ExecutionUiAction {
@@ -228,7 +228,7 @@ pub(crate) fn run_reedline_loop(
     r_version: Option<String>,
     r_binary_path: Option<String>,
 ) {
-    let _panic_hook_lock = DISCONNECT_PANIC_HOOK_LOCK.lock().unwrap();
+    let _panic_hook_lock = DISCONNECT_PANIC_HOOK_LOCK.lock().expect("panic hook mutex poisoned");
     let previous_hook = Arc::new(std::panic::take_hook());
     let delegated_hook = Arc::clone(&previous_hook);
     std::panic::set_hook(Box::new(move |info| {
