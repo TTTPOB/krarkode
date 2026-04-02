@@ -17,7 +17,7 @@ export interface ErrorEvent {
 
 export interface KernelStatusEvent {
     event: 'kernel_status';
-    status: 'idle' | 'busy' | 'starting' | 'unknown';
+    status: 'idle' | 'busy' | 'starting' | 'unknown' | 'dead';
 }
 
 export interface AliveEvent {

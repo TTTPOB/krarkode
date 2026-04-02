@@ -2,6 +2,7 @@ mod commands;
 mod connection;
 mod console;
 mod handlers;
+mod heartbeat;
 mod logging;
 mod lsp_client;
 mod protocol;

@@ -44,7 +44,7 @@
         },
         "status": {
           "type": "string",
-          "enum": ["idle", "busy", "starting", "unknown"]
+          "enum": ["idle", "busy", "starting", "unknown", "dead"]
         }
       }
     },

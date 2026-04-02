@@ -365,6 +365,17 @@ export class ArkSidecarManager implements vscode.Disposable {
         if (msg.event === 'kernel_status') {
             const status = typeof msg.status === 'string' ? msg.status : 'unknown';
             this.outputChannel.appendLine(this.formatLogMessage(`Kernel status update: ${status}`));
+            if (status === 'dead') {
+                // Heartbeat confirmed kernel is gone — treat as kernel death
+                getLogger().log(
+                    'sidecar',
+                    LogCategory.Event,
+                    'info',
+                    this.formatLogMessage('Heartbeat confirmed kernel death; firing kernel death event.'),
+                );
+                this._onDidDetectKernelDeath.fire();
+                return;
+            }
             this.clearReconnectState('kernel_status');
             this._onDidChangeKernelStatus.fire(status);
             return;

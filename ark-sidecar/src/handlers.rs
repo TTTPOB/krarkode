@@ -12,6 +12,8 @@ use runtimelib::{
     ExecutionState, JupyterMessage, JupyterMessageContent, KernelInfoRequest,
 };
 
+use crate::heartbeat::{spawn_heartbeat_monitor, stop_heartbeat_monitor};
+
 use crate::connection::{
     create_shell_connection, send_comm_open, send_data_explorer_comm_open, send_help_comm_open,
     send_ui_comm_open, send_variables_comm_open, wait_for_comm_port, wait_for_iopub_idle,
@@ -141,12 +143,30 @@ pub(crate) async fn run_plot_watcher(
     let mut reader = BufReader::new(stdin).lines();
     let mut pending_comm_ids: HashMap<String, String> = HashMap::new();
 
+    // Heartbeat monitor: detect kernel death so the sidecar exits
+    // instead of hanging forever on iopub.read() (ZMQ PUB/SUB never
+    // signals peer disconnection).
+    let (mut heartbeat_disconnect_rx, heartbeat_handle) =
+        spawn_heartbeat_monitor(connection.clone());
+
     // We no longer wait for IOPub welcome. When attaching to an existing session,
     // the kernel might not send a welcome message, or it might have already sent it.
     // Also, waiting for it might cause us to drop other important messages (like plot data)
     // that arrive in the meantime. We just start listening.
-    loop {
+    let result: Result<()> = loop {
         tokio::select! {
+            disconnect_reason = heartbeat_disconnect_rx.recv() => {
+                if let Some(reason) = disconnect_reason {
+                    warn!(
+                        reason = %reason,
+                        "Sidecar watch-plot: heartbeat confirmed kernel disconnect"
+                    );
+                    emit_event(SidecarEvent::KernelStatus {
+                        status: "dead".to_string(),
+                    });
+                    break Ok(());
+                }
+            }
             line = reader.next_line() => {
                 match line {
                     Ok(Some(line)) => {
@@ -364,7 +384,10 @@ pub(crate) async fn run_plot_watcher(
                 }
             }
         }
-    }
+    };
+
+    stop_heartbeat_monitor(heartbeat_handle);
+    result
 }
 
 pub(crate) async fn run_check(
