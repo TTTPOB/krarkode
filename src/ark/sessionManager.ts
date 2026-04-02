@@ -500,6 +500,15 @@ export class ArkSessionManager {
 
         await sessionRegistry.upsertSessionValidated(entry);
         await this.openConsoleForEntry(entry);
+
+        // Show "Starting" instead of "Unknown" while sidecar connects
+        this.kernelStatus = 'starting';
+        this.updateStatusBar(entry);
+
+        // If PID wasn't captured during initial announce wait, watch for it via inotify
+        if (!entry.pid) {
+            this.watchForAnnouncePid(entry, announceFile);
+        }
     }
 
     /**
@@ -735,6 +744,70 @@ export class ArkSessionManager {
         }
 
         return undefined;
+    }
+
+    /**
+     * Watch for the announce file to appear via inotify (fs.watch),
+     * then recover PID and update the status bar.
+     * Falls back to tmux pane PID if announce file never appears.
+     */
+    private watchForAnnouncePid(entry: ArkSessionEntry, announceFile: string, timeoutMs = 30_000): void {
+        const sessionDir = path.dirname(announceFile);
+        const fileName = path.basename(announceFile);
+        let resolved = false;
+
+        const cleanup = () => {
+            if (resolved) {
+                return;
+            }
+            resolved = true;
+            watcher.close();
+            clearTimeout(timer);
+        };
+
+        const onFileDetected = async () => {
+            if (resolved) {
+                return;
+            }
+            cleanup();
+            const pid = await this.refreshSessionPid(entry);
+            if (pid && sessionRegistry.getActiveSessionName() === entry.name) {
+                this.outputChannel.appendLine(`Announce watcher: recovered PID ${pid} for session ${entry.name}.`);
+                this.updateStatusBar(entry);
+                this.updateStatusQuickPick();
+            }
+        };
+
+        const watcher = fs.watch(sessionDir, (_eventType, filename) => {
+            if (filename === fileName) {
+                void onFileDetected();
+            }
+        });
+
+        watcher.on('error', (err) => {
+            this.outputChannel.appendLine(`Announce watcher error for ${entry.name}: ${String(err)}`);
+            cleanup();
+        });
+
+        // Timeout: stop watching and try tmux fallback
+        const timer = setTimeout(() => {
+            if (resolved) {
+                return;
+            }
+            this.outputChannel.appendLine(`Announce watcher timed out for ${entry.name}, trying tmux fallback.`);
+            cleanup();
+            void this.refreshSessionPid(entry).then((pid) => {
+                if (pid && sessionRegistry.getActiveSessionName() === entry.name) {
+                    this.updateStatusBar(entry);
+                    this.updateStatusQuickPick();
+                }
+            });
+        }, timeoutMs);
+
+        // Edge case: file may have appeared between waitForAnnounce timeout and watcher setup
+        if (fs.existsSync(announceFile)) {
+            void onFileDetected();
+        }
     }
 
     private async interruptSessionEntry(entry: ArkSessionEntry): Promise<void> {
