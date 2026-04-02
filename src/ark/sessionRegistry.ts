@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as util from '../util';
 import { getExtensionContext } from '../context';
-import { getTmuxSessionName, listTmuxWindows } from './tmuxUtil';
+import { getTmuxSessionName, listTmuxWindows, tmuxHasSession } from './tmuxUtil';
 import { getLogger, LogCategory } from '../logging/logger';
 
 export type ArkConsoleDriver = 'tmux';
@@ -121,16 +121,28 @@ export async function loadRegistryValidated(): Promise<ArkSessionEntry[]> {
     const tmuxSessionName = getTmuxSessionName();
     const aliveWindows = await listTmuxWindows(tmuxSessionName);
 
-    // If tmux query returned nothing but we have tmux entries, the tmux
-    // session itself may be down.  Don't prune — we'd wipe the entire registry.
+    // If tmux returned no windows, check whether the tmux session itself
+    // still exists.  If the session is gone (e.g. last kernel exited via
+    // q()), all tmux entries are dead and should be pruned.  Only skip
+    // pruning when the session exists but we got an unexpected empty list.
     if (aliveWindows.length === 0) {
+        const sessionExists = await tmuxHasSession(tmuxSessionName);
+        if (sessionExists) {
+            getLogger().log(
+                'runtime',
+                LogCategory.Session,
+                'warn',
+                'tmux session exists but returned no windows; skipping registry pruning to avoid data loss.',
+            );
+            return entries;
+        }
         getLogger().log(
             'runtime',
             LogCategory.Session,
-            'warn',
-            'tmux returned no windows; skipping registry pruning to avoid data loss.',
+            'info',
+            'tmux session is gone; pruning all tmux entries from registry.',
         );
-        return entries;
+        // Fall through — aliveSet is empty so all tmux entries will be pruned
     }
 
     const aliveSet = new Set(aliveWindows);
