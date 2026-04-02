@@ -527,18 +527,31 @@ export class PlotManager implements vscode.Disposable {
     }
 
     private renderSmallPlot(plot: PlotEntry, isActive: boolean): string {
-        return `<div class="wrapper${isActive ? ' active' : ''}" data-plot-id="${plot.id}">
+        const escapedId = PlotManager.escapeAttr(plot.id);
+        return `<div class="wrapper${isActive ? ' active' : ''}" data-plot-id="${escapedId}">
     <div class="plotContent">${this.plotToHtml(plot)}</div>
     <button class="hidePlot" title="Hide plot">×</button>
 </div>`;
+    }
+
+    private static readonly ALLOWED_MIME_TYPES = new Set([
+        'image/png',
+        'image/svg+xml',
+        'image/jpeg',
+        'image/gif',
+    ]);
+
+    private static escapeAttr(value: string): string {
+        return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     private plotToHtml(plot: PlotEntry): string {
         if (!plot.base64Data) {
             return '<div class="no-plot">Rendering plot...</div>';
         }
-        const dataUri = `data:${plot.mimeType};base64,${plot.base64Data}`;
-        return `<img src="${dataUri}" alt="Plot ${plot.id}">`;
+        const mime = PlotManager.ALLOWED_MIME_TYPES.has(plot.mimeType) ? plot.mimeType : 'image/png';
+        const dataUri = `data:${mime};base64,${plot.base64Data}`;
+        return `<img src="${PlotManager.escapeAttr(dataUri)}" alt="${PlotManager.escapeAttr(`Plot ${plot.id}`)}">`;
     }
 
     private focusPlotByIndex(index: number): void {
