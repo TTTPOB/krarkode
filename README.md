@@ -2,6 +2,8 @@
 
 VS Code extension using Ark as the R kernel.
 
+> **Supported platforms: Linux (x64, arm64) and macOS (x64, arm64). Windows is not supported** — this extension relies on `tmux` for session management, which is not available on Windows.
+
 [中文](README.cn.md)
 
 ---

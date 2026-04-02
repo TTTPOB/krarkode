@@ -2,6 +2,8 @@
 
 使用 Ark 作为内核的 VS Code R 扩展。
 
+> **支持平台：Linux (x64, arm64) 和 macOS (x64, arm64)。不支持 Windows** — 本扩展依赖 `tmux` 进行会话管理，Windows 上不可用。
+
 [English](README.md)
 
 ---
