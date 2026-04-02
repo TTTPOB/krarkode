@@ -40,7 +40,7 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 - Source file with optional echo (`Ctrl+Shift+S`)
 - Run from line to end / beginning to line
 - Smart multi-line detection via Ark LSP's `statementRange` query
-- Quick-inspect: `nrow()`, `length()`, `head()`, `names()`, `View()`
+- Quick-inspect: `nrow()`, `length()`, `head()`, `t(head())`, `names()`, `View()`
 
 ### Language Server
 
@@ -57,6 +57,7 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 ### Help Browser
 
 - R help viewer inside VS Code with back/forward/home navigation
+- In-panel search
 - `F1` at cursor looks up the function under point
 - `Ctrl+Shift+H` to open
 
@@ -76,9 +77,19 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 
 - Displays `show_html_file` output: htmlwidgets, R Markdown, etc.
 
+### Pixi Environment Support
+
+- Auto-discovers R binaries from `pixi.toml` in workspace or configured path
+- Multi-candidate R binary picker when creating sessions
+
+### Logging
+
+- 5 independent output channels: Runtime, UI, Ark Kernel, LSP, Sidecar
+- Per-channel log level configuration (none / error / warn / info / debug / trace)
+
 ### Doctor
 
-- `Krarkode: Doctor` command checks R binary, Ark binary, sidecar, and connection health
+- `Krarkode: Doctor` command checks R binary, Ark binary, sidecar, tmux, and Pixi environment status
 
 ---
 
@@ -95,6 +106,8 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 | Variables panel | ✅ |
 | Data explorer (sort, filter, stats, virtual scroll) | ✅ |
 | HTML viewer | ✅ |
+| Pixi environment support | ✅ |
+| Logging (5 independent channels) | ✅ |
 | Doctor diagnostics | ✅ |
 | Console mode — tmux driver | ✅ |
 | Console mode — external terminal driver | ✅ |
@@ -106,31 +119,45 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 
 - **Ark** binary — build from [posit-dev/ark](https://github.com/posit-dev/ark) or extract from a [Positron](https://github.com/posit-dev/positron) release
 - **R** 4.1+ (no additional R packages required for Ark session management)
-- **tmux** — used for session management
+- **tmux** — used for session management (tmux driver mode only)
 
 ---
 
 ## Configuration
 
 | Setting | Default | Description |
-|---------|---------|-------------|
-| `krarkode.r.rBinaryPath` | `R` | R executable path |
-| `krarkode.ark.path` | `ark` | Ark executable path |
+|---|---|---|
+| `krarkode.r.binaryPath` | `[]` | R executable path(s), string or array; leave empty to auto-detect |
+| `krarkode.pixi.manifestPath` | `""` | Path to `pixi.toml` for R environment discovery |
+| `krarkode.ark.path` | `""` | Ark executable path; leave empty for bundled or PATH |
+| `krarkode.ark.logLevel` | `inherit` | Ark backend log level (inherit / error / warn / info / debug / trace) |
 | `krarkode.ark.console.driver` | `tmux` | Console driver: `tmux` or `external` |
-| `krarkode.ark.console.commandTemplate` | — | Console launch command template |
-| `krarkode.ark.kernel.commandTemplate` | — | Ark kernel launch command template |
-| `krarkode.ark.kernel.startupFileTemplate` | — | Startup R script path template |
-| `krarkode.ark.sidecar.path` | bundled | Sidecar binary path |
-| `krarkode.ark.sidecar.timeoutMs` | `10000` | Sidecar startup timeout (ms) |
+| `krarkode.ark.console.commandTemplate` | `{sidecarPath} console --connection-file {connectionFile}` | Console launch command template |
+| `krarkode.ark.kernel.commandTemplate` | `{arkPath} --connection_file {connectionFile} --session-mode console --startup-file {startupFile}` | Ark kernel launch command template |
+| `krarkode.ark.kernel.startupFileTemplate` | `{sessionsDir}/{name}/init-ark.R` | Startup R script path template |
+| `krarkode.ark.sidecar.path` | `""` | Sidecar binary path; leave empty for bundled |
+| `krarkode.ark.sidecar.timeoutMs` | `30000` | Sidecar startup timeout (ms) |
+| `krarkode.ark.sidecar.ipAddress` | `127.0.0.1` | IP address for sidecar / LSP connections |
 | `krarkode.ark.lsp.enabled` | `true` | Enable Ark LSP |
 | `krarkode.ark.lsp.timeoutMs` | `15000` | LSP startup timeout (ms) |
-| `krarkode.plot.viewColumn` | `Two` | Plot panel column (or `disable`) |
+| `krarkode.ark.tmux.path` | `tmux` | tmux executable path |
+| `krarkode.ark.tmux.manageKernel` | `true` | Auto-start Ark kernel inside tmux |
+| `krarkode.plot.viewColumn` | `Two` | Plot panel column (Active / Beside / One / Two / Three / Disable) |
 | `krarkode.plot.maxHistory` | `50` | Maximum cached plots |
-| `krarkode.html.viewColumn` | `Two` | HTML viewer panel column |
+| `krarkode.html.viewColumn` | `Two` | HTML viewer panel column (Active / Beside / One / Two / Three) |
+| `krarkode.source.encoding` | `UTF-8` | Encoding used for source() |
 | `krarkode.source.echo` | `false` | Echo sourced code to console |
 | `krarkode.terminal.bracketedPaste` | `true` | Use bracketed paste for terminal sends |
+| `krarkode.terminal.sendDelay` | `8` | Per-line send delay (ms); only used when bracketedPaste is disabled |
+| `krarkode.logging.runtime` | `error` | Runtime channel log level (session lifecycle, kernel startup, code execution) |
+| `krarkode.logging.ui` | `error` | UI channel log level (plots, variables, data explorer, help, HTML) |
+| `krarkode.logging.arkKernel` | `none` | Kernel channel log level (Ark kernel stdout/stderr) |
+| `krarkode.logging.lsp` | `error` | LSP channel log level |
+| `krarkode.logging.sidecar` | `error` | Sidecar channel log level |
 
-Template variables available in command templates: `{arkPath}`, `{connectionFile}`, `{startupFile}`, `{sessionsDir}`, `{name}`
+Template variables available in command templates: `{sidecarPath}`, `{arkPath}`, `{connectionFile}`, `{startupFile}`, `{sessionsDir}`, `{name}`
+
+Path settings support VS Code variable substitution: `${workspaceFolder}`, `${userHome}`, etc.
 
 ---
 
@@ -142,10 +169,6 @@ cargo build --release --manifest-path ark-sidecar/Cargo.toml
 
 # Build
 pnpm run build
-
-# Watch (separate terminals)
-pnpm run watch:extension
-pnpm run watch:data-explorer
 
 # Quality
 pnpm run typecheck && pnpm run lint && pnpm run test:unit

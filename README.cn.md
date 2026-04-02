@@ -40,7 +40,7 @@
 - Source 文件，可选回显（`Ctrl+Shift+S`）
 - 从当前行运行到末尾 / 从开头运行到当前行
 - 基于 Ark LSP `statementRange` 的智能多行表达式检测
-- 快捷检查：`nrow()`、`length()`、`head()`、`names()`、`View()`
+- 快捷检查：`nrow()`、`length()`、`head()`、`t(head())`、`names()`、`View()`
 
 ### 语言服务器
 
@@ -57,6 +57,7 @@
 ### Help 面板
 
 - VS Code 内置 R 帮助查看器，支持前进/后退/主页导航
+- 面板内搜索
 - `F1` 查找光标处函数的帮助文档
 - `Ctrl+Shift+H` 打开
 
@@ -76,9 +77,19 @@
 
 - 显示 `show_html_file` 输出：htmlwidgets、R Markdown 等
 
+### Pixi 环境支持
+
+- 从工作区或指定路径的 `pixi.toml` 自动发现 R 二进制
+- 创建会话时多候选 R 二进制选择器
+
+### 日志系统
+
+- 5 个独立输出通道：Runtime、UI、Ark Kernel、LSP、Sidecar
+- 每个通道可独立配置日志级别（none / error / warn / info / debug / trace）
+
 ### 环境诊断
 
-- `Krarkode: Doctor` 命令检查 R 二进制、Ark 二进制、sidecar 及连接状态
+- `Krarkode: Doctor` 命令检查 R 二进制、Ark 二进制、sidecar、tmux 及 Pixi 环境状态
 
 ---
 
@@ -95,10 +106,11 @@
 | 变量面板                         | ✅                    |
 | Data Explorer（排序、过滤、统计、虚拟滚动） | ✅                    |
 | HTML 查看器                     | ✅                    |
+| Pixi 环境支持                    | ✅                    |
+| 日志系统（5 通道独立配置）               | ✅                    |
 | 环境诊断                         | ✅                    |
 | Console 模式 — tmux 驱动         | ✅                    |
 | Console 模式 — 外部终端驱动          | ✅                    |
-| Notebook / 后台会话模式            | ❌ 不考虑实现              |
 | 调试器集成                        | ❌ 将来如果有 DAP 集成的话可以考虑 |
 
 ---
@@ -107,31 +119,45 @@
 
 - **Ark** 二进制 — 从 [posit-dev/ark](https://github.com/posit-dev/ark) 编译，或从 [Positron](https://github.com/posit-dev/positron) 发布包中提取
 - **R** 4.1+（Ark session 管理不需要额外安装 R 包）
-- **tmux** — 用来做会话管理
+- **tmux** — 用来做会话管理（仅 tmux 驱动模式需要）
 
 ---
 
 ## 配置项
 
-| 配置项                                       | 默认值       | 说明                             |
-| ----------------------------------------- | --------- | ------------------------------ |
-| `krarkode.r.rBinaryPath`                  | `R`       | R 可执行文件路径                      |
-| `krarkode.ark.path`                       | `ark`     | Ark 可执行文件路径                    |
-| `krarkode.ark.console.driver`             | `tmux`    | Console 驱动：`tmux` 或 `external` |
-| `krarkode.ark.console.commandTemplate`    | —         | Console 启动命令模板                 |
-| `krarkode.ark.kernel.commandTemplate`     | —         | Ark 内核启动命令模板                   |
-| `krarkode.ark.kernel.startupFileTemplate` | —         | 启动 R 脚本路径模板                    |
-| `krarkode.ark.sidecar.path`               | 内置        | Sidecar 二进制路径                  |
-| `krarkode.ark.sidecar.timeoutMs`          | `10000`   | Sidecar 启动超时（毫秒）               |
-| `krarkode.ark.lsp.enabled`                | `true`    | 是否启用 Ark LSP                   |
-| `krarkode.ark.lsp.timeoutMs`              | `15000`   | LSP 启动超时（毫秒）                   |
-| `krarkode.plot.viewColumn`                | `Two`     | Plot 面板位置（或 `disable`）         |
-| `krarkode.plot.maxHistory`                | `50`      | 最大 Plot 缓存数量                   |
-| `krarkode.html.viewColumn`                | `Two`     | HTML 查看器面板位置                   |
-| `krarkode.source.echo`                    | `false`   | Source 文件时是否回显代码               |
-| `krarkode.terminal.bracketedPaste`        | `true`    | 终端发送是否使用 bracketed paste       |
+| 配置项 | 默认值 | 说明 |
+|---|---|---|
+| `krarkode.r.binaryPath` | `[]` | R 可执行文件路径，字符串或数组，留空自动检测 |
+| `krarkode.pixi.manifestPath` | `""` | `pixi.toml` 路径，用于 R 环境发现 |
+| `krarkode.ark.path` | `""` | Ark 可执行文件路径，留空使用内置或 PATH |
+| `krarkode.ark.logLevel` | `inherit` | Ark 后端日志级别（inherit / error / warn / info / debug / trace） |
+| `krarkode.ark.console.driver` | `tmux` | Console 驱动：`tmux` 或 `external` |
+| `krarkode.ark.console.commandTemplate` | `{sidecarPath} console --connection-file {connectionFile}` | Console 启动命令模板 |
+| `krarkode.ark.kernel.commandTemplate` | `{arkPath} --connection_file {connectionFile} --session-mode console --startup-file {startupFile}` | Ark 内核启动命令模板 |
+| `krarkode.ark.kernel.startupFileTemplate` | `{sessionsDir}/{name}/init-ark.R` | 启动 R 脚本路径模板 |
+| `krarkode.ark.sidecar.path` | `""` | Sidecar 二进制路径，留空使用内置 |
+| `krarkode.ark.sidecar.timeoutMs` | `30000` | Sidecar 启动超时（毫秒） |
+| `krarkode.ark.sidecar.ipAddress` | `127.0.0.1` | Sidecar / LSP 连接 IP 地址 |
+| `krarkode.ark.lsp.enabled` | `true` | 是否启用 Ark LSP |
+| `krarkode.ark.lsp.timeoutMs` | `15000` | LSP 启动超时（毫秒） |
+| `krarkode.ark.tmux.path` | `tmux` | tmux 可执行文件路径 |
+| `krarkode.ark.tmux.manageKernel` | `true` | 是否在 tmux 中自动启动 Ark 内核 |
+| `krarkode.plot.viewColumn` | `Two` | Plot 面板位置（Active / Beside / One / Two / Three / Disable） |
+| `krarkode.plot.maxHistory` | `50` | 最大 Plot 缓存数量 |
+| `krarkode.html.viewColumn` | `Two` | HTML 查看器面板位置（Active / Beside / One / Two / Three） |
+| `krarkode.source.encoding` | `UTF-8` | Source 文件编码 |
+| `krarkode.source.echo` | `false` | Source 文件时是否回显代码 |
+| `krarkode.terminal.bracketedPaste` | `true` | 终端发送是否使用 bracketed paste |
+| `krarkode.terminal.sendDelay` | `8` | 逐行发送延迟（毫秒），仅在 bracketedPaste 禁用时生效 |
+| `krarkode.logging.runtime` | `error` | Runtime 通道日志级别（会话生命周期、内核启动、代码执行） |
+| `krarkode.logging.ui` | `error` | UI 通道日志级别（Plot、变量、Data Explorer、Help、HTML） |
+| `krarkode.logging.arkKernel` | `none` | Kernel 通道日志级别（Ark 内核 stdout/stderr） |
+| `krarkode.logging.lsp` | `error` | LSP 通道日志级别 |
+| `krarkode.logging.sidecar` | `error` | Sidecar 通道日志级别 |
 
-命令模板中可用的变量：`{arkPath}`、`{connectionFile}`、`{startupFile}`、`{sessionsDir}`、`{name}`
+命令模板中可用的变量：`{sidecarPath}`、`{arkPath}`、`{connectionFile}`、`{startupFile}`、`{sessionsDir}`、`{name}`
+
+路径类配置支持 `${workspaceFolder}`、`${userHome}` 等 VS Code 变量替换。
 
 ---
 
@@ -143,10 +169,6 @@ cargo build --release --manifest-path ark-sidecar/Cargo.toml
 
 # 构建
 pnpm run build
-
-# 监听模式（分开终端运行）
-pnpm run watch:extension
-pnpm run watch:data-explorer
 
 # 质量检查
 pnpm run typecheck && pnpm run lint && pnpm run test:unit
