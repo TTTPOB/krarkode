@@ -21,6 +21,7 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+      - uses: prefix-dev/setup-pixi@v0.9.4
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
