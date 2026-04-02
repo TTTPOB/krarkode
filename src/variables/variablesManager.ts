@@ -3,15 +3,16 @@ import { VariablesService } from './variablesService';
 import { VariablesEvent } from './protocol';
 import { getNonce } from '../util';
 
-export class VariablesManager implements vscode.WebviewViewProvider {
+export class VariablesManager implements vscode.WebviewViewProvider, vscode.Disposable {
     public static readonly viewType = 'krarkodeVariables';
     private _view?: vscode.WebviewView;
+    private readonly disposables: vscode.Disposable[] = [];
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
         private readonly _service: VariablesService,
     ) {
-        _service.onDidReceiveUpdate((e) => this.updateView(e));
+        this.disposables.push(_service.onDidReceiveUpdate((e) => this.updateView(e)));
     }
 
     public resolveWebviewView(
@@ -28,7 +29,7 @@ export class VariablesManager implements vscode.WebviewViewProvider {
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-        webviewView.webview.onDidReceiveMessage((data) => {
+        this.disposables.push(webviewView.webview.onDidReceiveMessage((data) => {
             switch (data.type) {
                 case 'ready':
                     this.updateView({
@@ -47,7 +48,7 @@ export class VariablesManager implements vscode.WebviewViewProvider {
                     this._service.refresh();
                     break;
             }
-        });
+        }));
 
         // Initial state is sent when the webview signals ready.
     }
@@ -56,6 +57,13 @@ export class VariablesManager implements vscode.WebviewViewProvider {
         if (this._view) {
             this._view.webview.postMessage({ type: 'update', event });
         }
+    }
+
+    dispose() {
+        for (const d of this.disposables) {
+            d.dispose();
+        }
+        this.disposables.length = 0;
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {
