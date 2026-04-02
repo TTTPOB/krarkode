@@ -25,6 +25,7 @@ See [docs/design.md](docs/design.md) for design rationale.
 ---
 
 ## Features (v0.1.0)
+![screenshot](docs/media/screenshot.webp)
 
 ### Session Management
 

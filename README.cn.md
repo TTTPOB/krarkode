@@ -23,6 +23,7 @@
 ---
 
 ## 功能（v0.1.0）
+![截图](docs/media/screenshot.webp)
 
 ### 会话管理
 
