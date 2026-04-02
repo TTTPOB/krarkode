@@ -481,8 +481,13 @@ export class ArkLanguageService implements vscode.Disposable {
             return;
         }
         const setting = getLogChannelSetting('lsp');
-        const traceLevel = setting === 'debug' ? Trace.Verbose : Trace.Off;
+        const traceLevel = (setting === 'debug' || setting === 'trace') ? Trace.Verbose : Trace.Off;
         void this.client.setTrace(traceLevel);
+        getLogger().debug(
+            'lsp',
+            LogCategory.Logging,
+            this.formatLogMessage(`LSP trace resolved: setting="${setting}" → ${traceLevel === Trace.Verbose ? 'Verbose' : 'Off'}`, 'lsp'),
+        );
         if (traceLevel === Trace.Verbose) {
             getLogger().debug(
                 'lsp',
