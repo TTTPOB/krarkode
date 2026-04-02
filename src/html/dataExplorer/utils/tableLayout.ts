@@ -2,8 +2,9 @@
  * Table layout helpers for Data Explorer.
  */
 
-import type { ColumnSchema } from '../types';
+import type { BackendState, ColumnSchema } from '../types';
 import { COLUMN_WIDTH, MIN_COLUMN_WIDTH, ROW_LABEL_WIDTH } from '../types';
+import { isColumnNamed } from './statsFormatters';
 
 export interface RenderColumn {
     column: ColumnSchema;
@@ -141,4 +142,24 @@ export function computeColumnWindow(options: {
         endIndex,
         windowKey: `${startIndex}-${endIndex}-${leftSpacerWidth}-${rightSpacerWidth}`,
     };
+}
+
+export function buildTableMetaText(
+    backendState: BackendState | null,
+    visibleSchema: ColumnSchema[],
+    fullSchema: ColumnSchema[],
+): string {
+    if (!backendState) {
+        return '';
+    }
+    const { num_rows } = backendState.table_shape;
+    const num_columns = visibleSchema.length;
+    const { num_rows: rawRows, num_columns: rawColumns } = backendState.table_unfiltered_shape;
+    const filteredText =
+        num_rows !== rawRows || num_columns !== rawColumns ? ` (${rawRows}x${rawColumns} raw)` : '';
+    const unnamedCount = fullSchema.filter((column) => !isColumnNamed(column)).length;
+    const unnamedText = unnamedCount
+        ? ` - ${unnamedCount === fullSchema.length ? 'No column names' : `${unnamedCount} unnamed columns`}`
+        : '';
+    return `${num_rows}x${num_columns}${filteredText}${unnamedText}`;
 }

@@ -1,39 +1,44 @@
+import { type ColumnDef, type Table, createTable, getCoreRowModel } from '@tanstack/table-core';
 import { dataStore, uiStore } from '../stores';
-import type { ColumnFilter, ColumnSchema, StatsMessageState } from '../types';
+import type { BackendState, ColumnFilter, ColumnSchema, StatsMessageState } from '../types';
 import { COLUMN_WIDTH } from '../types';
-import { isColumnFilterSupported as checkColumnFilterSupported, resolveSchemaMatches, resolveVisibleSchema, Debouncer } from '../utils';
+import { isColumnFilterSupported as checkColumnFilterSupported, getColumnLabel, resolveSchemaMatches, resolveVisibleSchema, Debouncer } from '../utils';
 
 type SchemaControllerOptions = {
     log: (message: string, payload?: unknown) => void;
     postMessage: (message: unknown) => void;
-    setupTable: () => void;
     updateVirtualizer: () => void;
     requestInitialBlock: () => void;
     scheduleTableLayoutDiagnostics: (stage: string) => void;
     setStatsMessage: (message: string, stateValue: StatsMessageState) => void;
     clearStatsContent: () => void;
+    getRowLabel: (rowIndex: number) => string;
+    getCellValue: (rowIndex: number, columnIndex: number) => string;
 };
 
 export class SchemaController {
     private readonly log: (message: string, payload?: unknown) => void;
     private readonly postMessage: (message: unknown) => void;
-    private readonly setupTable: () => void;
     private readonly updateVirtualizer: () => void;
     private readonly requestInitialBlock: () => void;
     private readonly scheduleTableLayoutDiagnostics: (stage: string) => void;
     private readonly setStatsMessage: (message: string, stateValue: StatsMessageState) => void;
     private readonly clearStatsContent: () => void;
+    private readonly getRowLabel: (rowIndex: number) => string;
+    private readonly getCellValue: (rowIndex: number, columnIndex: number) => string;
     private readonly columnSearchDebouncer = new Debouncer(250);
+    private tableInstance: Table<{ index: number }> | null = null;
 
     constructor(options: SchemaControllerOptions) {
         this.log = options.log;
         this.postMessage = options.postMessage;
-        this.setupTable = options.setupTable;
         this.updateVirtualizer = options.updateVirtualizer;
         this.requestInitialBlock = options.requestInitialBlock;
         this.scheduleTableLayoutDiagnostics = options.scheduleTableLayoutDiagnostics;
         this.setStatsMessage = options.setStatsMessage;
         this.clearStatsContent = options.clearStatsContent;
+        this.getRowLabel = options.getRowLabel;
+        this.getCellValue = options.getCellValue;
     }
 
     private isColumnFilterSupported(): boolean {
@@ -51,6 +56,66 @@ export class SchemaController {
             dataStore.hiddenColumnIndices,
             this.isSetColumnFiltersSupported(),
         );
+    }
+
+    // --- Table setup (merged from TableSetupController) ---
+
+    private getBackendState(): BackendState | null {
+        return dataStore.backendState;
+    }
+
+    private buildColumnDefs(): ColumnDef<{ index: number }>[] {
+        const columns: ColumnDef<{ index: number }>[] = [];
+        const backendState = this.getBackendState();
+
+        columns.push({
+            id: 'row-label',
+            header: backendState?.has_row_labels ? '#' : 'Row',
+            accessorFn: (row) => this.getRowLabel(row.index),
+        });
+
+        const schema = dataStore.visibleSchema;
+        for (let i = 0; i < schema.length; i++) {
+            const column = schema[i];
+            const schemaIndex = i;
+            columns.push({
+                id: `col-${column.column_index}`,
+                header: getColumnLabel(column),
+                accessorFn: (row) => this.getCellValue(row.index, schemaIndex),
+            });
+        }
+
+        return columns;
+    }
+
+    private setupTable(): void {
+        const backendState = this.getBackendState();
+        if (!backendState) {
+            return;
+        }
+
+        const rowCount = backendState.table_shape.num_rows;
+        const rowData = Array.from({ length: rowCount }, (_, index) => ({ index }));
+        const columns = this.buildColumnDefs();
+
+        if (!this.tableInstance) {
+            this.tableInstance = createTable<{ index: number }>({
+                data: rowData,
+                columns,
+                getCoreRowModel: getCoreRowModel(),
+                state: {},
+                onStateChange: () => undefined,
+                renderFallbackValue: '',
+            });
+        } else {
+            this.tableInstance.setOptions((prev) => ({
+                ...prev,
+                data: rowData,
+                columns,
+            }));
+        }
+
+        this.log('Table setup complete', { rowCount, columnCount: columns.length });
     }
 
     applySchemaUpdate(nextSchema: ColumnSchema[]): void {

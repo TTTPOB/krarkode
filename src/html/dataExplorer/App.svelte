@@ -8,7 +8,6 @@
     import { TableController } from './hooks/useTableLayoutController';
     import { RowDataController } from './hooks/useRowDataController';
     import { WindowEventsController } from './hooks/useWindowEventsController';
-    import { TableSetupController } from './hooks/useTableSetupController';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -37,6 +36,7 @@
         createRowFilterDraft,
         computeDisplayedColumns,
         resolveColumnWidth,
+        buildTableMetaText,
     } from './utils';
 
     const vscode = getVsCodeApi();
@@ -78,7 +78,7 @@
     let leftSpacerWidth = $state(0);
     let rightSpacerWidth = $state(0);
     let tableMetaError = $state('');
-    const tableMetaText = $derived(tableMetaError || tableSetupController.buildTableMetaText());
+    const tableMetaText = $derived(tableMetaError || buildTableMetaText(dataStore.backendState, dataStore.visibleSchema, dataStore.fullSchema));
 
     // Derived values
     const resolvedColumnWidths = $derived(dataStore.visibleSchema.map((column) => resolveColumnWidth(dataStore.columnWidths.get(column.column_index))));
@@ -165,22 +165,16 @@
         measureVirtualizer: () => virtualizer.measure(),
     });
 
-    const tableSetupController = new TableSetupController({
-        log,
-        getRowLabel: (rowIndex, version) => rowDataController.getRowLabel(rowIndex, version),
-        getCellValue: (rowIndex, columnIndex, version) => rowDataController.getCellValue(rowIndex, columnIndex, version),
-        getColumnLabel,
-    });
-
     const schemaController = new SchemaController({
         log,
         postMessage: (message) => vscode.postMessage(message),
-        setupTable: () => tableSetupController.setupTable(),
         updateVirtualizer: () => virtualizer.update(),
         requestInitialBlock: () => rowDataController.requestInitialBlock(),
         scheduleTableLayoutDiagnostics: (stage) => tableController.scheduleTableLayoutDiagnostics(stage),
         setStatsMessage: (message, state) => statsController.setStatsMessage(message, state),
         clearStatsContent: () => statsController.clearStatsContent(),
+        getRowLabel: (rowIndex) => rowDataController.getRowLabel(rowIndex),
+        getCellValue: (rowIndex, columnIndex) => rowDataController.getCellValue(rowIndex, columnIndex),
     });
 
     const rowFilterController = new RowFilterController({
