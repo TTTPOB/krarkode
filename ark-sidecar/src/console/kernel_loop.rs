@@ -185,7 +185,8 @@ pub(crate) async fn run_kernel_loop(
                         );
 
                         // Check if this message belongs to our current execution
-                        let is_our_exec = current_exec_msg_id.as_deref() == parent_msg_id;
+                        let is_our_exec = current_exec_msg_id.is_some()
+                            && current_exec_msg_id.as_deref() == parent_msg_id;
 
                         // Handle status changes
                         if let JupyterMessageContent::Status(status) = &message.content {
@@ -332,6 +333,36 @@ fn is_transport_disconnect_error(err_text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn none_exec_id_does_not_match_none_parent() {
+        let current_exec_msg_id: Option<String> = None;
+        let parent_msg_id: Option<&str> = None;
+        let is_our_exec =
+            current_exec_msg_id.is_some() && current_exec_msg_id.as_deref() == parent_msg_id;
+        assert!(
+            !is_our_exec,
+            "None exec_msg_id must not match None parent_msg_id"
+        );
+    }
+
+    #[test]
+    fn matching_exec_id_matches_parent() {
+        let current_exec_msg_id: Option<String> = Some("msg-123".to_string());
+        let parent_msg_id: Option<&str> = Some("msg-123");
+        let is_our_exec =
+            current_exec_msg_id.is_some() && current_exec_msg_id.as_deref() == parent_msg_id;
+        assert!(is_our_exec);
+    }
+
+    #[test]
+    fn some_exec_id_does_not_match_none_parent() {
+        let current_exec_msg_id: Option<String> = Some("msg-123".to_string());
+        let parent_msg_id: Option<&str> = None;
+        let is_our_exec =
+            current_exec_msg_id.is_some() && current_exec_msg_id.as_deref() == parent_msg_id;
+        assert!(!is_our_exec);
+    }
 
     #[test]
     fn transport_disconnect_error_matches_known_patterns() {
