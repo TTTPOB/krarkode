@@ -1,8 +1,6 @@
 # Krarkode
 
-面向 Ark 内核的 VS Code 扩展，在原生 VS Code 中复现接近 Positron 的 R 开发体验。
-
-> **v0.1.0 发布，可以满足交互式日常使用。**
+使用 Ark 作为内核的 VS Code R 扩展。
 
 [English](README.md)
 
@@ -14,7 +12,7 @@
 
 [Ark](https://github.com/posit-dev/ark) 是 Posit 开发的全功能 R 内核，内置 LSP 服务器、Jupyter comm 协议支持与绘图设备。然而，在原生 VS Code 中直接使用 Ark 目前并不可行——它只能在 [Positron](https://github.com/posit-dev/positron)（Posit 基于 Electron 开发的 IDE）中工作。
 
-这就是我写 Krarkode 的原因：将 Ark 的 R 内核体验带入 VS Code。这个项目带有强烈的个人偏好；大部分设计决策服务于我自己的工作流，而非通用场景。我是一名生物信息学研究者，主要用 R 做数据分析和可视化，而非包开发。我完全不使用 R Markdown。因此包开发和 R Markdown 相关功能目前不在范围内。
+这就是我写 Krarkode 的原因：将 Ark 的 R 内核体验带入 VS Code。这个项目带有强烈的个人偏好；大部分设计决策服务于我自己的工作流，而非通用场景。我是一名生物信息学研究者，主要用 R 做数据分析和可视化，不做包开发也不喜欢用 R Markdown，所以这两个场景我都不打算覆盖。
 
 由于时间有限，我选择将多个现有工具拼合在一起（会话管理甚至直接用的 `tmux`），这些实现方式谈不上优雅，但反正能用。大部分代码借助了 `Claude Code` 和 `Codex` 生成。但我在设计层面投入了足够的人类智慧，对 AI 的参与并不感到羞愧。
 

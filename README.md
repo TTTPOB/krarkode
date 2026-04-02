@@ -1,6 +1,6 @@
 # Krarkode
 
-A focused VS Code extension that brings Positron-quality Ark kernel integration to vanilla VS Code.
+VS Code extension using Ark as the R kernel.
 
 > **v0.1.0 released, ready for daily interactive use.**
 
@@ -14,7 +14,7 @@ Previously, the go-to choice for using R in VS Code was the [vscode-R extension]
 
 [Ark](https://github.com/posit-dev/ark) is a full-featured R kernel built by Posit. It ships with an LSP server, Jupyter comm protocol support, and a built-in plot device. However, using Ark natively in VS Code is currently not possible — it only works in [Positron](https://github.com/posit-dev/positron), the Electron-based IDE built by Posit.
 
-That is why I built Krarkode: to bring Ark's R kernel experience into VS Code. This project has a strong personal bias; most design decisions serve my preferred workflow rather than being designed for generic use cases. I am a bioinformatician, mainly using R for data analysis and visualization rather than package development. I don't use R Markdown at all, so package development and R Markdown-related features are out of scope for now.
+That is why I built Krarkode: to bring Ark's R kernel experience into VS Code. This project has a strong personal bias; most design decisions serve my preferred workflow rather than being designed for generic use cases. I am a bioinformatician, mainly using R for data analysis and visualization rather than package development, and I don't use R Markdown at all, so package development and R Markdown-related features are out of scope for now.
 
 Because my time is limited, I chose to glue multiple existing tools together (session management even uses `tmux` directly). The implementation is not the most elegant, but it works anyway. Most of the code was generated with the help of `Claude Code` and `Codex`. But I have put enough human intelligence into the design, and I won't be ashamed of the AI involvement.
 
