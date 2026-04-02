@@ -11,7 +11,6 @@
     import { TableInteractionController } from './hooks/useTableInteractionController';
     import { WindowEventsController } from './hooks/useWindowEventsController';
     import { TableSetupController } from './hooks/useTableSetupController';
-    import { InitController } from './hooks/useInitController';
     import { PanelToggleController } from './hooks/usePanelToggleController';
     import { ExportController } from './hooks/useExportController';
     import Toolbar from './Toolbar.svelte';
@@ -234,16 +233,6 @@
         },
     });
 
-    const initController = new InitController({
-        log,
-        initializeDataStore: (state, schema) => dataStore.initialize(state, schema),
-        applySchemaUpdate: (schema) => schemaController.applySchemaUpdate(schema),
-        getVisibleSchema: () => dataStore.visibleSchema,
-        applyPendingRows: () => rowDataController.applyPendingRows(),
-        scheduleTableLayoutDiagnostics: (stage) => tableLayoutController.scheduleTableLayoutDiagnostics(stage),
-        clearStatsContent: () => statsController.clearStatsContent(),
-    });
-
     const panelToggleController = new PanelToggleController({
         postMessage: (message) => vscode.postMessage(message),
     });
@@ -281,7 +270,25 @@
     const messageHandler = createMessageHandler({
         onInit: (msg) => {
             tableMetaError = '';
-            initController.handleInit(msg);
+            dataStore.initialize(msg.state, msg.schema ?? []);
+            uiStore.columnVisibilityStatus = '';
+            uiStore.columnVisibilitySearchTerm = '';
+            if (uiStore.activeStatsColumnIndex === null) {
+                statsStore.messageText = 'Select a column to view statistics.';
+                statsStore.messageState = 'empty';
+            } else {
+                statsStore.messageText = 'Loading statistics...';
+                statsStore.messageState = 'loading';
+            }
+            statsController.clearStatsContent();
+            uiStore.codePreview = '';
+            schemaController.applySchemaUpdate(dataStore.visibleSchema);
+            rowDataController.applyPendingRows();
+            log('Data explorer initialized', {
+                rows: msg.state.table_shape.num_rows,
+                columns: dataStore.visibleSchema.length,
+            });
+            tableLayoutController.scheduleTableLayoutDiagnostics('init');
         },
         onRows: (message) => rowDataController.handleRows(message),
         onError: (message) => {
