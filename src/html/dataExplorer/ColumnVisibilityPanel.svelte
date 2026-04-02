@@ -129,8 +129,8 @@
                 {#each displayedColumns as column (column.column_index)}
                     <div class="column-visibility-item">
                         <div class="column-visibility-details">
-                            <div class="column-visibility-name" title={getColumnLabel(column)}>{getColumnLabel(column)}</div>
-                            <div class="column-visibility-meta">{column.type_display || column.type_name}</div>
+                            <span class="column-visibility-name" title={getColumnLabel(column)}>{getColumnLabel(column)}</span>
+                            <span class="column-visibility-meta">{column.type_display || column.type_name}</span>
                         </div>
                         <button
                             class="column-visibility-toggle"
@@ -277,39 +277,42 @@
     .column-visibility-list {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 2px;
     }
 
     .column-visibility-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
-        padding: 8px 10px;
+        gap: 6px;
+        padding: 3px 6px;
         border: 1px solid var(--vscode-editorWidget-border);
-        border-radius: 4px;
+        border-radius: 3px;
         background: var(--vscode-editor-background);
     }
 
     .column-visibility-details {
         display: flex;
-        flex-direction: column;
-        gap: 2px;
+        flex-direction: row;
+        align-items: baseline;
+        gap: 6px;
         min-width: 0;
         flex: 1;
     }
 
     .column-visibility-name {
         font-weight: 600;
-        font-size: 0.9em;
+        font-size: 0.85em;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
     .column-visibility-meta {
-        font-size: 0.8em;
+        font-size: 0.75em;
         color: var(--vscode-descriptionForeground);
+        white-space: nowrap;
+        flex-shrink: 0;
     }
 
     .column-visibility-toggle {
