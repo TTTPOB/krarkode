@@ -182,6 +182,7 @@ export class PlotManager implements vscode.Disposable {
     }
 
     public clearHistory(): void {
+        this.outputChannel.appendLine(`[PlotManager] Clearing plot history (${this.plots.length} plots)`);
         this.plots.length = 0;
         this.currentIndex = -1;
         if (this.renderTimeout) {

@@ -96,8 +96,12 @@ export function activate(context: vscode.ExtensionContext): void {
         const connectionChanged = activeSessionConnectionFile !== nextConnectionFile;
         activeSessionConnectionFile = nextConnectionFile;
         if (connectionChanged) {
+            const reason = entry ? 'session changed' : 'session cleared';
             sessionManager?.setKernelStatus(undefined);
-            variablesService?.disconnect(entry ? 'session changed' : 'session cleared');
+            variablesService?.disconnect(reason);
+            // Clear plot state from the previous session to prevent cross-session leakage
+            plotBackend?.resetForNewSession(reason);
+            plotManager?.clearHistory();
         }
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);

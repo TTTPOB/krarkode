@@ -128,6 +128,27 @@ export class ArkCommBackend implements IPlotBackend {
         this.uiCommId = uiCommId;
     }
 
+    /**
+     * Clear all plot state for a session switch.
+     * Unlike dispose(), this preserves event emitters and sidecar subscriptions.
+     */
+    public resetForNewSession(reason: string): void {
+        this.outputChannel.appendLine(`[ArkCommBackend] Resetting plot state: ${reason}`);
+
+        // Reject any in-flight render requests
+        this.pendingRenders.forEach((p) => p.reject(new Error(`Session reset: ${reason}`)));
+        this.pendingRenders.clear();
+
+        // Clear tracked plots and notify listeners
+        const hadPlots = this.plots.size > 0;
+        this.plots.clear();
+        if (hadPlots) {
+            this._onPlotsChanged.fire([]);
+        }
+
+        this.outputChannel.appendLine(`[ArkCommBackend] Plot state reset complete`);
+    }
+
     public disconnect(): void {
         this.dispose();
         this._onConnectionChanged.fire();
