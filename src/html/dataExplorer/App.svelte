@@ -6,9 +6,8 @@
     import { StatsController } from './hooks/useStatsController';
     import { SchemaController } from './hooks/useSchemaController';
     import { RowFilterController } from './hooks/useRowFilterController';
-    import { TableLayoutController } from './hooks/useTableLayoutController';
+    import { TableController } from './hooks/useTableLayoutController';
     import { RowDataController } from './hooks/useRowDataController';
-    import { TableInteractionController } from './hooks/useTableInteractionController';
     import { WindowEventsController } from './hooks/useWindowEventsController';
     import { TableSetupController } from './hooks/useTableSetupController';
     import Toolbar from './Toolbar.svelte';
@@ -121,8 +120,9 @@
         log,
     });
 
-    const tableLayoutController = new TableLayoutController({
+    const tableController = new TableController({
         log,
+        postMessage: (message) => vscode.postMessage(message),
         minColumnWidth: MIN_COLUMN_WIDTH,
         columnWidthFallback: COLUMN_WIDTH,
         sidePanelMinWidth: SIDE_PANEL_MIN_WIDTH,
@@ -132,6 +132,7 @@
         getTableBodyEl: () => tableBodyEl,
         getBodyInnerEl: () => bodyInnerEl,
         getStatsPanelEl: () => statsPanelEl,
+        getColumnMenuEl: () => columnMenuEl,
         getDataTableComponent: () => dataTableComponent ?? null,
         setTableViewportWidth: (value) => {
             tableViewportWidth = value;
@@ -149,6 +150,7 @@
             rightSpacerWidth = value;
         },
         onSidePanelResize: () => statsCharts.resize(),
+        openRowFilterEditor: (filter, index, columnIndex) => rowFilterController.openRowFilterEditor(filter, index, columnIndex),
     });
 
     const statsController = new StatsController({
@@ -182,7 +184,7 @@
         setupTable: () => tableSetupController.setupTable(),
         updateVirtualizer: () => virtualizer.update(),
         requestInitialBlock: () => rowDataController.requestInitialBlock(),
-        scheduleTableLayoutDiagnostics: (stage) => tableLayoutController.scheduleTableLayoutDiagnostics(stage),
+        scheduleTableLayoutDiagnostics: (stage) => tableController.scheduleTableLayoutDiagnostics(stage),
         setStatsMessage: (message, state) => statsController.setStatsMessage(message, state),
         clearStatsContent: () => statsController.clearStatsContent(),
     });
@@ -203,14 +205,6 @@
         },
     });
 
-    const tableInteractionController = new TableInteractionController({
-        postMessage: (message) => vscode.postMessage(message),
-        getColumnMenuEl: () => columnMenuEl,
-        getTableBodyEl: () => tableBodyEl,
-        setHeaderScrollLeft: (value) => tableLayoutController.updateHeaderScroll(value),
-        openRowFilterEditor: (filter, index, columnIndex) => rowFilterController.openRowFilterEditor(filter, index, columnIndex),
-    });
-
     const windowEventsController = new WindowEventsController({
         getColumnMenuEl: () => columnMenuEl,
         getStatsPanelEl: () => statsPanelEl,
@@ -221,10 +215,10 @@
         getCodeButtonEl: () => codeButtonEl,
         getRowFilterPanelEl: () => rowFilterPanelEl,
         getAddRowFilterButtonEl: () => addRowFilterButtonEl,
-        handleSidePanelResize: (event) => tableLayoutController.handleSidePanelResize(event),
-        handleColumnResizeMove: (event) => tableLayoutController.handleColumnResizeMove(event),
-        finishSidePanelResize: () => tableLayoutController.finishSidePanelResize(),
-        handleColumnResizeEnd: () => tableLayoutController.handleColumnResizeEnd(),
+        handleSidePanelResize: (event) => tableController.handleSidePanelResize(event),
+        handleColumnResizeMove: (event) => tableController.handleColumnResizeMove(event),
+        finishSidePanelResize: () => tableController.finishSidePanelResize(),
+        handleColumnResizeEnd: () => tableController.handleColumnResizeEnd(),
         onResize: () => {
             statsCharts.resize();
             updateTableAreaTop();
@@ -246,11 +240,11 @@
 
     // Effects
     $effect(() => {
-        tableLayoutController.attachTableBodyObserver(tableBodyEl);
+        tableController.attachTableBodyObserver(tableBodyEl);
     });
 
     $effect(() => {
-        tableLayoutController.updateRenderColumns(dataStore.visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
+        tableController.updateRenderColumns(dataStore.visibleSchema, resolvedColumnWidths, headerScrollLeft, tableViewportWidth);
     });
 
     $effect(() => {
@@ -280,7 +274,7 @@
                 rows: msg.state.table_shape.num_rows,
                 columns: dataStore.visibleSchema.length,
             });
-            tableLayoutController.scheduleTableLayoutDiagnostics('init');
+            tableController.scheduleTableLayoutDiagnostics('init');
         },
         onRows: (message) => rowDataController.handleRows(message),
         onError: (message) => {
@@ -333,7 +327,7 @@
         statsController.dispose();
         schemaController.dispose();
         rowDataController.dispose();
-        tableLayoutController.dispose();
+        tableController.dispose();
         virtualizer.dispose();
         statsCharts.dispose();
     });
@@ -415,8 +409,8 @@
     style={`left: ${uiStore.columnMenuPosition.x}px; top: ${uiStore.columnMenuPosition.y}px;`}
     onkeydown={handleContextMenuKeydown}
 >
-    <button class="context-menu-item" id="column-menu-add-filter" role="menuitem" disabled={!dataStore.isRowFilterSupported} onclick={() => tableInteractionController.handleColumnMenuAddFilter()}>Add Filter</button>
-    <button class="context-menu-item" id="column-menu-hide-column" role="menuitem" disabled={dataStore.visibleSchema.length <= 1} onclick={() => tableInteractionController.handleColumnMenuHideColumn()}>Hide Column</button>
+    <button class="context-menu-item" id="column-menu-add-filter" role="menuitem" disabled={!dataStore.isRowFilterSupported} onclick={() => tableController.handleColumnMenuAddFilter()}>Add Filter</button>
+    <button class="context-menu-item" id="column-menu-hide-column" role="menuitem" disabled={dataStore.visibleSchema.length <= 1} onclick={() => tableController.handleColumnMenuHideColumn()}>Hide Column</button>
 </div>
 
 <div class="table-area" bind:this={tableAreaEl}>
@@ -441,13 +435,13 @@
         bind:tableBodyEl
         bind:tableHeaderEl
         bind:bodyInnerEl
-        onSort={(e) => tableInteractionController.handleDataTableSort(e.columnIndex)}
-        onColumnMenu={(e) => tableInteractionController.openColumnMenu(e.event, e.columnIndex)}
+        onSort={(e) => tableController.handleDataTableSort(e.columnIndex)}
+        onColumnMenu={(e) => tableController.openColumnMenu(e.event, e.columnIndex)}
         onOpenRowFilter={(e) => rowFilterController.openRowFilterEditor(undefined, undefined, e.columnIndex)}
         onOpenStats={(e) => statsController.openStatsPanel({ columnIndex: e.columnIndex })}
         onHideColumn={(e) => schemaController.hideColumn(e.columnIndex)}
-        onScroll={() => tableInteractionController.handleDataTableScroll()}
-        onStartColumnResize={(e) => tableLayoutController.startColumnResize(e.event, e.columnIndex)}
+        onScroll={() => tableController.handleDataTableScroll()}
+        onStartColumnResize={(e) => tableController.startColumnResize(e.event, e.columnIndex)}
     />
 
     <ColumnVisibilityPanel
@@ -473,7 +467,7 @@
         }}
         onInvert={() => schemaController.invertColumnVisibility()}
         onToggleVisibility={(e) => schemaController.toggleColumnVisibility(e.columnIndex)}
-        onStartResize={(e) => tableLayoutController.startSidePanelResize(e.event, 'column-visibility-panel')}
+        onStartResize={(e) => tableController.startSidePanelResize(e.event, 'column-visibility-panel')}
     />
 
     <RowFilterPanel
@@ -491,7 +485,7 @@
         onTogglePin={() => setPanelPinned('row-filter-panel', !uiStore.isPanelPinned('row-filter-panel'))}
         onSave={() => rowFilterController.saveRowFilter()}
         onCancel={() => { uiStore.rowFilterPanelOpen = false; }}
-        onStartResize={(e) => tableLayoutController.startSidePanelResize(e.event, 'row-filter-panel')}
+        onStartResize={(e) => tableController.startSidePanelResize(e.event, 'row-filter-panel')}
     />
 
     <StatsPanel
@@ -520,7 +514,7 @@
             statsStore.frequencyLimit = e.value;
             statsController.handleFrequencyLimitInput(e.source);
         }}
-        onStartResize={(e) => tableLayoutController.startSidePanelResize(e.event, 'stats-panel')}
+        onStartResize={(e) => tableController.startSidePanelResize(e.event, 'stats-panel')}
     />
 </div>
 

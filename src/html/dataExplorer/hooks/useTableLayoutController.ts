@@ -1,10 +1,11 @@
 import { tick } from 'svelte';
-import { dataStore } from '../stores';
-import type { ColumnSchema } from '../types';
+import { dataStore, uiStore } from '../stores';
+import type { ColumnSchema, RowFilter } from '../types';
 import { clampNumber, computeColumnWindow } from '../utils';
 
-type TableLayoutControllerOptions = {
+type TableControllerOptions = {
     log: (message: string, payload?: unknown) => void;
+    postMessage: (message: unknown) => void;
     minColumnWidth: number;
     columnWidthFallback: number;
     sidePanelMinWidth: number;
@@ -14,6 +15,7 @@ type TableLayoutControllerOptions = {
     getTableBodyEl: () => HTMLDivElement | undefined;
     getBodyInnerEl: () => HTMLDivElement | undefined;
     getStatsPanelEl: () => HTMLDivElement | undefined;
+    getColumnMenuEl: () => HTMLDivElement | undefined;
     getDataTableComponent: () => { setIgnoreHeaderSortClick: (value: boolean) => void } | null;
     setTableViewportWidth: (value: number) => void;
     setHeaderScrollLeft: (value: number) => void;
@@ -21,10 +23,12 @@ type TableLayoutControllerOptions = {
     setLeftSpacerWidth: (value: number) => void;
     setRightSpacerWidth: (value: number) => void;
     onSidePanelResize: () => void;
+    openRowFilterEditor: (filter?: RowFilter, index?: number, columnIndex?: number) => void;
 };
 
-export class TableLayoutController {
+export class TableController {
     private readonly log: (message: string, payload?: unknown) => void;
+    private readonly postMessage: (message: unknown) => void;
     private readonly minColumnWidth: number;
     private readonly columnWidthFallback: number;
     private readonly sidePanelMinWidth: number;
@@ -34,6 +38,7 @@ export class TableLayoutController {
     private readonly getTableBodyEl: () => HTMLDivElement | undefined;
     private readonly getBodyInnerEl: () => HTMLDivElement | undefined;
     private readonly getStatsPanelEl: () => HTMLDivElement | undefined;
+    private readonly getColumnMenuEl: () => HTMLDivElement | undefined;
     private readonly getDataTableComponent: () => { setIgnoreHeaderSortClick: (value: boolean) => void } | null;
     private readonly setTableViewportWidth: (value: number) => void;
     private readonly setHeaderScrollLeft: (value: number) => void;
@@ -41,16 +46,19 @@ export class TableLayoutController {
     private readonly setLeftSpacerWidth: (value: number) => void;
     private readonly setRightSpacerWidth: (value: number) => void;
     private readonly onSidePanelResize: () => void;
+    private readonly openRowFilterEditor: (filter?: RowFilter, index?: number, columnIndex?: number) => void;
 
     private tableLayoutLogSequence = 0;
     private tableBodyResizeObserver: ResizeObserver | null = null;
     private lastColumnWindowKey = '';
     private lastTableViewportWidth = 0;
+    private lastScrollLeft = 0;
     private activeColumnResize: { columnIndex: number; startX: number; startWidth: number } | null = null;
     private sidePanelResizeState: { startX: number; startWidth: number; panelId?: string } | null = null;
 
-    constructor(options: TableLayoutControllerOptions) {
+    constructor(options: TableControllerOptions) {
         this.log = options.log;
+        this.postMessage = options.postMessage;
         this.minColumnWidth = options.minColumnWidth;
         this.columnWidthFallback = options.columnWidthFallback;
         this.sidePanelMinWidth = options.sidePanelMinWidth;
@@ -60,6 +68,7 @@ export class TableLayoutController {
         this.getTableBodyEl = options.getTableBodyEl;
         this.getBodyInnerEl = options.getBodyInnerEl;
         this.getStatsPanelEl = options.getStatsPanelEl;
+        this.getColumnMenuEl = options.getColumnMenuEl;
         this.getDataTableComponent = options.getDataTableComponent;
         this.setTableViewportWidth = options.setTableViewportWidth;
         this.setHeaderScrollLeft = options.setHeaderScrollLeft;
@@ -67,6 +76,7 @@ export class TableLayoutController {
         this.setLeftSpacerWidth = options.setLeftSpacerWidth;
         this.setRightSpacerWidth = options.setRightSpacerWidth;
         this.onSidePanelResize = options.onSidePanelResize;
+        this.openRowFilterEditor = options.openRowFilterEditor;
     }
 
     private getVisibleSchema(): ColumnSchema[] {
@@ -287,6 +297,75 @@ export class TableLayoutController {
         this.log('Side panel resize finished', { panelId, startWidth, resolvedWidth });
         this.sidePanelResizeState = null;
         document.body.classList.remove('panel-resizing');
+    }
+
+    // --- Table interaction methods (merged from TableInteractionController) ---
+
+    private getNextSort(columnIndex: number): { columnIndex: number; direction: 'asc' | 'desc' } | null {
+        const current = dataStore.activeSort;
+        if (!current || current.columnIndex !== columnIndex) {
+            return { columnIndex, direction: 'asc' };
+        }
+        if (current.direction === 'asc') {
+            return { columnIndex, direction: 'desc' };
+        }
+        return null;
+    }
+
+    openColumnMenu(event: MouseEvent, columnIndex: number): void {
+        uiStore.columnMenuColumnIndex = columnIndex;
+        uiStore.columnMenuOpen = true;
+        void tick().then(() => {
+            const padding = 8;
+            const { innerWidth, innerHeight } = window;
+            const menuRect = this.getColumnMenuEl()?.getBoundingClientRect();
+            const menuWidth = menuRect?.width ?? 160;
+            const menuHeight = menuRect?.height ?? 80;
+            const nextLeft = Math.min(event.clientX, innerWidth - menuWidth - padding);
+            const nextTop = Math.min(event.clientY, innerHeight - menuHeight - padding);
+            uiStore.columnMenuPosition = {
+                x: Math.max(nextLeft, padding),
+                y: Math.max(nextTop, padding),
+            };
+        });
+    }
+
+    handleColumnMenuAddFilter(): void {
+        const columnIndex = uiStore.columnMenuColumnIndex;
+        if (columnIndex === null) {
+            return;
+        }
+        uiStore.closeColumnMenu();
+        this.openRowFilterEditor(undefined, undefined, columnIndex);
+    }
+
+    handleColumnMenuHideColumn(): void {
+        const columnIndex = uiStore.columnMenuColumnIndex;
+        if (columnIndex === null) {
+            return;
+        }
+        uiStore.closeColumnMenu();
+        dataStore.hideColumn(columnIndex);
+    }
+
+    handleDataTableSort(columnIndex: number): void {
+        const nextSort = this.getNextSort(columnIndex);
+        dataStore.activeSort = nextSort;
+        this.postMessage({
+            type: 'setSort',
+            sortKey: nextSort ? { columnIndex: nextSort.columnIndex, direction: nextSort.direction } : null,
+        });
+    }
+
+    handleDataTableScroll(): void {
+        if (uiStore.columnMenuOpen) {
+            uiStore.closeColumnMenu();
+        }
+        const tableBodyEl = this.getTableBodyEl();
+        if (tableBodyEl && tableBodyEl.scrollLeft !== this.lastScrollLeft) {
+            this.lastScrollLeft = tableBodyEl.scrollLeft;
+            this.setHeaderScrollLeft(tableBodyEl.scrollLeft);
+        }
     }
 
     dispose(): void {
