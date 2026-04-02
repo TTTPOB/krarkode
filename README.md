@@ -20,7 +20,7 @@ Because my time is limited, I chose to glue multiple existing tools together (se
 
 The name, though seemingly hard to pronounce, means I `cracked` `ark` out of Positron and put it into VS `Code`.
 
-See [docs/design.md](docs/design.md) for design rationale and [docs/architecture.md](docs/architecture.md) for the full system diagram.
+See [docs/design.md](docs/design.md) for design rationale.
 
 ---
 
