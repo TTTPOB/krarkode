@@ -3,7 +3,7 @@ import type { ArkSessionEntry } from '../sessionRegistry';
 
 // --- Hoisted mock state ---
 
-const { mockFs, mockListTmuxWindows, mockGlobalState, mockLogFn } = vi.hoisted(() => ({
+const { mockFs, mockListTmuxWindows, mockTmuxHasSession, mockGlobalState, mockLogFn } = vi.hoisted(() => ({
     mockFs: {
         existsSync: vi.fn((_p: string) => false as boolean),
         readFileSync: vi.fn((_p: string) => '[]' as string),
@@ -12,6 +12,7 @@ const { mockFs, mockListTmuxWindows, mockGlobalState, mockLogFn } = vi.hoisted((
         rmSync: vi.fn(),
     },
     mockListTmuxWindows: vi.fn(async () => [] as string[]),
+    mockTmuxHasSession: vi.fn(async () => false as boolean),
     mockGlobalState: { get: vi.fn(), update: vi.fn() },
     mockLogFn: vi.fn(),
 }));
@@ -38,6 +39,7 @@ vi.mock('../../util', () => ({
 vi.mock('../tmuxUtil', () => ({
     getTmuxSessionName: () => 'krarkode-ark',
     listTmuxWindows: mockListTmuxWindows,
+    tmuxHasSession: mockTmuxHasSession,
 }));
 
 vi.mock('../../logging/logger', () => ({
@@ -92,6 +94,7 @@ beforeEach(() => {
     mockFs.existsSync.mockReturnValue(false);
     mockFs.readFileSync.mockReturnValue('[]');
     mockListTmuxWindows.mockResolvedValue([]);
+    mockTmuxHasSession.mockResolvedValue(false);
 });
 
 describe('loadRegistry', () => {
@@ -155,13 +158,14 @@ describe('loadRegistryValidated', () => {
         expect(written.map((e: ArkSessionEntry) => e.name)).toEqual(['alive', 'also-alive']);
     });
 
-    test('skips pruning when tmux returns empty array', async () => {
+    test('skips pruning when tmux returns empty array but session exists', async () => {
         const entries = [
             makeEntry({ name: 'a', tmuxWindowName: 'a' }),
             makeEntry({ name: 'b', tmuxWindowName: 'b' }),
         ];
         setRegistryOnDisk(entries);
         mockListTmuxWindows.mockResolvedValue([]);
+        mockTmuxHasSession.mockResolvedValue(true);
 
         const result = await loadRegistryValidated();
 
