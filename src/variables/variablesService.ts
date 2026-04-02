@@ -13,7 +13,7 @@ type VariablesMessage = {
     error?: unknown;
 };
 
-export class VariablesService {
+export class VariablesService implements vscode.Disposable {
     private commId: string | undefined;
     private connected = false;
     private lastErrorMessage: string | undefined;
@@ -22,10 +22,11 @@ export class VariablesService {
     private readonly pendingInspectPaths: string[][] = [];
     private readonly _onDidReceiveUpdate = new vscode.EventEmitter<VariablesEvent>();
     public readonly onDidReceiveUpdate = this._onDidReceiveUpdate.event;
+    private readonly disposables: vscode.Disposable[] = [];
 
     constructor(private readonly sidecarManager: ArkSidecarManager) {
         this.log('VariablesService initialized.');
-        sidecarManager.onDidOpenVariablesComm((e) => {
+        this.disposables.push(sidecarManager.onDidOpenVariablesComm((e) => {
             if (this.commId === e.commId) {
                 return;
             }
@@ -34,7 +35,7 @@ export class VariablesService {
             this.updateConnectionState(true, 'comm opened');
             this.log(`Variables comm opened: ${e.commId}`);
             this.refresh();
-        });
+        }));
 
         this.commId = sidecarManager.getVariablesCommId();
         if (this.commId) {
@@ -43,13 +44,13 @@ export class VariablesService {
             this.refresh();
         }
 
-        sidecarManager.onDidReceiveCommMessage((e) => {
+        this.disposables.push(sidecarManager.onDidReceiveCommMessage((e) => {
             if (e.commId === this.commId) {
                 this.handleMessage(e.data);
             }
-        });
+        }));
 
-        sidecarManager.onDidStart(() => {
+        this.disposables.push(sidecarManager.onDidStart(() => {
             this.log('Sidecar started; ensuring variables comm is open.');
             const commId = this.sidecarManager.ensureVariablesCommOpen();
             if (!commId) {
@@ -59,7 +60,15 @@ export class VariablesService {
             this.commId = commId;
             this.updateConnectionState(true, 'sidecar started');
             this.refresh();
-        });
+        }));
+    }
+
+    dispose() {
+        this._onDidReceiveUpdate.dispose();
+        for (const d of this.disposables) {
+            d.dispose();
+        }
+        this.disposables.length = 0;
     }
 
     private handleMessage(data: unknown) {

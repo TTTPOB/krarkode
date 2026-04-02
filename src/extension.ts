@@ -86,6 +86,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // is already active, and it needs variablesService to be available.
     variablesService = new VariablesService(sidecarManager);
     variablesManager = new VariablesManager(context.extensionUri, variablesService);
+    context.subscriptions.push(variablesService);
     context.subscriptions.push(vscode.window.registerWebviewViewProvider(VariablesManager.viewType, variablesManager));
 
     sessionManager = new ArkSessionManager();
