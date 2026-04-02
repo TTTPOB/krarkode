@@ -30,7 +30,7 @@ export class ArkSidecarManager implements vscode.Disposable {
     private proc: cp.ChildProcessWithoutNullStreams | undefined;
     private rl: readline.Interface | undefined;
     private connectionFile: string | undefined;
-    private readonly outputChannel = getLogger().createChannel('sidecar');
+    private readonly outputChannel = getLogger().createChannel('sidecar', LogCategory.Event);
     private readonly disposables: vscode.Disposable[] = [];
     private variablesCommId: string | undefined;
     private lastUserErrorMessage: string | undefined;

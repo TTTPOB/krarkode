@@ -61,12 +61,12 @@ export async function collectRBinaryCandidates(): Promise<RBinaryCandidate[]> {
 
         if (configMatch && age < CACHE_TTL_MS) {
             log.debug('runtime', LogCategory.RBinary,
-                `[RBinaryResolver] Using cached candidates (${candidateCache.candidates.length} entries, age=${age}ms)`);
+                `Using cached candidates (${candidateCache.candidates.length} entries, age=${age}ms)`);
             return candidateCache.candidates;
         }
 
         log.debug('runtime', LogCategory.RBinary,
-            `[RBinaryResolver] Cache stale: configMatch=${configMatch}, age=${age}ms`);
+            `Cache stale: configMatch=${configMatch}, age=${age}ms`);
     }
 
     log.debug('runtime', LogCategory.RBinary, 'Running full R binary discovery');
@@ -79,7 +79,7 @@ export async function collectRBinaryCandidates(): Promise<RBinaryCandidate[]> {
     };
 
     log.debug('runtime', LogCategory.RBinary,
-        `[RBinaryResolver] Cached ${candidates.length} R binary candidates`);
+        `Cached ${candidates.length} R binary candidates`);
     return candidates;
 }
 

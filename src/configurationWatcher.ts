@@ -102,7 +102,7 @@ export class ConfigurationWatcher implements vscode.Disposable {
         }
         const value = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;
         getLogger().debug('runtime', LogCategory.Config,
-            `[ConfigurationWatcher] plot.maxHistory updated to ${value}`);
+            `plot.maxHistory updated to ${value}`);
         this.deps.setPlotMaxHistory(value);
     }
 
