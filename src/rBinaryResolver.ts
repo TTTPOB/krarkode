@@ -118,7 +118,7 @@ async function collectRBinaryCandidatesUncached(): Promise<RBinaryCandidate[]> {
     if (pixiManifestPath) {
         log.debug('runtime', LogCategory.RBinary, `Resolving pixi environments from: ${pixiManifestPath}`);
         try {
-            const pixiEnvs = await resolvePixiEnvironments({
+            const pixiEnvs = resolvePixiEnvironments({
                 manifestPath: pixiManifestPath,
                 logger: (msg) => log.debug('runtime', LogCategory.RBinary, msg),
             });

@@ -76,7 +76,7 @@ async function getRpathFromPixi(): Promise<string> {
     }
 
     try {
-        const pixiEnvs = await resolvePixiEnvironments({
+        const pixiEnvs = resolvePixiEnvironments({
             manifestPath,
             logger: (message) => getLogger().debug('runtime', LogCategory.Core, message),
         });

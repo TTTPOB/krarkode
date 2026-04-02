@@ -1,22 +1,6 @@
 import { describe, test, expect } from 'vitest';
 import { parsePixiEnvironmentNames, resolvePixiEnvironments } from '../pixiResolver';
-import type { PixiResolverOptions, ExecResult } from '../pixiResolver';
-
-// Helper to create a mock exec function
-function mockExec(responses: Record<string, ExecResult>): (cmd: string, args: string[]) => Promise<ExecResult> {
-    return async (cmd: string, args: string[]): Promise<ExecResult> => {
-        const key = `${cmd} ${args.join(' ')}`;
-        for (const [pattern, result] of Object.entries(responses)) {
-            if (key.includes(pattern)) {
-                return result;
-            }
-        }
-        return { status: 1, stdout: '', stderr: `command not found: ${cmd}` };
-    };
-}
-
-const OK: ExecResult = { status: 0, stdout: '', stderr: '' };
-const FAIL: ExecResult = { status: 1, stdout: '', stderr: '' };
+import type { PixiResolverOptions } from '../pixiResolver';
 
 // ---- parsePixiEnvironmentNames ----
 
@@ -129,8 +113,8 @@ r43 = ["r43"]
         };
     }
 
-    test('returns empty array when manifest does not exist', async () => {
-        const result = await resolvePixiEnvironments(
+    test('returns empty array when manifest does not exist', () => {
+        const result = resolvePixiEnvironments(
             makeOptions({
                 fileExists: () => false,
             }),
@@ -138,81 +122,40 @@ r43 = ["r43"]
         expect(result).toEqual([]);
     });
 
-    test('returns empty array when pixi CLI is not in PATH', async () => {
-        const result = await resolvePixiEnvironments(
+    test('returns environments with R binary at expected pixi paths, including default', () => {
+        const result = resolvePixiEnvironments(
             makeOptions({
-                exec: mockExec({}), // no responses → all fail
+                isExecutable: () => true,
+            }),
+        );
+        expect(result).toEqual([
+            { name: 'default', rBinaryPath: '/project/.pixi/envs/default/bin/R' },
+            { name: 'r44', rBinaryPath: '/project/.pixi/envs/r44/bin/R' },
+            { name: 'r43', rBinaryPath: '/project/.pixi/envs/r43/bin/R' },
+        ]);
+    });
+
+    test('skips environments where R is not executable', () => {
+        const result = resolvePixiEnvironments(
+            makeOptions({
+                isExecutable: (p) => p === '/project/.pixi/envs/r44/bin/R',
+            }),
+        );
+        expect(result).toEqual([
+            { name: 'r44', rBinaryPath: '/project/.pixi/envs/r44/bin/R' },
+        ]);
+    });
+
+    test('returns empty array when no environment has R installed', () => {
+        const result = resolvePixiEnvironments(
+            makeOptions({
+                isExecutable: () => false,
             }),
         );
         expect(result).toEqual([]);
     });
 
-    test('returns environments with resolved R binary paths, including default', async () => {
-        const result = await resolvePixiEnvironments(
-            makeOptions({
-                exec: mockExec({
-                    'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
-                    '-e default': { status: 0, stdout: '/envs/default/bin/R\n', stderr: '' },
-                    '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
-                    '-e r43': { status: 0, stdout: '/envs/r43/bin/R\n', stderr: '' },
-                }),
-            }),
-        );
-        expect(result).toEqual([
-            { name: 'default', rBinaryPath: '/envs/default/bin/R' },
-            { name: 'r44', rBinaryPath: '/envs/r44/bin/R' },
-            { name: 'r43', rBinaryPath: '/envs/r43/bin/R' },
-        ]);
-    });
-
-    test('skips environments where R is not found without affecting others', async () => {
-        const result = await resolvePixiEnvironments(
-            makeOptions({
-                exec: mockExec({
-                    'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
-                    '-e default': { status: 0, stdout: '/envs/default/bin/R\n', stderr: '' },
-                    '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
-                    '-e r43': FAIL,
-                }),
-            }),
-        );
-        expect(result).toEqual([
-            { name: 'default', rBinaryPath: '/envs/default/bin/R' },
-            { name: 'r44', rBinaryPath: '/envs/r44/bin/R' },
-        ]);
-    });
-
-    test('skips environments where R path is not executable', async () => {
-        const result = await resolvePixiEnvironments(
-            makeOptions({
-                exec: mockExec({
-                    'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
-                    '-e default': { status: 0, stdout: '/envs/default/bin/R\n', stderr: '' },
-                    '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
-                    '-e r43': { status: 0, stdout: '/envs/r43/bin/R\n', stderr: '' },
-                }),
-                isExecutable: (p) => p === '/envs/r44/bin/R',
-            }),
-        );
-        expect(result).toEqual([
-            { name: 'r44', rBinaryPath: '/envs/r44/bin/R' },
-        ]);
-    });
-
-    test('skips environments with empty R path output', async () => {
-        const result = await resolvePixiEnvironments(
-            makeOptions({
-                exec: mockExec({
-                    'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
-                    '-e default': { status: 0, stdout: '  \n', stderr: '' },
-                    '-e r44': { status: 0, stdout: '  \n', stderr: '' },
-                }),
-            }),
-        );
-        expect(result).toEqual([]);
-    });
-
-    test('uses default environment when no [environments] table', async () => {
+    test('uses default environment when no [environments] table', () => {
         const simpleManifest = `
 [workspace]
 name = "test"
@@ -220,46 +163,47 @@ name = "test"
 [dependencies]
 r-base = "4.4.*"
 `;
-        const result = await resolvePixiEnvironments(
+        const result = resolvePixiEnvironments(
             makeOptions({
                 readFile: () => simpleManifest,
-                exec: mockExec({
-                    'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
-                    '-e default': { status: 0, stdout: '/envs/default/bin/R\n', stderr: '' },
-                }),
+                isExecutable: () => true,
             }),
         );
         expect(result).toEqual([
-            { name: 'default', rBinaryPath: '/envs/default/bin/R' },
+            { name: 'default', rBinaryPath: '/project/.pixi/envs/default/bin/R' },
         ]);
     });
 
-    test('logs messages during resolution', async () => {
+    test('logs messages during resolution', () => {
         const logs: string[] = [];
-        await resolvePixiEnvironments(
+        resolvePixiEnvironments(
             makeOptions({
                 logger: (msg) => logs.push(msg),
-                exec: mockExec({
-                    'which pixi': { status: 0, stdout: '/usr/bin/pixi\n', stderr: '' },
-                    '-e default': FAIL,
-                    '-e r44': { status: 0, stdout: '/envs/r44/bin/R\n', stderr: '' },
-                    '-e r43': FAIL,
-                }),
+                isExecutable: (p) => p === '/project/.pixi/envs/r44/bin/R',
             }),
         );
         expect(logs.some((l) => l.includes('pixi environments found'))).toBe(true);
-        expect(logs.some((l) => l.includes('pixi CLI found'))).toBe(true);
         expect(logs.some((l) => l.includes('default'))).toBe(true);
-        expect(logs.some((l) => l.includes('r44'))).toBe(true);
-        expect(logs.some((l) => l.includes('r43'))).toBe(true);
+        expect(logs.some((l) => l.includes('r44') && l.includes('R found'))).toBe(true);
+        expect(logs.some((l) => l.includes('r43') && l.includes('not found'))).toBe(true);
     });
 
-    test('returns empty array when readFile throws', async () => {
-        const result = await resolvePixiEnvironments(
+    test('returns empty array when readFile throws', () => {
+        const result = resolvePixiEnvironments(
             makeOptions({
                 readFile: () => { throw new Error('EACCES'); },
             }),
         );
         expect(result).toEqual([]);
+    });
+
+    test('constructs correct path relative to manifest directory', () => {
+        const result = resolvePixiEnvironments(
+            makeOptions({
+                manifestPath: '/home/user/myproject/pixi.toml',
+                isExecutable: () => true,
+            }),
+        );
+        expect(result[0].rBinaryPath).toBe('/home/user/myproject/.pixi/envs/default/bin/R');
     });
 });

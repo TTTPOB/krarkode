@@ -98,7 +98,7 @@ describe('getRBinaryPath', () => {
     });
 
     test('uses pixi-detected R when no explicit binary path is configured', async () => {
-        mockResolvePixiEnvironments.mockResolvedValue([
+        mockResolvePixiEnvironments.mockReturnValue([
             { name: 'default', rBinaryPath: '/pixi/envs/default/bin/R' },
         ]);
 
