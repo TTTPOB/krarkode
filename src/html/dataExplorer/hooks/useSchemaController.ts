@@ -1,7 +1,7 @@
 import { dataStore, uiStore } from '../stores';
 import type { ColumnFilter, ColumnSchema, StatsMessageState } from '../types';
 import { COLUMN_WIDTH } from '../types';
-import { isColumnFilterSupported as checkColumnFilterSupported, resolveSchemaMatches, resolveVisibleSchema } from '../utils';
+import { isColumnFilterSupported as checkColumnFilterSupported, resolveSchemaMatches, resolveVisibleSchema, Debouncer } from '../utils';
 
 type SchemaControllerOptions = {
     log: (message: string, payload?: unknown) => void;
@@ -23,7 +23,7 @@ export class SchemaController {
     private readonly scheduleTableLayoutDiagnostics: (stage: string) => void;
     private readonly setStatsMessage: (message: string, stateValue: StatsMessageState) => void;
     private readonly clearStatsContent: () => void;
-    private columnVisibilityDebounceId: number | undefined;
+    private readonly columnSearchDebouncer = new Debouncer(250);
 
     constructor(options: SchemaControllerOptions) {
         this.log = options.log;
@@ -148,12 +148,7 @@ export class SchemaController {
     }
 
     scheduleColumnVisibilitySearch(): void {
-        if (this.columnVisibilityDebounceId !== undefined) {
-            window.clearTimeout(this.columnVisibilityDebounceId);
-        }
-        this.columnVisibilityDebounceId = window.setTimeout(() => {
-            this.applyColumnSearch();
-        }, 250);
+        this.columnSearchDebouncer.schedule(() => this.applyColumnSearch());
     }
 
     hideColumn(columnIndex: number): void {
@@ -221,8 +216,6 @@ export class SchemaController {
     }
 
     dispose(): void {
-        if (this.columnVisibilityDebounceId !== undefined) {
-            window.clearTimeout(this.columnVisibilityDebounceId);
-        }
+        this.columnSearchDebouncer.cancel();
     }
 }

@@ -12,3 +12,4 @@ export * from './chartRenderers';
 export * from './tableLayout';
 export * from './rowBlocks';
 export * from './number';
+export * from './debounce';

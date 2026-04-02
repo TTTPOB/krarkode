@@ -23,6 +23,7 @@ import {
     buildColumnProfileRequest,
     buildSummaryRows,
     clampNumber,
+    Debouncer,
     formatStatValue,
     getColumnLabel,
     mergeColumnProfiles,
@@ -42,7 +43,7 @@ export class StatsController {
     private readonly statsCharts: StatsChartsController;
     private readonly getVisibleSchema: () => ColumnSchema[];
     private readonly getStatsResultsEl: () => HTMLDivElement | undefined;
-    private statsRefreshDebounceId: number | undefined;
+    private readonly statsRefreshDebouncer: Debouncer;
     private pendingStatsScrollTop: number | null = null;
 
     constructor(options: StatsControllerOptions) {
@@ -51,6 +52,7 @@ export class StatsController {
         this.statsCharts = options.statsCharts;
         this.getVisibleSchema = options.getVisibleSchema;
         this.getStatsResultsEl = options.getStatsResultsEl;
+        this.statsRefreshDebouncer = new Debouncer(STATS_REFRESH_DEBOUNCE_MS);
     }
 
     setStatsMessage(message: string, stateValue: StatsMessageState): void {
@@ -118,13 +120,10 @@ export class StatsController {
         if (uiStore.activeStatsColumnIndex === null) {
             return;
         }
-        if (this.statsRefreshDebounceId !== undefined) {
-            window.clearTimeout(this.statsRefreshDebounceId);
-        }
         const preserveScrollTop = ['histogram-bins', 'frequency-limit'].includes(reason);
-        this.statsRefreshDebounceId = window.setTimeout(() => {
+        this.statsRefreshDebouncer.schedule(() => {
             this.requestColumnProfiles(reason, { preserveScrollTop });
-        }, STATS_REFRESH_DEBOUNCE_MS);
+        });
     }
 
     private requestColumnProfiles(reason: string, options: { preserveScrollTop?: boolean } = {}): void {
@@ -365,8 +364,6 @@ export class StatsController {
     }
 
     dispose(): void {
-        if (this.statsRefreshDebounceId !== undefined) {
-            window.clearTimeout(this.statsRefreshDebounceId);
-        }
+        this.statsRefreshDebouncer.cancel();
     }
 }

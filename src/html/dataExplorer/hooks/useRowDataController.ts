@@ -1,6 +1,6 @@
 import { dataStore } from '../stores';
 import type { BackendState, ColumnValue, RowsMessage } from '../types';
-import { buildRowBlockRanges, formatSpecialValue } from '../utils';
+import { buildRowBlockRanges, formatSpecialValue, Debouncer } from '../utils';
 
 // Maximum number of cached rows before eviction kicks in.
 // With typical column counts this keeps memory usage reasonable
@@ -26,7 +26,7 @@ export class RowDataController {
     private readonly getVirtualItems: () => Array<{ index: number }>;
     private readonly measureVirtualizer: () => void;
     private pendingRows: RowsMessage[] = [];
-    private rowRequestDebounceId: number | undefined;
+    private readonly debouncer: Debouncer;
 
     constructor(options: RowDataControllerOptions) {
         this.log = options.log;
@@ -36,6 +36,7 @@ export class RowDataController {
         this.requestDebounceMs = options.requestDebounceMs;
         this.getVirtualItems = options.getVirtualItems;
         this.measureVirtualizer = options.measureVirtualizer;
+        this.debouncer = new Debouncer(options.requestDebounceMs);
     }
 
     private getBackendState(): BackendState | null {
@@ -67,13 +68,7 @@ export class RowDataController {
     }
 
     scheduleVisibleBlocksRequest(reason: string): void {
-        if (this.rowRequestDebounceId !== undefined) {
-            window.clearTimeout(this.rowRequestDebounceId);
-        }
-        this.rowRequestDebounceId = window.setTimeout(() => {
-            this.rowRequestDebounceId = undefined;
-            this.requestVisibleBlocks(reason);
-        }, this.requestDebounceMs);
+        this.debouncer.schedule(() => this.requestVisibleBlocks(reason));
     }
 
     requestVisibleBlocks(reason: string): void {
@@ -230,8 +225,6 @@ export class RowDataController {
     }
 
     dispose(): void {
-        if (this.rowRequestDebounceId !== undefined) {
-            window.clearTimeout(this.rowRequestDebounceId);
-        }
+        this.debouncer.cancel();
     }
 }
