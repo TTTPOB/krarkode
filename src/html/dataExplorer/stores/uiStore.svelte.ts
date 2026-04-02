@@ -83,6 +83,48 @@ class UiStore {
         }
     }
 
+    /**
+     * Close other non-pinned panels when opening a new panel.
+     * Pinned panels remain open.
+     */
+    closeOtherNonPinnedPanels(exceptPanel: string): void {
+        if (exceptPanel !== 'stats-panel' && !this.isPanelPinned('stats-panel')) {
+            this.statsPanelOpen = false;
+        }
+        if (exceptPanel !== 'column-visibility-panel' && !this.isPanelPinned('column-visibility-panel')) {
+            this.columnVisibilityOpen = false;
+        }
+        if (exceptPanel !== 'row-filter-panel' && !this.isPanelPinned('row-filter-panel')) {
+            this.rowFilterPanelOpen = false;
+        }
+        // Code modal is always closed (it can't be pinned)
+        if (exceptPanel !== 'code-modal') {
+            this.codeModalOpen = false;
+        }
+    }
+
+    toggleColumnVisibilityPanel(): void {
+        const isCurrentlyOpen = this.columnVisibilityOpen;
+        const isPinned = this.isPanelPinned('column-visibility-panel');
+
+        if (isPinned) {
+            this.columnVisibilityOpen = !isCurrentlyOpen;
+        } else {
+            this.closeOtherNonPinnedPanels('column-visibility-panel');
+            this.columnVisibilityOpen = !isCurrentlyOpen;
+        }
+    }
+
+    /**
+     * Toggle code modal. Returns true if modal was opened (caller should post suggestCodeSyntax).
+     */
+    toggleCodeModal(): boolean {
+        const shouldOpen = !this.codeModalOpen;
+        this.closeOtherNonPinnedPanels('code-modal');
+        this.codeModalOpen = shouldOpen;
+        return shouldOpen;
+    }
+
     closeColumnMenu(): void {
         this.columnMenuOpen = false;
         this.columnMenuColumnIndex = null;

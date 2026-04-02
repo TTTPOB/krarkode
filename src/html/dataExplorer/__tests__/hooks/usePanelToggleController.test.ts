@@ -1,5 +1,4 @@
-import { describe, test, expect, vi, beforeEach } from 'vitest';
-import { PanelToggleController } from '../../hooks/usePanelToggleController';
+import { describe, test, expect, beforeEach } from 'vitest';
 import { uiStore } from '../../stores';
 
 beforeEach(() => {
@@ -10,22 +9,15 @@ beforeEach(() => {
     uiStore.pinnedPanels = new Set();
 });
 
-function setup() {
-    const postMessage = vi.fn();
-    const ctrl = new PanelToggleController({ postMessage });
-    return { postMessage, ctrl };
-}
-
-describe('usePanelToggleController', () => {
+describe('uiStore panel toggle methods', () => {
     describe('closeOtherNonPinnedPanels', () => {
         test('closes all panels except the named one', () => {
-            const { ctrl } = setup();
             uiStore.columnVisibilityOpen = true;
             uiStore.rowFilterPanelOpen = true;
             uiStore.codeModalOpen = true;
             uiStore.statsPanelOpen = true;
 
-            ctrl.closeOtherNonPinnedPanels('stats-panel');
+            uiStore.closeOtherNonPinnedPanels('stats-panel');
 
             expect(uiStore.statsPanelOpen).toBe(true);
             expect(uiStore.columnVisibilityOpen).toBe(false);
@@ -34,66 +26,60 @@ describe('usePanelToggleController', () => {
         });
 
         test('does not close pinned panels', () => {
-            const { ctrl } = setup();
             uiStore.statsPanelOpen = true;
             uiStore.pinnedPanels = new Set(['stats-panel']);
 
-            ctrl.closeOtherNonPinnedPanels('column-visibility-panel');
+            uiStore.closeOtherNonPinnedPanels('column-visibility-panel');
 
             // stats is pinned, should stay open
             expect(uiStore.statsPanelOpen).toBe(true);
         });
 
         test('code modal is always closed regardless of pin status', () => {
-            const { ctrl } = setup();
             uiStore.codeModalOpen = true;
             // code modal cannot be pinned, but even if added to set it should close
             uiStore.pinnedPanels = new Set(['code-modal']);
 
-            ctrl.closeOtherNonPinnedPanels('stats-panel');
+            uiStore.closeOtherNonPinnedPanels('stats-panel');
 
             expect(uiStore.codeModalOpen).toBe(false);
         });
 
         test('multiple pinned panels all stay open', () => {
-            const { ctrl } = setup();
             uiStore.statsPanelOpen = true;
             uiStore.rowFilterPanelOpen = true;
             uiStore.pinnedPanels = new Set(['stats-panel', 'row-filter-panel']);
 
-            ctrl.closeOtherNonPinnedPanels('column-visibility-panel');
+            uiStore.closeOtherNonPinnedPanels('column-visibility-panel');
 
             expect(uiStore.statsPanelOpen).toBe(true);
             expect(uiStore.rowFilterPanelOpen).toBe(true);
         });
     });
 
-    describe('openColumnVisibilityPanel', () => {
+    describe('toggleColumnVisibilityPanel', () => {
         test('opens panel when closed and closes other non-pinned panels', () => {
-            const { ctrl } = setup();
             uiStore.statsPanelOpen = true;
 
-            ctrl.openColumnVisibilityPanel();
+            uiStore.toggleColumnVisibilityPanel();
 
             expect(uiStore.columnVisibilityOpen).toBe(true);
             expect(uiStore.statsPanelOpen).toBe(false);
         });
 
         test('toggles closed when panel is already open (not pinned)', () => {
-            const { ctrl } = setup();
             uiStore.columnVisibilityOpen = true;
 
-            ctrl.openColumnVisibilityPanel();
+            uiStore.toggleColumnVisibilityPanel();
 
             expect(uiStore.columnVisibilityOpen).toBe(false);
         });
 
         test('toggles without closing others when panel is pinned', () => {
-            const { ctrl } = setup();
             uiStore.pinnedPanels = new Set(['column-visibility-panel']);
             uiStore.statsPanelOpen = true;
 
-            ctrl.openColumnVisibilityPanel();
+            uiStore.toggleColumnVisibilityPanel();
 
             // opens column visibility
             expect(uiStore.columnVisibilityOpen).toBe(true);
@@ -102,32 +88,28 @@ describe('usePanelToggleController', () => {
         });
     });
 
-    describe('openCodeModal', () => {
-        test('posts suggestCodeSyntax and opens modal when closed', () => {
-            const { postMessage, ctrl } = setup();
+    describe('toggleCodeModal', () => {
+        test('returns true and opens modal when closed', () => {
+            const opened = uiStore.toggleCodeModal();
 
-            ctrl.openCodeModal();
-
-            expect(postMessage).toHaveBeenCalledWith({ type: 'suggestCodeSyntax' });
+            expect(opened).toBe(true);
             expect(uiStore.codeModalOpen).toBe(true);
         });
 
-        test('does NOT post message when modal is already open (closes it)', () => {
-            const { postMessage, ctrl } = setup();
+        test('returns false when modal is already open (closes it)', () => {
             uiStore.codeModalOpen = true;
 
-            ctrl.openCodeModal();
+            const opened = uiStore.toggleCodeModal();
 
-            expect(postMessage).not.toHaveBeenCalled();
+            expect(opened).toBe(false);
             expect(uiStore.codeModalOpen).toBe(false);
         });
 
         test('closes other non-pinned panels when opening', () => {
-            const { ctrl } = setup();
             uiStore.statsPanelOpen = true;
             uiStore.columnVisibilityOpen = true;
 
-            ctrl.openCodeModal();
+            uiStore.toggleCodeModal();
 
             expect(uiStore.statsPanelOpen).toBe(false);
             expect(uiStore.columnVisibilityOpen).toBe(false);

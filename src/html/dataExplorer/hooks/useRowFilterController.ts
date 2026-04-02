@@ -54,10 +54,8 @@ export class RowFilterController {
             createRowFilterDraft(schema, filter, columnIndex, getSupportedRowFilterTypes(dataStore.rowFilterSupport)),
         );
         this.setRowFilterError('');
+        uiStore.closeOtherNonPinnedPanels('row-filter-panel');
         uiStore.rowFilterPanelOpen = true;
-        uiStore.columnVisibilityOpen = false;
-        uiStore.statsPanelOpen = false;
-        uiStore.codeModalOpen = false;
         uiStore.closeColumnMenu();
         this.log('Row filter editor opened', { filter, index });
     }

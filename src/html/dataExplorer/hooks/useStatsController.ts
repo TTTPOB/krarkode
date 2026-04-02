@@ -329,15 +329,7 @@ export class StatsController {
         const isPinned = uiStore.isPanelPinned('stats-panel');
 
         if (!isPinned) {
-            // Close other non-pinned panels when opening stats panel
-            if (!uiStore.isPanelPinned('column-visibility-panel')) {
-                uiStore.columnVisibilityOpen = false;
-            }
-            if (!uiStore.isPanelPinned('row-filter-panel')) {
-                uiStore.rowFilterPanelOpen = false;
-            }
-            // Code modal is never pinned
-            uiStore.codeModalOpen = false;
+            uiStore.closeOtherNonPinnedPanels('stats-panel');
         }
 
         if (!shouldOpen) {

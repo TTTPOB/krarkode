@@ -11,7 +11,6 @@
     import { TableInteractionController } from './hooks/useTableInteractionController';
     import { WindowEventsController } from './hooks/useWindowEventsController';
     import { TableSetupController } from './hooks/useTableSetupController';
-    import { PanelToggleController } from './hooks/usePanelToggleController';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -232,9 +231,6 @@
         },
     });
 
-    const panelToggleController = new PanelToggleController({
-        postMessage: (message) => vscode.postMessage(message),
-    });
 
 
     function setPanelPinned(panelId: string, pinned: boolean): void {
@@ -376,9 +372,13 @@
     bind:columnsButtonEl
     bind:statsButtonEl
     bind:codeButtonEl
-    onOpenColumns={() => panelToggleController.openColumnVisibilityPanel()}
+    onOpenColumns={() => uiStore.toggleColumnVisibilityPanel()}
     onOpenStats={() => statsController.openStatsPanel({ toggle: true })}
-    onOpenCode={() => panelToggleController.openCodeModal()}
+    onOpenCode={() => {
+        if (uiStore.toggleCodeModal()) {
+            vscode.postMessage({ type: 'suggestCodeSyntax' });
+        }
+    }}
     onRefresh={() => vscode.postMessage({ type: 'refresh' })}
     onExport={(e) => vscode.postMessage({ type: 'exportData', format: e.format })}
 />
