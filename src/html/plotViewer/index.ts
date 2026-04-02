@@ -408,26 +408,6 @@ window.onload = () => {
         });
     });
 
-    getSmallPlotWrappers().forEach((wrapper) => {
-        wrapper.addEventListener('click', (event) => {
-            if ((event.target as HTMLElement).classList.contains('hidePlot')) {
-                return;
-            }
-            const plotId = wrapper.dataset.plotId;
-            if (plotId) {
-                sendCommand('goTo', plotId);
-            }
-        });
-
-        const hideBtn = wrapper.querySelector('.hidePlot');
-        if (hideBtn) {
-            hideBtn.addEventListener('click', (event) => {
-                event.stopPropagation();
-                const plotId = wrapper.dataset.plotId;
-                if (plotId) {
-                    sendCommand('hide', plotId);
-                }
-            });
-        }
-    });
+    // Note: small plot wrapper event listeners are registered in addPlot()
+    // when each wrapper is created. No need to re-register here.
 };
