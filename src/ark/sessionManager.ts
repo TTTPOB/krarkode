@@ -754,6 +754,10 @@ export class ArkSessionManager {
     private watchForAnnouncePid(entry: ArkSessionEntry, announceFile: string, timeoutMs = 30_000): void {
         const sessionDir = path.dirname(announceFile);
         const fileName = path.basename(announceFile);
+
+        // Ensure directory exists before watching (fs.watch requires it)
+        fs.mkdirSync(sessionDir, { recursive: true });
+
         let resolved = false;
 
         const cleanup = () => {
