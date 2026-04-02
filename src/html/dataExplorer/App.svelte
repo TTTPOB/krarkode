@@ -194,15 +194,6 @@
     });
 
     const windowEventsController = new WindowEventsController({
-        getColumnMenuEl: () => columnMenuEl,
-        getStatsPanelEl: () => statsPanelEl,
-        getStatsButtonEl: () => statsButtonEl,
-        getColumnVisibilityPanelEl: () => columnVisibilityPanelEl,
-        getColumnsButtonEl: () => columnsButtonEl,
-        getCodeModalEl: () => codeModalEl,
-        getCodeButtonEl: () => codeButtonEl,
-        getRowFilterPanelEl: () => rowFilterPanelEl,
-        getAddRowFilterButtonEl: () => addRowFilterButtonEl,
         handleSidePanelResize: (event) => tableController.handleSidePanelResize(event),
         handleColumnResizeMove: (event) => tableController.handleColumnResizeMove(event),
         finishSidePanelResize: () => tableController.finishSidePanelResize(),

@@ -1,15 +1,6 @@
 import { uiStore } from '../stores';
 
 type WindowEventsOptions = {
-    getColumnMenuEl: () => HTMLDivElement | undefined;
-    getStatsPanelEl: () => HTMLDivElement | undefined;
-    getStatsButtonEl: () => HTMLButtonElement | undefined;
-    getColumnVisibilityPanelEl: () => HTMLDivElement | undefined;
-    getColumnsButtonEl: () => HTMLButtonElement | undefined;
-    getCodeModalEl: () => HTMLDivElement | undefined;
-    getCodeButtonEl: () => HTMLButtonElement | undefined;
-    getRowFilterPanelEl: () => HTMLDivElement | undefined;
-    getAddRowFilterButtonEl: () => HTMLButtonElement | undefined;
     handleSidePanelResize: (event: MouseEvent) => void;
     handleColumnResizeMove: (event: MouseEvent) => void;
     finishSidePanelResize: () => void;
@@ -17,16 +8,20 @@ type WindowEventsOptions = {
     onResize: () => void;
 };
 
+// DOM element IDs used for click-outside detection
+const PANEL_IDS = {
+    columnMenu: 'column-menu',
+    statsPanel: 'stats-panel',
+    statsButton: 'stats-btn',
+    columnVisibilityPanel: 'column-visibility-panel',
+    columnsButton: 'columns-btn',
+    codeModal: 'code-modal',
+    codeButton: 'code-btn',
+    rowFilterPanel: 'row-filter-panel',
+    addRowFilterButton: 'add-row-filter',
+} as const;
+
 export class WindowEventsController {
-    private readonly getColumnMenuEl: () => HTMLDivElement | undefined;
-    private readonly getStatsPanelEl: () => HTMLDivElement | undefined;
-    private readonly getStatsButtonEl: () => HTMLButtonElement | undefined;
-    private readonly getColumnVisibilityPanelEl: () => HTMLDivElement | undefined;
-    private readonly getColumnsButtonEl: () => HTMLButtonElement | undefined;
-    private readonly getCodeModalEl: () => HTMLDivElement | undefined;
-    private readonly getCodeButtonEl: () => HTMLButtonElement | undefined;
-    private readonly getRowFilterPanelEl: () => HTMLDivElement | undefined;
-    private readonly getAddRowFilterButtonEl: () => HTMLButtonElement | undefined;
     private readonly handleSidePanelResizeFn: (event: MouseEvent) => void;
     private readonly handleColumnResizeMoveFn: (event: MouseEvent) => void;
     private readonly finishSidePanelResizeFn: () => void;
@@ -34,15 +29,6 @@ export class WindowEventsController {
     private readonly onResize: () => void;
 
     constructor(options: WindowEventsOptions) {
-        this.getColumnMenuEl = options.getColumnMenuEl;
-        this.getStatsPanelEl = options.getStatsPanelEl;
-        this.getStatsButtonEl = options.getStatsButtonEl;
-        this.getColumnVisibilityPanelEl = options.getColumnVisibilityPanelEl;
-        this.getColumnsButtonEl = options.getColumnsButtonEl;
-        this.getCodeModalEl = options.getCodeModalEl;
-        this.getCodeButtonEl = options.getCodeButtonEl;
-        this.getRowFilterPanelEl = options.getRowFilterPanelEl;
-        this.getAddRowFilterButtonEl = options.getAddRowFilterButtonEl;
         this.handleSidePanelResizeFn = options.handleSidePanelResize;
         this.handleColumnResizeMoveFn = options.handleColumnResizeMove;
         this.finishSidePanelResizeFn = options.finishSidePanelResize;
@@ -50,15 +36,9 @@ export class WindowEventsController {
         this.onResize = options.onResize;
     }
 
-    /**
-     * Returns true when a click landed outside both the panel and its
-     * toggle button, meaning the panel should close.
-     */
-    private shouldCloseOnClick(
-        target: Node,
-        panelEl: HTMLElement | undefined,
-        buttonEl: HTMLElement | undefined,
-    ): boolean {
+    private shouldCloseOnClick(target: Node, panelId: string, buttonId: string): boolean {
+        const panelEl = document.getElementById(panelId);
+        const buttonEl = document.getElementById(buttonId);
         return (
             !!panelEl &&
             !panelEl.contains(target) &&
@@ -70,7 +50,7 @@ export class WindowEventsController {
     handleDocumentClick(event: MouseEvent): void {
         const target = event.target as Node;
 
-        const columnMenuEl = this.getColumnMenuEl();
+        const columnMenuEl = document.getElementById(PANEL_IDS.columnMenu);
         if (uiStore.columnMenuOpen && columnMenuEl && !columnMenuEl.contains(target)) {
             uiStore.closeColumnMenu();
         }
@@ -78,7 +58,7 @@ export class WindowEventsController {
         if (
             uiStore.statsPanelOpen &&
             !uiStore.isPanelPinned('stats-panel') &&
-            this.shouldCloseOnClick(target, this.getStatsPanelEl(), this.getStatsButtonEl())
+            this.shouldCloseOnClick(target, PANEL_IDS.statsPanel, PANEL_IDS.statsButton)
         ) {
             uiStore.statsPanelOpen = false;
         }
@@ -86,14 +66,14 @@ export class WindowEventsController {
         if (
             uiStore.columnVisibilityOpen &&
             !uiStore.isPanelPinned('column-visibility-panel') &&
-            this.shouldCloseOnClick(target, this.getColumnVisibilityPanelEl(), this.getColumnsButtonEl())
+            this.shouldCloseOnClick(target, PANEL_IDS.columnVisibilityPanel, PANEL_IDS.columnsButton)
         ) {
             uiStore.columnVisibilityOpen = false;
         }
 
         if (
             uiStore.codeModalOpen &&
-            this.shouldCloseOnClick(target, this.getCodeModalEl(), this.getCodeButtonEl())
+            this.shouldCloseOnClick(target, PANEL_IDS.codeModal, PANEL_IDS.codeButton)
         ) {
             uiStore.codeModalOpen = false;
         }
@@ -101,7 +81,7 @@ export class WindowEventsController {
         if (
             uiStore.rowFilterPanelOpen &&
             !uiStore.isPanelPinned('row-filter-panel') &&
-            this.shouldCloseOnClick(target, this.getRowFilterPanelEl(), this.getAddRowFilterButtonEl())
+            this.shouldCloseOnClick(target, PANEL_IDS.rowFilterPanel, PANEL_IDS.addRowFilterButton)
         ) {
             uiStore.rowFilterPanelOpen = false;
         }
