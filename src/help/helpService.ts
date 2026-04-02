@@ -87,7 +87,11 @@ export class HelpService implements IKrarkodeHelpService {
                 }
 
                 // Fetch the content instead of just using the URL
-                const response = await fetch(content);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10_000);
+                const response = await fetch(content, { signal: controller.signal }).finally(() =>
+                    clearTimeout(timeoutId),
+                );
                 if (response.ok) {
                     const html = await response.text();
                     processedKind = 'html';
