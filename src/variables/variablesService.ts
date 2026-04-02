@@ -79,7 +79,6 @@ export class VariablesService implements vscode.Disposable {
         const message = data;
         const method = typeof message.method === 'string' ? message.method : undefined;
         this.log(`Received comm message: method=${method ?? 'none'}, id=${message.id ?? 'none'}`);
-        this.log(`Received comm message data: ${JSON.stringify(data)}`, true);
 
         if (message.error) {
             const detail = JSON.stringify(message.error);
@@ -207,12 +206,8 @@ export class VariablesService implements vscode.Disposable {
         }
     }
 
-    private log(message: string, verbose?: boolean) {
-        if (verbose) {
-            this.outputChannel.appendLine(`[Trace] ${message}`);
-        } else {
-            this.outputChannel.appendLine(message);
-        }
+    private log(message: string) {
+        this.outputChannel.appendLine(message);
     }
 
     private updateConnectionState(connected: boolean, reason: string) {
