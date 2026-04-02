@@ -10,17 +10,15 @@ A focused VS Code extension that brings Positron-quality Ark kernel integration 
 
 ## What Is This?
 
-Previously, using R in VS Code required the [vscode-R extension](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r). It is a great extension, but it has some limitations I don't quite like: plot viewer backend format support, language server performance and correctness, data explorer experience, and more. Additionally, vscode-R's LSP server and plot viewer require separate packages to work.
+Previously, the go-to choice for using R in VS Code was the [vscode-R extension](https://marketplace.visualstudio.com/items?itemName=REditorSupport.r). It is a great extension, but I still have some gripes with it: plot viewer backend format support, language server performance and correctness, data explorer experience, and more. Additionally, its LSP server and plot viewer require separate R packages to work.
 
 [Ark](https://github.com/posit-dev/ark) is a full-featured R kernel built by Posit. It ships with an LSP server, Jupyter comm protocol support, and a built-in plot device. However, using Ark natively in VS Code is currently not possible — it only works in [Positron](https://github.com/posit-dev/positron), the Electron-based IDE built by Posit.
 
-That is why I built Krarkode: to bring Ark's R kernel experience into VS Code. This project has a strong personal bias; most design decisions serve my preferred workflow rather than being designed for generic use cases. I am (partly) a bioinformatician, mainly using R for data analysis and visualization rather than package development. I don't use R Markdown at all, so package development and R Markdown-related features are out of scope for now.
+That is why I built Krarkode: to bring Ark's R kernel experience into VS Code. This project has a strong personal bias; most design decisions serve my preferred workflow rather than being designed for generic use cases. I am a bioinformatician, mainly using R for data analysis and visualization rather than package development. I don't use R Markdown at all, so package development and R Markdown-related features are out of scope for now.
 
-Because my time is limited, I chose to glue multiple existing tools together instead of building everything elegantly from scratch. For example, session management relies on `tmux`. The implementation is not the most elegant, but it works. This is my first somewhat "big" project — it has many rough edges, test coverage is very limited (I am a poor test writer), and most of the code was generated with the help of `Claude Code` and `Codex`. But I have put enough human intelligence into the design, and I won't be ashamed of the AI involvement.
+Because my time is limited, I chose to glue multiple existing tools together (session management even uses `tmux` directly). The implementation is not the most elegant, but it works anyway. Most of the code was generated with the help of `Claude Code` and `Codex`. But I have put enough human intelligence into the design, and I won't be ashamed of the AI involvement.
 
 The name, though seemingly hard to pronounce, means I `cracked` `ark` out of Positron and put it into VS `Code`.
-
-**Ark owns computation and protocol. Krarkode owns UI and VS Code glue.**
 
 See [docs/design.md](docs/design.md) for design rationale and [docs/architecture.md](docs/architecture.md) for the full system diagram.
 
