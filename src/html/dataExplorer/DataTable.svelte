@@ -262,33 +262,39 @@
         </div>
     </div>
     <div class="table-body" id="table-body" role="rowgroup" bind:this={tableBodyEl} onscroll={handleTableScroll}>
-        <div
-            class="table-body-inner"
-            bind:this={bodyInnerEl}
-            style:height={`${virtualizerTotalHeight}px`}
-            style:width={`${totalWidth}px`}
-        >
-            {#each virtualRows as virtualRow (virtualRow.key)}
-                <div
-                    class="table-row"
-                    role="row"
-                    style:grid-template-columns={columnTemplate}
-                    style:width={`${totalWidth}px`}
-                    style:transform={`translateY(${virtualRow.start}px)`}
-                >
-                    <div class="table-cell row-label" role="rowheader">
-                        {getRowLabel(virtualRow.index, rowCacheVersion)}
+        {#if state && state.table_shape.num_rows === 0}
+            <div class="empty-state">
+                <span class="empty-state-text">No rows to display.</span>
+            </div>
+        {:else}
+            <div
+                class="table-body-inner"
+                bind:this={bodyInnerEl}
+                style:height={`${virtualizerTotalHeight}px`}
+                style:width={`${totalWidth}px`}
+            >
+                {#each virtualRows as virtualRow (virtualRow.key)}
+                    <div
+                        class="table-row"
+                        role="row"
+                        style:grid-template-columns={columnTemplate}
+                        style:width={`${totalWidth}px`}
+                        style:transform={`translateY(${virtualRow.start}px)`}
+                    >
+                        <div class="table-cell row-label" role="rowheader">
+                            {getRowLabel(virtualRow.index, rowCacheVersion)}
+                        </div>
+                        {#if leftSpacerWidth > 0}
+                            <div class="table-cell column-spacer" role="presentation" aria-hidden="true"></div>
+                        {/if}
+                        {#each renderColumns as entry (entry.column.column_index)}
+                            {@const value = getCellValue(virtualRow.index, entry.schemaIndex, rowCacheVersion)}
+                            <div class="table-cell" role="cell" class:cell-special={isSpecialValue(value)}>{value}</div>
+                        {/each}
                     </div>
-                    {#if leftSpacerWidth > 0}
-                        <div class="table-cell column-spacer" role="presentation" aria-hidden="true"></div>
-                    {/if}
-                    {#each renderColumns as entry (entry.column.column_index)}
-                        {@const value = getCellValue(virtualRow.index, entry.schemaIndex, rowCacheVersion)}
-                        <div class="table-cell" role="cell" class:cell-special={isSpecialValue(value)}>{value}</div>
-                    {/each}
-                </div>
-            {/each}
-        </div>
+                {/each}
+            </div>
+        {/if}
     </div>
 </div>
 
@@ -319,6 +325,20 @@
         flex: 1;
         overflow: auto;
         background: var(--vscode-editor-background);
+    }
+
+    .empty-state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        min-height: 80px;
+    }
+
+    .empty-state-text {
+        color: var(--vscode-descriptionForeground);
+        font-style: italic;
+        font-size: 0.9em;
     }
 
     .table-body-inner {
