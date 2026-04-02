@@ -133,7 +133,7 @@ export class ArkCommBackend implements IPlotBackend {
      * Unlike dispose(), this preserves event emitters and sidecar subscriptions.
      */
     public resetForNewSession(reason: string): void {
-        this.outputChannel.appendLine(`[ArkCommBackend] Resetting plot state: ${reason}`);
+        this.outputChannel.appendLine(`Resetting plot state: ${reason}`);
 
         // Reject any in-flight render requests
         this.pendingRenders.forEach((p) => p.reject(new Error(`Session reset: ${reason}`)));
@@ -146,7 +146,7 @@ export class ArkCommBackend implements IPlotBackend {
             this._onPlotsChanged.fire([]);
         }
 
-        this.outputChannel.appendLine(`[ArkCommBackend] Plot state reset complete`);
+        this.outputChannel.appendLine(`Plot state reset complete`);
     }
 
     public disconnect(): void {

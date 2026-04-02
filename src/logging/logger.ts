@@ -7,6 +7,8 @@ export type LogChannelSetting = 'none' | 'error' | 'warn' | 'info' | 'debug' | '
 
 export enum LogCategory {
     Core = 'core',
+    Config = 'config',
+    RBinary = 'r-binary',
     Logging = 'logging',
     Session = 'session',
     Help = 'help',

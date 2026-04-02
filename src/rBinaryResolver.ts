@@ -37,7 +37,7 @@ function buildConfigSnapshot(): string {
  */
 export function invalidateRBinaryCache(): void {
     if (candidateCache) {
-        getLogger().debug('runtime', LogCategory.Core, '[RBinaryResolver] Cache invalidated');
+        getLogger().debug('runtime', LogCategory.RBinary, 'Cache invalidated');
     }
     candidateCache = undefined;
 }
@@ -60,16 +60,16 @@ export async function collectRBinaryCandidates(): Promise<RBinaryCandidate[]> {
         const configMatch = candidateCache.configSnapshot === currentSnapshot;
 
         if (configMatch && age < CACHE_TTL_MS) {
-            log.debug('runtime', LogCategory.Core,
+            log.debug('runtime', LogCategory.RBinary,
                 `[RBinaryResolver] Using cached candidates (${candidateCache.candidates.length} entries, age=${age}ms)`);
             return candidateCache.candidates;
         }
 
-        log.debug('runtime', LogCategory.Core,
+        log.debug('runtime', LogCategory.RBinary,
             `[RBinaryResolver] Cache stale: configMatch=${configMatch}, age=${age}ms`);
     }
 
-    log.debug('runtime', LogCategory.Core, '[RBinaryResolver] Running full R binary discovery');
+    log.debug('runtime', LogCategory.RBinary, 'Running full R binary discovery');
     const candidates = await collectRBinaryCandidatesUncached();
 
     candidateCache = {
@@ -78,7 +78,7 @@ export async function collectRBinaryCandidates(): Promise<RBinaryCandidate[]> {
         timestamp: Date.now(),
     };
 
-    log.debug('runtime', LogCategory.Core,
+    log.debug('runtime', LogCategory.RBinary,
         `[RBinaryResolver] Cached ${candidates.length} R binary candidates`);
     return candidates;
 }
@@ -101,7 +101,7 @@ async function collectRBinaryCandidatesUncached(): Promise<RBinaryCandidate[]> {
     const configuredPaths = getConfiguredRBinaryPaths();
     for (const userRPath of configuredPaths) {
         if (isExecutableFile(userRPath)) {
-            log.debug('runtime', LogCategory.Core, `R candidate from setting: ${userRPath}`);
+            log.debug('runtime', LogCategory.RBinary, `R candidate from setting: ${userRPath}`);
             addCandidate({
                 label: 'User setting',
                 rBinaryPath: userRPath,
@@ -109,18 +109,18 @@ async function collectRBinaryCandidatesUncached(): Promise<RBinaryCandidate[]> {
                 detail: userRPath,
             });
         } else {
-            log.debug('runtime', LogCategory.Core, `R setting path not executable: ${userRPath}`);
+            log.debug('runtime', LogCategory.RBinary, `R setting path not executable: ${userRPath}`);
         }
     }
 
     // 2. Pixi environments
     const pixiManifestPath = resolvePixiManifestPath();
     if (pixiManifestPath) {
-        log.debug('runtime', LogCategory.Core, `Resolving pixi environments from: ${pixiManifestPath}`);
+        log.debug('runtime', LogCategory.RBinary, `Resolving pixi environments from: ${pixiManifestPath}`);
         try {
             const pixiEnvs = await resolvePixiEnvironments({
                 manifestPath: pixiManifestPath,
-                logger: (msg) => log.debug('runtime', LogCategory.Core, msg),
+                logger: (msg) => log.debug('runtime', LogCategory.RBinary, msg),
             });
             for (const env of pixiEnvs) {
                 addCandidate({
@@ -131,14 +131,14 @@ async function collectRBinaryCandidatesUncached(): Promise<RBinaryCandidate[]> {
                 });
             }
         } catch (error) {
-            log.debug('runtime', LogCategory.Core, `pixi resolution error: ${error}`);
+            log.debug('runtime', LogCategory.RBinary, `pixi resolution error: ${error}`);
         }
     }
 
     // 3. System PATH
     const pathR = getRfromEnvPath();
     if (pathR) {
-        log.debug('runtime', LogCategory.Core, `R candidate from PATH: ${pathR}`);
+        log.debug('runtime', LogCategory.RBinary, `R candidate from PATH: ${pathR}`);
         addCandidate({
             label: 'System PATH',
             rBinaryPath: pathR,
@@ -147,6 +147,6 @@ async function collectRBinaryCandidatesUncached(): Promise<RBinaryCandidate[]> {
         });
     }
 
-    log.debug('runtime', LogCategory.Core, `Total R binary candidates: ${candidates.length}`);
+    log.debug('runtime', LogCategory.RBinary, `Total R binary candidates: ${candidates.length}`);
     return candidates;
 }

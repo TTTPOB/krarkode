@@ -69,8 +69,8 @@ export class ArkLanguageService implements vscode.Disposable {
     private isIntentionallyRestarting: boolean = false;
 
     constructor() {
-        this.outputChannel = getLogger().createChannel('lsp');
-        this.kernelOutputChannel = getLogger().createChannel('ark-kernel');
+        this.outputChannel = getLogger().createChannel('lsp', LogCategory.Session);
+        this.kernelOutputChannel = getLogger().createChannel('ark-kernel', LogCategory.Stdout);
         this.runtimeOutputChannel = getLogger().createChannel('runtime', LogCategory.Session);
         this.client = undefined;
         this.disposables.push(

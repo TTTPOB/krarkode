@@ -48,7 +48,7 @@ export class ConfigurationWatcher implements vscode.Disposable {
         this.disposables.push(
             vscode.workspace.onDidChangeConfiguration((e) => this.handleChange(e)),
         );
-        getLogger().debug('runtime', LogCategory.Core, '[ConfigurationWatcher] Initialized');
+        getLogger().debug('runtime', LogCategory.Config, 'Initialized');
     }
 
     private handleChange(event: vscode.ConfigurationChangeEvent): void {
@@ -73,12 +73,12 @@ export class ConfigurationWatcher implements vscode.Disposable {
         const currentlyEnabled = this.deps.isLspEnabled();
 
         if (enabled && !currentlyEnabled) {
-            getLogger().log('runtime', LogCategory.Core, 'info',
-                '[ConfigurationWatcher] LSP enabled by configuration change');
+            getLogger().log('runtime', LogCategory.Config, 'info',
+                'LSP enabled by configuration change');
             this.deps.enableLsp();
         } else if (!enabled && currentlyEnabled) {
-            getLogger().log('runtime', LogCategory.Core, 'info',
-                '[ConfigurationWatcher] LSP disabled by configuration change');
+            getLogger().log('runtime', LogCategory.Config, 'info',
+                'LSP disabled by configuration change');
             this.deps.disableLsp();
         }
     }
@@ -88,8 +88,8 @@ export class ConfigurationWatcher implements vscode.Disposable {
     private handleRBinaryConfigKeys(event: vscode.ConfigurationChangeEvent): void {
         if (event.affectsConfiguration('krarkode.r.binaryPath') ||
             event.affectsConfiguration('krarkode.pixi.manifestPath')) {
-            getLogger().debug('runtime', LogCategory.Core,
-                '[ConfigurationWatcher] R binary config changed, invalidating cache');
+            getLogger().debug('runtime', LogCategory.Config,
+                'R binary config changed, invalidating cache');
             this.deps.invalidateRBinaryCache();
         }
     }
@@ -101,7 +101,7 @@ export class ConfigurationWatcher implements vscode.Disposable {
             return;
         }
         const value = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;
-        getLogger().debug('runtime', LogCategory.Core,
+        getLogger().debug('runtime', LogCategory.Config,
             `[ConfigurationWatcher] plot.maxHistory updated to ${value}`);
         this.deps.setPlotMaxHistory(value);
     }
@@ -113,8 +113,8 @@ export class ConfigurationWatcher implements vscode.Disposable {
         if (!affected) {
             return;
         }
-        getLogger().debug('runtime', LogCategory.Core,
-            '[ConfigurationWatcher] LSP config changed, scheduling debounced restart');
+        getLogger().debug('runtime', LogCategory.Config,
+            'LSP config changed, scheduling debounced restart');
         this.scheduleLspRestart();
     }
 
@@ -125,8 +125,8 @@ export class ConfigurationWatcher implements vscode.Disposable {
         this.restartDebounceTimer = setTimeout(() => {
             this.restartDebounceTimer = undefined;
             if (this.deps.isLspEnabled()) {
-                getLogger().log('runtime', LogCategory.Core, 'info',
-                    '[ConfigurationWatcher] Restarting LSP to apply configuration changes');
+                getLogger().log('runtime', LogCategory.Config, 'info',
+                    'Restarting LSP to apply configuration changes');
                 this.deps.restartLsp();
             }
         }, RESTART_DEBOUNCE_MS);
@@ -139,8 +139,8 @@ export class ConfigurationWatcher implements vscode.Disposable {
         if (!affected) {
             return;
         }
-        getLogger().debug('runtime', LogCategory.Core,
-            '[ConfigurationWatcher] Path configuration changed, prompting user');
+        getLogger().debug('runtime', LogCategory.Config,
+            'Path configuration changed, prompting user');
         void vscode.window
             .showInformationMessage(
                 'Path configuration changed. Restart the language server to use the new path.',
@@ -160,8 +160,8 @@ export class ConfigurationWatcher implements vscode.Disposable {
         if (!affected) {
             return;
         }
-        getLogger().debug('runtime', LogCategory.Core,
-            '[ConfigurationWatcher] Session-scoped configuration changed');
+        getLogger().debug('runtime', LogCategory.Config,
+            'Session-scoped configuration changed');
         void vscode.window.showInformationMessage(
             'This setting will take effect on the next Ark session.',
         );
