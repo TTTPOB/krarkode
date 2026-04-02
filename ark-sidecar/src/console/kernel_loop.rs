@@ -12,7 +12,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, error, warn};
 
 use runtimelib::{
-    create_client_heartbeat_connection, create_client_iopub_connection, ClientControlConnection,
+    create_client_heartbeat_connection, ClientControlConnection, ClientIoPubConnection,
     ExecuteRequest, ExecutionState, InterruptRequest, JupyterMessage, JupyterMessageContent,
 };
 
@@ -67,6 +67,7 @@ impl HeartbeatMonitorState {
 pub(crate) async fn run_kernel_loop(
     connection_info: &runtimelib::ConnectionInfo,
     session_id: &str,
+    mut iopub: ClientIoPubConnection,
     mut request_rx: tokio::sync::mpsc::Receiver<ConsoleRequest>,
     ui_event_tx: std_mpsc::Sender<ConsoleUiEvent>,
     mut control: ClientControlConnection,
@@ -74,9 +75,6 @@ pub(crate) async fn run_kernel_loop(
 ) -> Result<()> {
     debug!("Console kernel_loop: connecting to kernel");
 
-    let mut iopub = create_client_iopub_connection(connection_info, "", session_id)
-        .await
-        .context("Failed to connect iopub")?;
     let mut shell = create_shell_connection(connection_info, session_id)
         .await
         .context("Failed to connect shell")?;

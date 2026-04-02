@@ -12,8 +12,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use runtimelib::{
-    create_client_iopub_connection, ConnectionInfo, ExecuteRequest, ExecutionState, JupyterMessage,
-    JupyterMessageContent,
+    create_client_iopub_connection, ClientIoPubConnection, ConnectionInfo, ExecuteRequest,
+    ExecutionState, JupyterMessage, JupyterMessageContent,
 };
 use std::sync::mpsc as std_mpsc;
 use tokio::signal::unix::{signal, SignalKind};
@@ -38,8 +38,16 @@ pub(crate) async fn run_console(
 ) -> Result<()> {
     info!(mode = "console", "Sidecar: starting console mode");
 
+    // --- Single shared iopub connection ---
+    // Create once and reuse across LSP init, R version query, and the main kernel loop.
+    // Multiple ZMQ SUB connections would each send a subscription message to Ark's IOPub,
+    // but Ark only expects one (JEP 65), logging errors for subsequent subscriptions.
+    let mut iopub = create_client_iopub_connection(connection_info, "", session_id)
+        .await
+        .context("Failed to connect iopub")?;
+
     // --- LSP Initialization (best-effort) ---
-    let lsp_client = match init_lsp(connection_info, session_id).await {
+    let lsp_client = match init_lsp(connection_info, session_id, &mut iopub).await {
         Ok(client) => {
             info!("Console: LSP client initialized, completion enabled");
             Some(Arc::new(client))
@@ -51,7 +59,7 @@ pub(crate) async fn run_console(
     };
 
     // --- Query R version (best-effort) ---
-    let r_version = match query_r_version(connection_info, session_id).await {
+    let r_version = match query_r_version(connection_info, session_id, &mut iopub).await {
         Ok(version) => {
             info!(version = %version, "Console: R version queried");
             Some(version)
@@ -113,9 +121,11 @@ pub(crate) async fn run_console(
     });
 
     // Run the async kernel loop (in the current task)
+    // Pass the shared iopub connection — no new SUB socket created.
     let kernel_result = run_kernel_loop(
         &conn_info,
         &sess_id,
+        iopub,
         request_rx,
         ui_event_tx,
         control,
@@ -133,13 +143,14 @@ pub(crate) async fn run_console(
 
 /// Query the R version string from the kernel by executing `cat(R.version.string)`.
 ///
-/// Uses temporary shell+iopub connections (same pattern as LSP init).
-async fn query_r_version(connection_info: &ConnectionInfo, session_id: &str) -> Result<String> {
+/// Uses the shared iopub connection and a temporary shell connection.
+async fn query_r_version(
+    connection_info: &ConnectionInfo,
+    session_id: &str,
+    iopub: &mut ClientIoPubConnection,
+) -> Result<String> {
     debug!("Console: querying R version from kernel");
 
-    let mut iopub = create_client_iopub_connection(connection_info, "", session_id)
-        .await
-        .context("Failed to connect iopub for R version query")?;
     let mut shell = create_shell_connection(connection_info, session_id)
         .await
         .context("Failed to connect shell for R version query")?;
@@ -207,21 +218,22 @@ async fn query_r_version(connection_info: &ConnectionInfo, session_id: &str) -> 
         anyhow::bail!("Empty R version response");
     }
     Ok(version)
-    // iopub and shell connections are dropped here
+    // shell connection dropped here; iopub is borrowed, not owned
 }
 
 /// Initialize the LSP client by negotiating with Ark via the Jupyter comm protocol.
 ///
-/// Creates temporary shell+iopub connections for the comm handshake,
-/// then connects to the LSP TCP server and performs LSP initialization.
-async fn init_lsp(connection_info: &ConnectionInfo, session_id: &str) -> Result<LspClient> {
+/// Uses the shared iopub connection and a temporary shell connection for the comm
+/// handshake, then connects to the LSP TCP server and performs LSP initialization.
+async fn init_lsp(
+    connection_info: &ConnectionInfo,
+    session_id: &str,
+    iopub: &mut ClientIoPubConnection,
+) -> Result<LspClient> {
     let ip_address = &connection_info.ip;
     debug!(ip = %ip_address, "Console: initializing LSP client");
 
-    // Create temporary connections for the comm handshake
-    let mut iopub = create_client_iopub_connection(connection_info, "", session_id)
-        .await
-        .context("Failed to connect iopub for LSP init")?;
+    // Create temporary shell connection for the comm handshake
     let mut shell = create_shell_connection(connection_info, session_id)
         .await
         .context("Failed to connect shell for LSP init")?;
@@ -232,7 +244,7 @@ async fn init_lsp(connection_info: &ConnectionInfo, session_id: &str) -> Result<
     info!(comm_id = %comm_id, ip = %ip_address, "Console: sent LSP comm_open");
 
     // Wait for port from kernel
-    let port = wait_for_comm_port(&mut iopub, &comm_id, Duration::from_millis(10_000)).await?;
+    let port = wait_for_comm_port(iopub, &comm_id, Duration::from_millis(10_000)).await?;
     info!(port = port, "Console: received LSP port");
 
     // Connect to LSP server and initialize
@@ -241,5 +253,5 @@ async fn init_lsp(connection_info: &ConnectionInfo, session_id: &str) -> Result<
 
     info!("Console: LSP client ready");
     Ok(client)
-    // iopub and shell connections are dropped here -- they were only for the comm handshake
+    // shell connection dropped here; iopub is borrowed, not owned
 }
