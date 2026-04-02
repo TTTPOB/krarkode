@@ -12,7 +12,6 @@
     import { WindowEventsController } from './hooks/useWindowEventsController';
     import { TableSetupController } from './hooks/useTableSetupController';
     import { PanelToggleController } from './hooks/usePanelToggleController';
-    import { ExportController } from './hooks/useExportController';
     import Toolbar from './Toolbar.svelte';
     import RowFilterBar from './RowFilterBar.svelte';
     import CodeModal from './CodeModal.svelte';
@@ -237,9 +236,6 @@
         postMessage: (message) => vscode.postMessage(message),
     });
 
-    const exportController = new ExportController({
-        postMessage: (message) => vscode.postMessage(message),
-    });
 
     function setPanelPinned(panelId: string, pinned: boolean): void {
         uiStore.setPanelPinned(panelId, pinned);
@@ -295,11 +291,19 @@
             tableMetaError = message;
         },
         onSearchSchemaResult: (matches) => schemaController.handleSearchSchemaResult(matches),
-        onExportResult: (data, format) => exportController.handleExportResult(data, format),
+        onExportResult: (data, format) => {
+            const blob = new Blob([data], { type: format === 'html' ? 'text/html' : 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `export.${format === 'csv' ? 'csv' : format === 'tsv' ? 'tsv' : 'html'}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        },
         onColumnProfilesResult: (columnIndex, profiles, errorMessage) =>
             statsController.handleColumnProfilesResult(columnIndex, profiles, errorMessage),
-        onConvertToCodeResult: (code) => exportController.handleConvertToCodeResult(code),
-        onSuggestCodeSyntaxResult: (syntax) => exportController.handleSuggestCodeSyntaxResult(syntax),
+        onConvertToCodeResult: (code) => { uiStore.codePreview = code || '(No code generated)'; },
+        onSuggestCodeSyntaxResult: (syntax) => { uiStore.codeSyntax = syntax; },
     });
 
     onMount(() => {
@@ -376,7 +380,7 @@
     onOpenStats={() => statsController.openStatsPanel({ toggle: true })}
     onOpenCode={() => panelToggleController.openCodeModal()}
     onRefresh={() => vscode.postMessage({ type: 'refresh' })}
-    onExport={(e) => exportController.handleExport(e.format)}
+    onExport={(e) => vscode.postMessage({ type: 'exportData', format: e.format })}
 />
 
 <RowFilterBar
@@ -397,7 +401,7 @@
     bind:codeSyntax={uiStore.codeSyntax}
     bind:codeModalEl
     onClose={() => { uiStore.codeModalOpen = false; }}
-    onConvert={() => exportController.handleCodeConvert()}
+    onConvert={() => vscode.postMessage({ type: 'convertToCode', syntax: uiStore.codeSyntax })}
     onCopy={() => {}}
 />
 
