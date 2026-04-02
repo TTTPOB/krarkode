@@ -20,8 +20,6 @@
 
 名字有点难念，意思是：把 `ark` 从 Positron 中 `crack`（破解）出来，放进 VS `Code`。
 
-设计思路详见 [docs/design.md](docs/design.md)。
-
 ---
 
 ## 功能（v0.1.0）
