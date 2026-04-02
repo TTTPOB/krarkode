@@ -5,7 +5,7 @@ import { getExtensionContext } from '../context';
 import { getTmuxSessionName, listTmuxWindows } from './tmuxUtil';
 import { getLogger, LogCategory } from '../logging/logger';
 
-export type ArkConsoleDriver = 'tmux' | 'external';
+export type ArkConsoleDriver = 'tmux';
 
 export interface ArkSessionEntry {
     name: string;
@@ -136,9 +136,6 @@ export async function loadRegistryValidated(): Promise<ArkSessionEntry[]> {
     const aliveSet = new Set(aliveWindows);
 
     const validated = entries.filter((entry) => {
-        if (entry.mode !== 'tmux') {
-            return true;
-        }
         if (!entry.tmuxWindowName) {
             return false;
         }

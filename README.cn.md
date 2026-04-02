@@ -110,7 +110,6 @@
 | 日志系统（5 通道独立配置）               | ✅                    |
 | 环境诊断                         | ✅                    |
 | Console 模式 — tmux 驱动         | ✅                    |
-| Console 模式 — 外部终端驱动          | ✅                    |
 | 调试器集成                        | ❌ 将来如果有 DAP 集成的话可以考虑 |
 
 ---
@@ -131,7 +130,6 @@
 | `krarkode.pixi.manifestPath` | `""` | `pixi.toml` 路径，用于 R 环境发现 |
 | `krarkode.ark.path` | `""` | Ark 可执行文件路径，留空使用内置或 PATH |
 | `krarkode.ark.logLevel` | `inherit` | Ark 后端日志级别（inherit / error / warn / info / debug / trace） |
-| `krarkode.ark.console.driver` | `tmux` | Console 驱动：`tmux` 或 `external` |
 | `krarkode.ark.console.commandTemplate` | `{sidecarPath} console --connection-file {connectionFile}` | Console 启动命令模板 |
 | `krarkode.ark.kernel.commandTemplate` | `{arkPath} --connection_file {connectionFile} --session-mode console --startup-file {startupFile}` | Ark 内核启动命令模板 |
 | `krarkode.ark.kernel.startupFileTemplate` | `{sessionsDir}/{name}/init-ark.R` | 启动 R 脚本路径模板 |

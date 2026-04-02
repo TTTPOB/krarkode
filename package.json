@@ -98,17 +98,7 @@
           "scope": "window",
           "markdownDescription": "Log level for the Ark backend (sets RUST_LOG=ark=<level>). Use inherit to keep the current RUST_LOG."
         },
-        "krarkode.ark.console.driver": {
-          "type": "string",
-          "default": "tmux",
-          "enum": [
-            "tmux",
-            "external"
-          ],
-          "scope": "window",
-          "markdownDescription": "Console driver for Ark sessions."
-        },
-        "krarkode.ark.console.commandTemplate": {
+"krarkode.ark.console.commandTemplate": {
           "type": "string",
           "default": "{sidecarPath} console --connection-file {connectionFile}",
           "scope": "window",

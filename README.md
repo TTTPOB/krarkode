@@ -110,7 +110,6 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 | Logging (5 independent channels) | ✅ |
 | Doctor diagnostics | ✅ |
 | Console mode — tmux driver | ✅ |
-| Console mode — external terminal driver | ✅ |
 | Debugger integration | ❌ may consider if DAP integration becomes available |
 
 ---
@@ -131,7 +130,6 @@ See [docs/design.md](docs/design.md) for design rationale and [docs/architecture
 | `krarkode.pixi.manifestPath` | `""` | Path to `pixi.toml` for R environment discovery |
 | `krarkode.ark.path` | `""` | Ark executable path; leave empty for bundled or PATH |
 | `krarkode.ark.logLevel` | `inherit` | Ark backend log level (inherit / error / warn / info / debug / trace) |
-| `krarkode.ark.console.driver` | `tmux` | Console driver: `tmux` or `external` |
 | `krarkode.ark.console.commandTemplate` | `{sidecarPath} console --connection-file {connectionFile}` | Console launch command template |
 | `krarkode.ark.kernel.commandTemplate` | `{arkPath} --connection_file {connectionFile} --session-mode console --startup-file {startupFile}` | Ark kernel launch command template |
 | `krarkode.ark.kernel.startupFileTemplate` | `{sessionsDir}/{name}/init-ark.R` | Startup R script path template |

@@ -350,10 +350,6 @@ export class ArkSessionManager {
     }
 
     private getConsoleDriver(): ArkConsoleDriver {
-        const configured = (util.config().get<string>('krarkode.ark.console.driver') || 'tmux').trim();
-        if (configured === 'external') {
-            return 'external';
-        }
         return 'tmux';
     }
 
@@ -457,26 +453,20 @@ export class ArkSessionManager {
         const startupFile = this.resolveStartupFile(sessionName, sessionsDir);
         this.writeStartupFile(startupFile, sessionName, announceFile);
 
-        const driver = this.getConsoleDriver();
-        let tmuxSessionName: string | undefined;
-        let tmuxWindowName: string | undefined;
-
-        if (driver === 'tmux') {
-            const ensured = await this.ensureTmuxSession();
-            if (!ensured) {
-                return;
-            }
-            tmuxSessionName = ensured.name;
-            const windowName = await this.createKernelWindow(ensured, sessionName, connectionFile, startupFile, selectedRBinary);
-            if (!windowName) {
-                return;
-            }
-            tmuxWindowName = windowName;
+        const ensured = await this.ensureTmuxSession();
+        if (!ensured) {
+            return;
         }
+        const tmuxSessionName = ensured.name;
+        const windowName = await this.createKernelWindow(ensured, sessionName, connectionFile, startupFile, selectedRBinary);
+        if (!windowName) {
+            return;
+        }
+        const tmuxWindowName = windowName;
 
         const entry: ArkSessionEntry = {
             name: sessionName,
-            mode: driver,
+            mode: 'tmux',
             connectionFilePath: connectionFile,
             tmuxSessionName,
             tmuxWindowName,
@@ -492,13 +482,7 @@ export class ArkSessionManager {
         }
 
         await sessionRegistry.upsertSessionValidated(entry);
-
-        if (driver === 'tmux') {
-            await this.openConsoleForEntry(entry);
-        } else {
-            void vscode.window.showInformationMessage('Ark connection file generated. Please start the Ark kernel and console manually.');
-            this.setActiveSession(entry);
-        }
+        await this.openConsoleForEntry(entry);
     }
 
     /**
@@ -575,7 +559,7 @@ export class ArkSessionManager {
 
             await sessionRegistry.upsertSessionValidated({
                 name: sessionName,
-                mode: existing?.mode ?? 'external',
+                mode: existing?.mode ?? 'tmux',
                 connectionFilePath: connectionFile,
                 tmuxSessionName: existing?.tmuxSessionName,
                 tmuxWindowName: existing?.tmuxWindowName,

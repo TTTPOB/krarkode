@@ -200,28 +200,18 @@ describe('loadRegistryValidated', () => {
         expect(rmCalls.every((p: string) => !p.includes('/alive'))).toBe(true);
     });
 
-    test('keeps external-mode entries regardless of tmux state', async () => {
+    test('prunes entries without tmuxWindowName', async () => {
         const entries = [
             makeEntry({ name: 'tmux-alive', mode: 'tmux', tmuxWindowName: 'tmux-alive' }),
-            makeEntry({ name: 'ext', mode: 'external', tmuxWindowName: undefined }),
+            makeEntry({ name: 'no-window', mode: 'tmux', tmuxWindowName: undefined }),
         ];
         setRegistryOnDisk(entries);
         mockListTmuxWindows.mockResolvedValue(['tmux-alive']);
 
         const result = await loadRegistryValidated();
 
-        expect(result).toHaveLength(2);
-        expect(result.map((e) => e.name)).toEqual(['tmux-alive', 'ext']);
-    });
-
-    test('skips tmux query when no tmux entries exist', async () => {
-        const entries = [makeEntry({ name: 'ext', mode: 'external' })];
-        setRegistryOnDisk(entries);
-
-        const result = await loadRegistryValidated();
-
         expect(result).toHaveLength(1);
-        expect(mockListTmuxWindows).not.toHaveBeenCalled();
+        expect(result[0].name).toBe('tmux-alive');
     });
 
     test('returns empty array immediately for empty registry', async () => {
