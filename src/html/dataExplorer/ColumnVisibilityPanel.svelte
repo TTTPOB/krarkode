@@ -302,14 +302,14 @@
 
     .column-visibility-name {
         font-weight: 600;
-        font-size: 0.85em;
+        font-size: 1em;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
 
     .column-visibility-meta {
-        font-size: 0.75em;
+        font-size: 1em;
         color: var(--vscode-descriptionForeground);
         white-space: nowrap;
         flex-shrink: 0;
