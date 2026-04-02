@@ -95,6 +95,11 @@ export function activate(context: vscode.ExtensionContext): void {
     sessionManager = new ArkSessionManager();
     sessionManager.registerCommands(context);
 
+    // Suppress the LSP "closed unexpectedly" warning before a session is killed
+    sessionManager.setBeforeSessionStopHandler(() => {
+        languageService?.suppressCloseWarning();
+    });
+
     // When active session changes, attach sidecar to connection file
     sessionManager.setActiveSessionHandler((entry: ArkSessionEntry | undefined) => {
         const nextConnectionFile = entry?.connectionFilePath;

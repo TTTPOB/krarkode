@@ -56,6 +56,7 @@ export class ArkSessionManager {
     private readonly outputChannel = getLogger().createChannel('runtime', LogCategory.Session);
     private readonly statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     private onActiveSessionChanged?: (entry: ArkSessionEntry | undefined) => void;
+    private onBeforeSessionStop?: () => void;
     private kernelStatus: ArkKernelStatus | undefined;
     private statusQuickPick: vscode.QuickPick<StatusMenuItem> | undefined;
 
@@ -119,6 +120,10 @@ export class ArkSessionManager {
             this.updateStatusBar(current);
             handler(current);
         }
+    }
+
+    setBeforeSessionStopHandler(handler: () => void): void {
+        this.onBeforeSessionStop = handler;
     }
 
     public setKernelStatus(status: string | undefined): void {
@@ -755,6 +760,10 @@ export class ArkSessionManager {
     }
 
     private async stopSessionEntry(entry: ArkSessionEntry): Promise<void> {
+        // Notify listeners before killing the kernel so they can suppress
+        // "connection closed unexpectedly" warnings from the LSP client.
+        this.onBeforeSessionStop?.();
+
         if (entry.mode === 'tmux') {
             if (entry.tmuxSessionName && entry.tmuxWindowName) {
                 await tmuxUtil.killTmuxWindow(entry.tmuxSessionName, entry.tmuxWindowName);

@@ -94,6 +94,15 @@ export class ArkLanguageService implements vscode.Disposable {
         return this.client;
     }
 
+    /**
+     * Suppress the "closed unexpectedly" warning for the next connection close.
+     * Call this before intentionally killing the kernel so the error handler
+     * knows the disconnection is expected.
+     */
+    public suppressCloseWarning(): void {
+        this.isIntentionallyRestarting = true;
+    }
+
     public async restartWithSessionPaths(_rPath?: string, _libPaths?: string[]): Promise<void> {
         await this.restart();
     }
@@ -109,6 +118,7 @@ export class ArkLanguageService implements vscode.Disposable {
     }
 
     dispose(): void {
+        this.isIntentionallyRestarting = true;
         void this.stopLanguageService();
         this.outputChannel.dispose();
         this.kernelOutputChannel.dispose();
