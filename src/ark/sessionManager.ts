@@ -9,7 +9,7 @@ import { getRBinaryPath } from '../util';
 import { collectRBinaryCandidates } from '../rBinaryResolver';
 import type { RBinaryCandidate } from '../rBinaryResolver';
 import { getLogger, LogCategory } from '../logging/logger';
-import { formatArkRustLog, getArkLogLevel } from './arkLogLevel';
+import { formatArkRustLog, formatSidecarRustLog, getArkLogLevel } from './arkLogLevel';
 import { buildArkAttachScript, buildArkStartupScript, rStringLiteral } from './announceScripts';
 import * as tmuxUtil from './tmuxUtil';
 
@@ -802,6 +802,10 @@ export class ArkSessionManager {
         let command = renderTemplate(consoleTemplate, { sidecarPath, connectionFile: entry.connectionFilePath });
         if (entry.rBinaryPath) {
             command += ` --r-binary-path ${shellEscape(entry.rBinaryPath)}`;
+        }
+        const sidecarRustLog = formatSidecarRustLog(getArkLogLevel());
+        if (sidecarRustLog) {
+            command = `RUST_LOG="\${RUST_LOG:+\${RUST_LOG},}${sidecarRustLog}" ${command}`;
         }
         terminal.sendText(command, true);
         terminal.show(true);

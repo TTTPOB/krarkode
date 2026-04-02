@@ -102,7 +102,7 @@
           "type": "string",
           "default": "{sidecarPath} console --connection-file {connectionFile}",
           "scope": "window",
-          "markdownDescription": "Console launch command template. Supports `{sidecarPath}`, `{connectionFile}`."
+          "markdownDescription": "Console launch command template. Supports `{sidecarPath}`, `{connectionFile}`. The `RUST_LOG` env var is automatically prepended based on the **Ark: Log Level** setting."
         },
         "krarkode.ark.kernel.commandTemplate": {
           "type": "string",
