@@ -17,16 +17,57 @@
         onCopy?: () => void;
     } = $props();
 
+    let modalContentEl: HTMLDivElement | undefined = $state();
+
     function handleCodeCopy(): void {
         if (codePreview) {
             navigator.clipboard.writeText(codePreview);
         }
         onCopy?.();
     }
+
+    function handleKeydown(event: KeyboardEvent): void {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            onClose?.();
+            return;
+        }
+
+        // Focus trap: cycle Tab within the modal
+        if (event.key === 'Tab' && modalContentEl) {
+            const focusable = modalContentEl.querySelectorAll<HTMLElement>(
+                'button, select, input, textarea, [tabindex]:not([tabindex="-1"])',
+            );
+            if (focusable.length === 0) {
+                return;
+            }
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+    }
+
+    $effect(() => {
+        if (open) {
+            // Focus the first interactive element when modal opens
+            requestAnimationFrame(() => {
+                const first = modalContentEl?.querySelector<HTMLElement>('select, button, input');
+                first?.focus();
+            });
+        }
+    });
 </script>
 
-<div class="modal" id="code-modal" bind:this={codeModalEl} class:open={open}>
-    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="code-modal-title">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="modal" id="code-modal" bind:this={codeModalEl} class:open={open} onkeydown={handleKeydown}>
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="code-modal-title" bind:this={modalContentEl}>
         <div class="modal-header">
             <span id="code-modal-title">Convert to Code</span>
             <button class="close-btn" id="close-code" aria-label="Close code modal" onclick={() => onClose?.()}>&times;</button>

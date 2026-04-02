@@ -312,6 +312,16 @@
         };
     });
 
+    // Auto-focus the first context menu item when menu opens
+    $effect(() => {
+        if (uiStore.columnMenuOpen && columnMenuEl) {
+            requestAnimationFrame(() => {
+                const first = columnMenuEl?.querySelector<HTMLButtonElement>('button:not(:disabled)');
+                first?.focus();
+            });
+        }
+    });
+
     onDestroy(() => {
         statsController.dispose();
         schemaController.dispose();
@@ -320,6 +330,26 @@
         virtualizer.dispose();
         statsCharts.dispose();
     });
+
+    function handleContextMenuKeydown(event: KeyboardEvent): void {
+        const menu = columnMenuEl;
+        if (!menu) {
+            return;
+        }
+        const items = Array.from(menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+        const idx = items.indexOf(document.activeElement as HTMLButtonElement);
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            items[idx < items.length - 1 ? idx + 1 : 0]?.focus();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            items[idx > 0 ? idx - 1 : items.length - 1]?.focus();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            uiStore.closeColumnMenu();
+        }
+    }
 </script>
 
 <svelte:window
@@ -367,12 +397,15 @@
 <div
     class="context-menu"
     id="column-menu"
+    role="menu"
+    tabindex="-1"
     bind:this={columnMenuEl}
     class:open={uiStore.columnMenuOpen}
     style={`left: ${uiStore.columnMenuPosition.x}px; top: ${uiStore.columnMenuPosition.y}px;`}
+    onkeydown={handleContextMenuKeydown}
 >
-    <button class="context-menu-item" id="column-menu-add-filter" disabled={!dataStore.isRowFilterSupported} onclick={() => tableInteractionController.handleColumnMenuAddFilter()}>Add Filter</button>
-    <button class="context-menu-item" id="column-menu-hide-column" disabled={dataStore.visibleSchema.length <= 1} onclick={() => tableInteractionController.handleColumnMenuHideColumn()}>Hide Column</button>
+    <button class="context-menu-item" id="column-menu-add-filter" role="menuitem" disabled={!dataStore.isRowFilterSupported} onclick={() => tableInteractionController.handleColumnMenuAddFilter()}>Add Filter</button>
+    <button class="context-menu-item" id="column-menu-hide-column" role="menuitem" disabled={dataStore.visibleSchema.length <= 1} onclick={() => tableInteractionController.handleColumnMenuHideColumn()}>Hide Column</button>
 </div>
 
 <div class="table-area" bind:this={tableAreaEl}>

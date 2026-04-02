@@ -23,8 +23,42 @@
         onExport?: (data: { format: 'csv' | 'tsv' | 'html' }) => void;
     } = $props();
 
+    let dropdownOpen = $state(false);
+    let dropdownContentEl: HTMLDivElement | undefined = $state();
+
     function handleExport(format: 'csv' | 'tsv' | 'html'): void {
+        dropdownOpen = false;
         onExport?.({ format });
+    }
+
+    function toggleDropdown(): void {
+        dropdownOpen = !dropdownOpen;
+        if (dropdownOpen) {
+            // Focus first menu item after DOM update
+            requestAnimationFrame(() => {
+                const first = dropdownContentEl?.querySelector('button') as HTMLButtonElement | null;
+                first?.focus();
+            });
+        }
+    }
+
+    function handleDropdownKeydown(event: KeyboardEvent): void {
+        const items = Array.from(dropdownContentEl?.querySelectorAll('button') ?? []) as HTMLButtonElement[];
+        const current = document.activeElement as HTMLElement;
+        const idx = items.indexOf(current as HTMLButtonElement);
+
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            const next = idx < items.length - 1 ? idx + 1 : 0;
+            items[next]?.focus();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            const prev = idx > 0 ? idx - 1 : items.length - 1;
+            items[prev]?.focus();
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            dropdownOpen = false;
+        }
     }
 </script>
 
@@ -52,12 +86,26 @@
         >
             Stats
         </button>
-        <div class="dropdown">
-            <button class="action" id="export-btn" aria-haspopup="menu">Export &#9662;</button>
-            <div class="dropdown-content" id="export-dropdown" role="menu" aria-label="Export formats">
-                <button role="menuitem" data-format="csv" onclick={() => handleExport('csv')}>Export as CSV</button>
-                <button role="menuitem" data-format="tsv" onclick={() => handleExport('tsv')}>Export as TSV</button>
-                <button role="menuitem" data-format="html" onclick={() => handleExport('html')}>Export as HTML</button>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="dropdown" onkeydown={handleDropdownKeydown}>
+            <button
+                class="action"
+                id="export-btn"
+                aria-haspopup="menu"
+                aria-expanded={dropdownOpen}
+                onclick={toggleDropdown}
+            >Export &#9662;</button>
+            <div
+                class="dropdown-content"
+                class:open={dropdownOpen}
+                id="export-dropdown"
+                role="menu"
+                aria-label="Export formats"
+                bind:this={dropdownContentEl}
+            >
+                <button role="menuitem" tabindex={dropdownOpen ? 0 : -1} data-format="csv" onclick={() => handleExport('csv')}>Export as CSV</button>
+                <button role="menuitem" tabindex={dropdownOpen ? 0 : -1} data-format="tsv" onclick={() => handleExport('tsv')}>Export as TSV</button>
+                <button role="menuitem" tabindex={dropdownOpen ? 0 : -1} data-format="html" onclick={() => handleExport('html')}>Export as HTML</button>
             </div>
         </div>
         <button
@@ -132,7 +180,8 @@
         border-radius: 3px;
     }
 
-    .dropdown:hover .dropdown-content {
+    .dropdown:hover .dropdown-content,
+    .dropdown-content.open {
         display: block;
     }
 
@@ -146,7 +195,9 @@
         cursor: pointer;
     }
 
-    .dropdown-content button:hover {
+    .dropdown-content button:hover,
+    .dropdown-content button:focus {
         background: var(--vscode-list-hoverBackground);
+        outline: none;
     }
 </style>
