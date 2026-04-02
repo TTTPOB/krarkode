@@ -11,6 +11,7 @@ import { parseSidecarJsonLog } from './sidecarLogParser';
 import type { SidecarEvent } from './sidecarProtocol.generated';
 import { SIDECAR_LOG_RELOAD_COMMAND } from './sidecarProtocol';
 import * as sessionRegistry from './sessionRegistry';
+import * as tmuxUtil from './tmuxUtil';
 
 const VARIABLES_COMM_TARGET = 'positron.variables';
 export interface ShowHtmlFileParams {
@@ -73,6 +74,9 @@ export class ArkSidecarManager implements vscode.Disposable {
 
     private readonly _onDidShowHelp = new vscode.EventEmitter<{ content: string; kind: string; focus: boolean }>();
     public readonly onDidShowHelp = this._onDidShowHelp.event;
+
+    private readonly _onDidDetectKernelDeath = new vscode.EventEmitter<void>();
+    public readonly onDidDetectKernelDeath = this._onDidDetectKernelDeath.event;
 
     constructor(
         private readonly resolveSidecarPath: () => string,
@@ -197,6 +201,7 @@ export class ArkSidecarManager implements vscode.Disposable {
         this._onDidOpenHelpComm.dispose();
         this._onDidOpenVariablesComm.dispose();
         this._onDidOpenDataExplorerComm.dispose();
+        this._onDidDetectKernelDeath.dispose();
     }
 
     private start(connectionFile: string): void {
@@ -272,10 +277,7 @@ export class ArkSidecarManager implements vscode.Disposable {
             }
             this.variablesCommId = undefined;
             if (this.connectionFile) {
-                if (code !== 0) {
-                    this.notifyUserOfSidecarError('Ark sidecar exited unexpectedly.', `Exit code ${code ?? 'null'}.`);
-                }
-                this.scheduleReconnect(`exit ${code ?? 'null'}`);
+                void this.handleSidecarExit(code);
             }
         });
     }
@@ -494,6 +496,42 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
 
         return payload.replace(/\s+/g, '');
+    }
+
+    private async handleSidecarExit(code: number | null): Promise<void> {
+        if (!this.connectionFile) {
+            return;
+        }
+
+        const kernelDead = await this.isKernelTmuxGone();
+        if (kernelDead) {
+            getLogger().log(
+                'sidecar',
+                LogCategory.Event,
+                'info',
+                this.formatLogMessage('Kernel tmux window is gone; treating as normal shutdown.'),
+            );
+            this._onDidDetectKernelDeath.fire();
+            return;
+        }
+
+        // Kernel is still alive — this is a transient sidecar failure
+        if (code !== 0) {
+            this.notifyUserOfSidecarError('Ark sidecar exited unexpectedly.', `Exit code ${code ?? 'null'}.`);
+        }
+        this.scheduleReconnect(`exit ${code ?? 'null'}`);
+    }
+
+    private async isKernelTmuxGone(): Promise<boolean> {
+        const activeSession = sessionRegistry.getActiveSession();
+        if (!activeSession || activeSession.mode !== 'tmux') {
+            return false;
+        }
+        if (!activeSession.tmuxSessionName || !activeSession.tmuxWindowName) {
+            return false;
+        }
+        const windows = await tmuxUtil.listTmuxWindows(activeSession.tmuxSessionName);
+        return !windows.includes(activeSession.tmuxWindowName);
     }
 
     private logSidecarStderr(message: string): void {

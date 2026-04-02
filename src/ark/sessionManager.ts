@@ -126,6 +126,18 @@ export class ArkSessionManager {
         this.onBeforeSessionStop = handler;
     }
 
+    /**
+     * Handle kernel death detected by the sidecar (e.g. after q()).
+     * Validates the registry to prune dead entries and clears the active
+     * session if it was pruned.
+     */
+    public async handleKernelDeath(): Promise<void> {
+        this.outputChannel.appendLine('Kernel death detected; validating registry and cleaning up.');
+        const registry = await sessionRegistry.loadRegistryValidated();
+        this.syncAfterValidation(registry);
+        void vscode.window.showInformationMessage('Ark R session ended.');
+    }
+
     public setKernelStatus(status: string | undefined): void {
         const normalized = this.normalizeKernelStatus(status);
         if (this.kernelStatus === normalized) {

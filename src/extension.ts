@@ -196,6 +196,15 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
     );
 
+    // When the sidecar detects the kernel's tmux window is gone (e.g. q()),
+    // suppress the LSP warning and trigger immediate registry cleanup.
+    context.subscriptions.push(
+        sidecarManager.onDidDetectKernelDeath(() => {
+            languageService?.suppressCloseWarning();
+            void sessionManager?.handleKernelDeath();
+        }),
+    );
+
     // Track help comm ID
     let helpCommId: string | undefined;
 

@@ -18,6 +18,7 @@ import {
 import { getExtensionContext } from '../context';
 import * as util from '../util';
 import * as sessionRegistry from './sessionRegistry';
+import * as tmuxUtil from './tmuxUtil';
 import {
     formatLogMessage,
     getLogChannelSetting,
@@ -467,11 +468,22 @@ export class ArkLanguageService implements vscode.Disposable {
                         message: 'Ark Language Server encountered an error. Check the output channel for details.',
                     };
                 },
-                closed: () => {
+                closed: async () => {
                     if (this.isIntentionallyRestarting) {
                         // Suppress the default notification during intentional restarts.
                         return { action: CloseAction.DoNotRestart, handled: true };
                     }
+
+                    // Check if the kernel's tmux window is gone (e.g. user ran q()).
+                    // If so, this is a normal shutdown, not an unexpected crash.
+                    const sessionGone = await this.isSessionTmuxGone();
+                    if (sessionGone) {
+                        this.outputChannel.appendLine(
+                            this.formatLogMessage('LSP connection closed; tmux window gone — treating as normal shutdown.', 'lsp'),
+                        );
+                        return { action: CloseAction.DoNotRestart, handled: true };
+                    }
+
                     return {
                         action: CloseAction.DoNotRestart,
                         message:
@@ -484,6 +496,23 @@ export class ArkLanguageService implements vscode.Disposable {
         const client = new LanguageClient('ark', 'Ark Language Server', tcpServerOptions, clientOptions);
         await client.start();
         return client;
+    }
+
+    /**
+     * Check whether the active session's tmux window has disappeared.
+     * Used by the LSP error handler to distinguish expected shutdowns
+     * (e.g. q()) from unexpected crashes.
+     */
+    private async isSessionTmuxGone(): Promise<boolean> {
+        const activeSession = sessionRegistry.getActiveSession();
+        if (!activeSession || activeSession.mode !== 'tmux') {
+            return false;
+        }
+        if (!activeSession.tmuxSessionName || !activeSession.tmuxWindowName) {
+            return false;
+        }
+        const windows = await tmuxUtil.listTmuxWindows(activeSession.tmuxSessionName);
+        return !windows.includes(activeSession.tmuxWindowName);
     }
 
     private updateLspTrace(): void {
