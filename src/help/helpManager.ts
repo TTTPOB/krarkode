@@ -4,7 +4,6 @@ import {
     COMMAND_HELP_GO_BACK,
     COMMAND_HELP_GO_FORWARD,
     COMMAND_HELP_GO_HOME,
-    COMMAND_HELP_FIND,
 } from './helpIds';
 import { HelpService } from './helpService';
 import * as util from '../util';
@@ -147,9 +146,6 @@ export class HelpManager implements vscode.Disposable {
             }),
             vscode.commands.registerCommand(COMMAND_HELP_GO_HOME, () => {
                 this.helpService.goHome();
-            }),
-            vscode.commands.registerCommand(COMMAND_HELP_FIND, () => {
-                this.panel?.webview.postMessage({ command: 'positron-help-find' });
             }),
         );
     }
@@ -302,13 +298,6 @@ export class HelpManager implements vscode.Disposable {
                 <path d="M8 2l6 5H9v8H6V9H2V7h4V2z"/>
             </svg>
         </button>
-        <div class="separator"></div>
-        <button id="btn-find" title="Find (Ctrl+F)">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zm0 5a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/>
-                <path d="M10 10l4 4" stroke="currentColor" stroke-width="1.5" fill="none"/>
-            </svg>
-        </button>
         <div style="flex:1"></div>
         <span id="status" style="font-size: 12px; opacity: 0.7;">R Help</span>
     </div>
@@ -326,7 +315,6 @@ export class HelpManager implements vscode.Disposable {
             const btnBack = document.getElementById('btn-back');
             const btnForward = document.getElementById('btn-forward');
             const btnHome = document.getElementById('btn-home');
-            const btnFind = document.getElementById('btn-find');
             const status = document.getElementById('status');
             const errorBanner = document.getElementById('error-banner');
 
@@ -381,12 +369,6 @@ export class HelpManager implements vscode.Disposable {
                 });
             }
 
-            if (btnFind) {
-                btnFind.addEventListener('click', () => {
-                    vscode.postMessage({ command: 'positron-help-find' });
-                });
-            }
-
             // Global click handler to intercept links
             document.addEventListener('click', e => {
                 const link = e.target.closest('a');
@@ -419,9 +401,6 @@ export class HelpManager implements vscode.Disposable {
                     case 'navigate':
                         if (status) status.textContent = msg.title || 'Loading...';
                         break;
-                    case 'positron-help-find':
-                        if (btnFind) btnFind.click();
-                        break;
                     case 'show-content':
                         if (contentDiv) {
                             if (msg.kind === 'url') {
@@ -450,15 +429,6 @@ export class HelpManager implements vscode.Disposable {
                     case 'clear-error':
                         clearErrorBanner();
                         break;
-                }
-            });
-
-            document.addEventListener('keydown', (event) => {
-                if (event.ctrlKey || event.metaKey) {
-                    if (event.key === 'f') {
-                        event.preventDefault();
-                        if (btnFind) btnFind.click();
-                    }
                 }
             });
 

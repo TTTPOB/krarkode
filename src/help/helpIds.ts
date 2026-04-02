@@ -7,8 +7,6 @@ export const COMMAND_SHOW_HELP_AT_CURSOR = 'krarkode.help.showAtCursor';
 export const COMMAND_HELP_GO_BACK = 'krarkode.help.goBack';
 export const COMMAND_HELP_GO_FORWARD = 'krarkode.help.goForward';
 export const COMMAND_HELP_GO_HOME = 'krarkode.help.goHome';
-export const COMMAND_HELP_FIND = 'krarkode.help.find';
-
 export const MAX_HISTORY_ENTRIES = 10;
 
 export const HELP_WEBVIEW_CSP_SOURCE = "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;";

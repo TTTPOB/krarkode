@@ -498,11 +498,6 @@
         "command": "krarkode.help.goHome",
         "title": "Go Home",
         "category": "Help"
-      },
-      {
-        "command": "krarkode.help.find",
-        "title": "Find in Help",
-        "category": "Help"
       }
     ],
     "keybindings": [
