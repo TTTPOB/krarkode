@@ -37,7 +37,6 @@ export class PlotManager implements vscode.Disposable {
     private readonly plots: PlotEntry[] = [];
     private currentIndex = -1;
     private currentZoom = 100;
-    private fitToWindow = true;
     private fullWindow = false;
     private previewLayout: PreviewLayout = 'multirow';
     private renderSource?: DynamicPlotSource;
@@ -222,11 +221,9 @@ export class PlotManager implements vscode.Disposable {
 
     public setZoom(zoom: number): void {
         this.currentZoom = Math.max(10, Math.min(500, zoom));
-        this.fitToWindow = false;
         this.postWebviewMessage({
             message: 'setZoom',
             zoom: this.currentZoom,
-            fit: false,
         });
         this.updateWebviewState();
         this.scheduleRender(true);
@@ -429,18 +426,6 @@ export class PlotManager implements vscode.Disposable {
                             break;
                         case 'zoomReset':
                             this.setZoom(100);
-                            break;
-                        case 'zoomFit':
-                            this.fitToWindow = true;
-                            this.currentZoom = 100;
-                            this.postWebviewMessage({
-                                message: 'setZoom',
-                                zoom: this.currentZoom,
-                                fit: true,
-                            });
-                            this.updateWebviewState();
-                            this.scheduleRender(true);
-                            this.scheduleSavePlotHistory();
                             break;
                         case 'save':
                             void this.savePlot();
@@ -674,7 +659,7 @@ export class PlotManager implements vscode.Disposable {
         renderSize: { width: number; height: number; dpr: number },
         format: 'png' | 'svg' | 'pdf',
     ): { size: { width: number; height: number }; pixelRatio: number } {
-        const zoomScale = this.fitToWindow ? 1 : this.currentZoom / 100;
+        const zoomScale = this.currentZoom / 100;
         const width = Math.max(1, Math.round(renderSize.width * zoomScale));
         const height = Math.max(1, Math.round(renderSize.height * zoomScale));
         const pixelRatio = format === 'png' ? Math.max(0.1, renderSize.dpr) : 1;
@@ -696,7 +681,6 @@ export class PlotManager implements vscode.Disposable {
             currentIndex: this.currentIndex,
             totalPlots: this.plots.length,
             zoom: this.currentZoom,
-            fit: this.fitToWindow,
             hasPrevious,
             hasNext,
             fullWindow: this.fullWindow,
@@ -705,7 +689,6 @@ export class PlotManager implements vscode.Disposable {
         this.postWebviewMessage({
             message: 'setZoom',
             zoom: this.currentZoom,
-            fit: this.fitToWindow,
         });
     }
 
@@ -766,11 +749,8 @@ export class PlotManager implements vscode.Disposable {
                 if (typeof data.zoom === 'number') {
                     this.currentZoom = data.zoom;
                 }
-                if (typeof data.fit === 'boolean') {
-                    this.fitToWindow = data.fit;
-                }
                 this.outputChannel.appendLine(
-                    `Restored ${this.plots.length} plots from history (active: ${this.currentIndex + 1}, zoom: ${this.fitToWindow ? 'fit' : this.currentZoom + '%'})`,
+                    `Restored ${this.plots.length} plots from history (active: ${this.currentIndex + 1}, zoom: ${this.currentZoom}%)`,
                 );
             }
         } catch (err) {
@@ -796,7 +776,6 @@ export class PlotManager implements vscode.Disposable {
                 plots: this.plots,
                 currentIndex: this.currentIndex,
                 zoom: this.currentZoom,
-                fit: this.fitToWindow,
             };
             fs.writeFileSync(historyPath, JSON.stringify(data));
         } catch (err) {

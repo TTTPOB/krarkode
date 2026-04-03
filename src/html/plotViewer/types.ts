@@ -41,7 +41,6 @@ export interface ToggleFullWindowMessage {
 export interface SetZoomMessage {
     message: 'setZoom';
     zoom: number;
-    fit: boolean;
 }
 
 export interface SetLayoutMessage {
@@ -54,7 +53,6 @@ export interface UpdateStateMessage {
     currentIndex: number;
     totalPlots: number;
     zoom: number;
-    fit: boolean;
     hasPrevious: boolean;
     hasNext: boolean;
     fullWindow: boolean;

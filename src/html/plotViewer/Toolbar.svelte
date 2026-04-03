@@ -20,7 +20,6 @@
         <span class="zoom-info">{plotStore.zoomText}</span>
         <button onclick={() => sendCommand('zoomIn')} title="Zoom in (+)">+</button>
         <button onclick={() => sendCommand('zoomReset')} title="Reset zoom to 100%">100%</button>
-        <button onclick={() => sendCommand('zoomFit')} title="Fit to window">Fit</button>
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">

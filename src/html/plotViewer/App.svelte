@@ -86,7 +86,7 @@
                 postResizeMessage(true);
                 break;
             case 'setZoom':
-                plotStore.setZoom(msg.zoom, msg.fit);
+                plotStore.setZoom(msg.zoom);
                 break;
             case 'setLayout':
                 plotStore.setLayout(msg.layout);
@@ -108,8 +108,6 @@
             sendCommand('zoomOut');
         } else if (event.key === '0') {
             sendCommand('zoomReset');
-        } else if (event.key === 'f' || event.key === 'F') {
-            sendCommand('zoomFit');
         } else if (event.key === 's' && (event.ctrlKey || event.metaKey)) {
             event.preventDefault();
             sendCommand('save');
@@ -147,8 +145,6 @@
 
 <LargePlot
     plot={plotStore.activePlot}
-    fit={plotStore.fit}
-    zoom={plotStore.zoom}
     fullWindow={plotStore.fullWindow}
     explicitHeight={plotStore.largePlotHeight}
     bind:element={largePlotEl}

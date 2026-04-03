@@ -6,7 +6,6 @@ beforeEach(() => {
     plotStore.plots.length = 0;
     plotStore.currentIndex = -1;
     plotStore.zoom = 100;
-    plotStore.fit = true;
     plotStore.fullWindow = false;
     plotStore.layout = 'multirow';
     plotStore.hasPrevious = false;
@@ -174,11 +173,10 @@ describe('plotStore', () => {
     });
 
     describe('setZoom', () => {
-        test('sets zoom and fit values', () => {
-            plotStore.setZoom(200, false);
+        test('sets zoom value', () => {
+            plotStore.setZoom(200);
 
             expect(plotStore.zoom).toBe(200);
-            expect(plotStore.fit).toBe(false);
         });
     });
 
@@ -217,7 +215,6 @@ describe('plotStore', () => {
                 currentIndex: 2,
                 totalPlots: 5,
                 zoom: 150,
-                fit: false,
                 hasPrevious: true,
                 hasNext: true,
                 fullWindow: true,
@@ -226,7 +223,6 @@ describe('plotStore', () => {
 
             expect(plotStore.currentIndex).toBe(2);
             expect(plotStore.zoom).toBe(150);
-            expect(plotStore.fit).toBe(false);
             expect(plotStore.hasPrevious).toBe(true);
             expect(plotStore.hasNext).toBe(true);
             expect(plotStore.fullWindow).toBe(true);
@@ -239,7 +235,6 @@ describe('plotStore', () => {
                 currentIndex: 0,
                 totalPlots: 1,
                 zoom: 100,
-                fit: true,
                 hasPrevious: false,
                 hasNext: false,
                 fullWindow: false,
@@ -283,13 +278,7 @@ describe('plotStore', () => {
             expect(plotStore.navText).toBe('0 / 0');
         });
 
-        test('zoomText shows Fit when fit is true', () => {
-            plotStore.fit = true;
-            expect(plotStore.zoomText).toBe('Fit');
-        });
-
-        test('zoomText shows percentage when fit is false', () => {
-            plotStore.fit = false;
+        test('zoomText shows percentage', () => {
             plotStore.zoom = 150;
             expect(plotStore.zoomText).toBe('150%');
         });

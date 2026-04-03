@@ -3,15 +3,11 @@
 
     let {
         plot,
-        fit,
-        zoom,
         fullWindow,
         explicitHeight,
         element = $bindable<HTMLDivElement | undefined>(),
     }: {
         plot: PlotInfo | undefined;
-        fit: boolean;
-        zoom: number;
         fullWindow: boolean;
         explicitHeight: string | null;
         element?: HTMLDivElement;
@@ -21,7 +17,6 @@
 <div
     bind:this={element}
     class="large-plot"
-    class:fit-to-window={fit}
     class:full-window={fullWindow}
     style:height={explicitHeight}
     style:flex-grow={explicitHeight ? '0' : undefined}
@@ -30,8 +25,6 @@
         <img
             src="data:{plot.mimeType};base64,{plot.base64Data}"
             alt="Plot {plot.id}"
-            style:width={!fit ? `${zoom}%` : undefined}
-            style:height={!fit ? 'auto' : undefined}
         />
     {:else if plot}
         <div class="no-plot">Rendering plot...</div>
@@ -42,16 +35,11 @@
     .large-plot {
         flex: 1 1 0;
         min-height: 0;
-        overflow-x: auto;
-        overflow-y: auto;
+        overflow: hidden;
         padding: 10px;
         width: 100%;
         display: flex;
         justify-content: center;
-        align-items: flex-start;
-    }
-
-    .large-plot.fit-to-window {
         align-items: center;
     }
 
@@ -63,15 +51,10 @@
 
     .large-plot img,
     .large-plot :global(svg) {
-        max-width: 100%;
-        user-select: none;
-    }
-
-    .large-plot.fit-to-window img,
-    .large-plot.fit-to-window :global(svg) {
         width: 100%;
         height: 100%;
         object-fit: contain;
+        user-select: none;
     }
 
     .no-plot {

@@ -4,7 +4,6 @@ class PlotStore {
     plots = $state<PlotInfo[]>([]);
     currentIndex = $state(-1);
     zoom = $state(100);
-    fit = $state(true);
     fullWindow = $state(false);
     layout = $state<'multirow' | 'scroll' | 'hidden'>('multirow');
     hasPrevious = $state(false);
@@ -22,7 +21,7 @@ class PlotStore {
         this.plots.length > 0 ? `${this.currentIndex + 1} / ${this.plots.length}` : '0 / 0',
     );
 
-    zoomText = $derived(this.fit ? 'Fit' : `${this.zoom}%`);
+    zoomText = $derived(`${this.zoom}%`);
 
     addPlot(id: string, base64Data: string, mimeType: string, isActive: boolean): void {
         // Guard against duplicates (e.g. messages arriving before 'ready' handshake)
@@ -73,9 +72,8 @@ class PlotStore {
         }
     }
 
-    setZoom(zoom: number, fit: boolean): void {
+    setZoom(zoom: number): void {
         this.zoom = zoom;
-        this.fit = fit;
     }
 
     setLayout(layout: string): void {
@@ -91,7 +89,6 @@ class PlotStore {
     updateState(msg: UpdateStateMessage): void {
         this.currentIndex = msg.currentIndex;
         this.zoom = msg.zoom;
-        this.fit = msg.fit;
         this.hasPrevious = msg.hasPrevious;
         this.hasNext = msg.hasNext;
         this.fullWindow = msg.fullWindow;
