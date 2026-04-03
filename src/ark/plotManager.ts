@@ -7,6 +7,7 @@ import type { PlotRenderResult } from './arkCommBackend';
 import * as util from '../util';
 import { getNonce } from '../util';
 import { getLogger, LogCategory } from '../logging/logger';
+import { getSessionsDir } from './sessionRegistry';
 
 interface PlotEntry {
     id: string;
@@ -45,6 +46,7 @@ export class PlotManager implements vscode.Disposable {
     private readonly disposables: vscode.Disposable[] = [];
     private maxHistory: number;
     private webviewReady = false;
+    private saveTimeout?: NodeJS.Timeout;
     private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Plot);
 
     constructor(renderSource?: DynamicPlotSource) {
@@ -56,6 +58,7 @@ export class PlotManager implements vscode.Disposable {
                 renderSource.onDidClosePlot((event) => this.removePlot(event.plotId)),
             );
         }
+        this.loadPlotHistory();
     }
 
     public setMaxHistory(value: number): void {
@@ -105,6 +108,7 @@ export class PlotManager implements vscode.Disposable {
                     });
                     this.focusPlotByIndex(existingIndex);
                 }
+                this.scheduleSavePlotHistory();
                 return;
             }
         }
@@ -133,6 +137,7 @@ export class PlotManager implements vscode.Disposable {
             this.focusPlotByIndex(this.currentIndex);
         }
         this.updateWebviewState();
+        this.scheduleSavePlotHistory();
     }
 
     private addDynamicPlot(plotId: string, preRender?: PlotRenderResult): void {
@@ -177,6 +182,7 @@ export class PlotManager implements vscode.Disposable {
             this.focusPlotByIndex(this.currentIndex);
         }
         this.updateWebviewState();
+        this.scheduleSavePlotHistory();
         if (!preRender?.data) {
             this.scheduleRender(true);
         }
@@ -195,12 +201,14 @@ export class PlotManager implements vscode.Disposable {
             this.renderTimeout = undefined;
         }
         this.renderWebview();
+        this.scheduleSavePlotHistory();
     }
 
     public previousPlot(): void {
         if (this.currentIndex > 0) {
             this.currentIndex--;
             this.focusPlotByIndex(this.currentIndex);
+            this.scheduleSavePlotHistory();
         }
     }
 
@@ -208,6 +216,7 @@ export class PlotManager implements vscode.Disposable {
         if (this.currentIndex < this.plots.length - 1) {
             this.currentIndex++;
             this.focusPlotByIndex(this.currentIndex);
+            this.scheduleSavePlotHistory();
         }
     }
 
@@ -319,6 +328,12 @@ export class PlotManager implements vscode.Disposable {
     }
 
     public dispose(): void {
+        // Flush pending save immediately on dispose
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+            this.saveTimeout = undefined;
+            this.savePlotHistorySync();
+        }
         this.panel?.dispose();
         this.panel = undefined;
         if (this.renderTimeout) {
@@ -439,6 +454,7 @@ export class PlotManager implements vscode.Disposable {
                                 if (index >= 0) {
                                     this.currentIndex = index;
                                     this.focusPlotByIndex(this.currentIndex);
+                                    this.scheduleSavePlotHistory();
                                 }
                             }
                             break;
@@ -557,6 +573,7 @@ export class PlotManager implements vscode.Disposable {
         }
 
         this.updateWebviewState();
+        this.scheduleSavePlotHistory();
     }
 
     private cyclePreviewLayout(): void {
@@ -644,6 +661,7 @@ export class PlotManager implements vscode.Disposable {
                 base64Data: updated.base64Data,
                 mimeType: updated.mimeType,
             });
+            this.scheduleSavePlotHistory();
         } catch (err) {
             getLogger().log('ui', LogCategory.Plot, 'error', `Failed to render plot ${plotId}: ${String(err)}`);
         }
@@ -706,6 +724,67 @@ export class PlotManager implements vscode.Disposable {
                 return vscode.ViewColumn.Three;
             default:
                 return defaultColumn;
+        }
+    }
+
+    // -- Plot history persistence --
+
+    private getPlotHistoryPath(): string {
+        return path.join(getSessionsDir(), 'plot-history.json');
+    }
+
+    private loadPlotHistory(): void {
+        const historyPath = this.getPlotHistoryPath();
+        try {
+            if (!fs.existsSync(historyPath)) {
+                return;
+            }
+            const content = fs.readFileSync(historyPath, 'utf8');
+            const data = JSON.parse(content) as { plots: PlotEntry[]; currentIndex: number };
+            if (!Array.isArray(data.plots)) {
+                return;
+            }
+            // Only restore plots that have actual image data
+            for (const entry of data.plots) {
+                if (entry.id && entry.base64Data && entry.mimeType) {
+                    this.plots.push(entry);
+                }
+            }
+            if (this.plots.length > 0) {
+                this.currentIndex = Math.min(
+                    Math.max(0, data.currentIndex ?? this.plots.length - 1),
+                    this.plots.length - 1,
+                );
+                this.outputChannel.appendLine(
+                    `Restored ${this.plots.length} plots from history (active: ${this.currentIndex + 1})`,
+                );
+            }
+        } catch (err) {
+            getLogger().log('ui', LogCategory.Plot, 'warn', `Failed to load plot history: ${String(err)}`);
+        }
+    }
+
+    /** Debounced save — collapses rapid mutations into a single write. */
+    private scheduleSavePlotHistory(): void {
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+        }
+        this.saveTimeout = setTimeout(() => {
+            this.saveTimeout = undefined;
+            this.savePlotHistorySync();
+        }, 500);
+    }
+
+    private savePlotHistorySync(): void {
+        try {
+            const historyPath = this.getPlotHistoryPath();
+            const data = {
+                plots: this.plots,
+                currentIndex: this.currentIndex,
+            };
+            fs.writeFileSync(historyPath, JSON.stringify(data));
+        } catch (err) {
+            getLogger().log('ui', LogCategory.Plot, 'warn', `Failed to save plot history: ${String(err)}`);
         }
     }
 }
