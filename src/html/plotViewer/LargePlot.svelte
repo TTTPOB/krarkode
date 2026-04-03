@@ -40,13 +40,12 @@
 
 <style>
     .large-plot {
-        flex: 1 1 auto;
+        flex: 1 1 0;
+        min-height: 0;
         overflow-x: auto;
         overflow-y: auto;
         padding: 10px;
         width: 100%;
-        min-height: 240px;
-        height: auto;
         display: flex;
         justify-content: center;
         align-items: flex-start;

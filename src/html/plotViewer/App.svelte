@@ -67,7 +67,6 @@
                 break;
             case 'updatePlot':
                 plotStore.updatePlot(msg.plotId, msg.base64Data, msg.mimeType);
-                setTimeout(() => postResizeMessage(true), 0);
                 break;
             case 'focusPlot':
                 plotStore.focusPlot(msg.plotId);
