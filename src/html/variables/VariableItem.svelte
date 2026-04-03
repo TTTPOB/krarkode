@@ -41,7 +41,7 @@
 <div class="variable-row" onclick={handleRowClick}>
     <div class="cell-name" style:padding-left="{paddingLeft}px">
         <span class="var-toggle">{variable.has_children ? (isExpanded ? '▾' : '▸') : ''}</span>
-        <span class="var-icon">{getIconForKind(variable.kind)}</span>
+        <span class="var-icon">{getIconForKind(variable.kind, variable.display_type)}</span>
         <span class="var-label" title={variable.display_name}>{variable.display_name}</span>
     </div>
     <div class="cell-type" title={variable.display_type}>{cleanDisplayType(variable.display_type)}</div>
