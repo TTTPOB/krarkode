@@ -72,6 +72,30 @@ export function formatLength(variable: Variable): string {
 }
 
 /**
+ * Build a schema string for a dataframe from its children (columns).
+ * E.g. "x: int, y: dbl"
+ */
+export function buildDataFrameSchema(children: Variable[]): string {
+    return children
+        .map((col) => `${col.display_name}: ${abbreviateType(col.display_type)}`)
+        .join(', ');
+}
+
+/**
+ * Abbreviate R type names for compact display.
+ */
+function abbreviateType(displayType: string): string {
+    const t = cleanDisplayType(displayType).toLowerCase();
+    if (t === 'integer') return 'int';
+    if (t === 'double' || t === 'numeric') return 'dbl';
+    if (t === 'character') return 'chr';
+    if (t === 'logical') return 'lgl';
+    if (t === 'complex') return 'cpl';
+    if (t === 'raw') return 'raw';
+    return cleanDisplayType(displayType);
+}
+
+/**
  * Strip trailing dimension info like " [10]" or " [10, 2]" from display_type.
  * Ark includes dimensions in display_type (e.g. "integer [10]", "data.frame [10, 2]")
  * but we now show dimensions in a separate column.

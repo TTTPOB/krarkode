@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Variable } from './types';
     import { variablesStore } from './stores/variablesStore.svelte';
-    import { getIconForKind, buildDimensionsText, cleanDisplayType } from './utils';
+    import { getIconForKind, buildDimensionsText, cleanDisplayType, buildDataFrameSchema } from './utils';
     import VariableItem from './VariableItem.svelte';
 
     let {
@@ -23,6 +23,10 @@
     let childrenLength = $derived(variablesStore.getChildrenLength(path));
     let isLoading = $derived(variablesStore.isLoading(path));
     let dimensions = $derived(buildDimensionsText(variable));
+    let isDataFrame = $derived(variable.kind === 'table' || variable.kind === 'dataframe');
+    let displayValue = $derived(
+        isDataFrame && children ? buildDataFrameSchema(children) : variable.display_value,
+    );
     let paddingLeft = $derived(8 + depth * 14);
 
     function handleRowClick() {
@@ -46,7 +50,7 @@
     </div>
     <div class="cell-type" title={variable.display_type}>{cleanDisplayType(variable.display_type)}</div>
     <div class="cell-dims">{dimensions}</div>
-    <div class="cell-value" title={variable.display_value}>{variable.display_value}</div>
+    <div class="cell-value" title={displayValue}>{displayValue}</div>
     <div class="cell-action">
         {#if variable.has_viewer}
             <button class="action-btn" title="View Data" onclick={handleViewClick}>◫</button>
