@@ -219,6 +219,11 @@
 
     .panel-pin .codicon {
         font-size: 14px;
+        transition: transform 0.15s ease;
+    }
+
+    .panel-pin[aria-pressed='true'] .codicon {
+        transform: rotate(-45deg);
     }
 
     .panel-resizer {
