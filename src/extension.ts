@@ -125,6 +125,8 @@ export function activate(context: vscode.ExtensionContext): void {
             plotManager?.switchSession(entry?.name);
             helpService?.switchSession(entry?.name);
             dataExplorerManager?.switchSession(entry?.name);
+            // Re-arm the data explorer reopen trigger for the new session
+            pendingDataExplorerReopen = true;
         }
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);
@@ -203,9 +205,18 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('krarkode.doctor', () => runDoctor()),
     );
 
+    // Track whether we need to reopen data explorer panels on first idle
+    let pendingDataExplorerReopen = true;
+
     context.subscriptions.push(
         sidecarManager.onDidChangeKernelStatus((status) => {
             sessionManager?.setKernelStatus(status);
+            // When kernel becomes idle for the first time after (re)connect,
+            // trigger View() for any restored data explorer panels.
+            if (status === 'idle' && pendingDataExplorerReopen) {
+                pendingDataExplorerReopen = false;
+                dataExplorerManager?.reopenRestoredPanels();
+            }
         }),
     );
 
