@@ -116,6 +116,19 @@ class VariablesStore {
     }
 
     /**
+     * Request children for schema display without expanding in the UI.
+     * Returns true if the caller should send an inspect request.
+     */
+    requestChildren(path: string[]): boolean {
+        const key = pathKey(path);
+        if (this._childrenByPath[key] || this._loadingPaths[key]) {
+            return false;
+        }
+        this._loadingPaths = { ...this._loadingPaths, [key]: true };
+        return true;
+    }
+
+    /**
      * Toggle expand/collapse for a variable path.
      * Returns true if the caller should send an inspect request (i.e., expanding and no cached children).
      */

@@ -19,7 +19,7 @@
         for (const v of variablesStore.variables) {
             if ((v.kind === 'table' || v.kind === 'dataframe') && v.has_children) {
                 const path = [v.access_key];
-                const needsInspect = variablesStore.toggleExpanded(path);
+                const needsInspect = variablesStore.requestChildren(path);
                 if (needsInspect) {
                     vscode.postMessage({ type: 'inspect', path });
                 }
