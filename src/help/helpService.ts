@@ -59,6 +59,10 @@ export class HelpService implements IKrarkodeHelpService {
         return undefined;
     }
 
+    public get hasEntries(): boolean {
+        return this.helpEntriesStack.length > 0;
+    }
+
     public get canGoBack(): boolean {
         return this.currentIndex > 0;
     }

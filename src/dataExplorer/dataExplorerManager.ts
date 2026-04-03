@@ -448,10 +448,71 @@ export class DataExplorerManager implements vscode.Disposable {
         }
         this.restoredPanels.clear();
 
+        // Dispose live panels — their comm channels are invalidated on session switch
+        for (const panel of this.panels.values()) {
+            panel.dispose();
+        }
+        this.panels.clear();
+
         this.sessionName = newSessionName;
-        // Note: live panels (this.panels) are tied to comm channels which
-        // are invalidated on session switch. The sidecar layer handles
-        // their lifecycle — we just update persistence.
+
+        // Restore placeholder panels from the new session's persisted state
+        this.loadAndRestorePanels();
+    }
+
+    /**
+     * Load the new session's persisted panel list and create placeholder panels
+     * that will be reconnected when the kernel sends comm_open via View().
+     */
+    private loadAndRestorePanels(): void {
+        const listPath = this.getPanelListPath();
+        if (!listPath) {
+            return;
+        }
+        try {
+            if (!fs.existsSync(listPath)) {
+                return;
+            }
+            const content = fs.readFileSync(listPath, 'utf8');
+            const entries = JSON.parse(content) as PersistedPanelEntry[];
+            if (!Array.isArray(entries) || entries.length === 0) {
+                return;
+            }
+            this.outputChannel.appendLine(
+                `Loading ${entries.length} persisted data explorer panel(s) for session "${this.sessionName}"`,
+            );
+            for (const entry of entries) {
+                if (!entry.displayName) {
+                    continue;
+                }
+                const panel = vscode.window.createWebviewPanel(
+                    'krarkodeDataExplorer',
+                    `Data: ${entry.displayName}`,
+                    { viewColumn: vscode.ViewColumn.Active, preserveFocus: true },
+                    { enableScripts: false },
+                );
+                panel.webview.html = this.getPlaceholderHtml(entry.displayName);
+
+                const timeout = setTimeout(() => {
+                    if (this.restoredPanels.has(entry.displayName)) {
+                        this.outputChannel.appendLine(
+                            `Restore timeout for "${entry.displayName}"; disposing placeholder.`,
+                        );
+                        this.restoredPanels.delete(entry.displayName);
+                        panel.dispose();
+                    }
+                }, RESTORE_TIMEOUT_MS);
+
+                panel.onDidDispose(() => {
+                    clearTimeout(timeout);
+                    this.restoredPanels.delete(entry.displayName);
+                });
+
+                this.restoredPanels.set(entry.displayName, { panel, displayName: entry.displayName, timeout });
+            }
+        } catch (err) {
+            this.outputChannel.appendLine(`Failed to load persisted panel list: ${String(err)}`);
+        }
     }
 
     dispose(): void {

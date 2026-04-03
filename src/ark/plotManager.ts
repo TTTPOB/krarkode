@@ -245,7 +245,13 @@ export class PlotManager implements vscode.Disposable {
             this.loadSessionPlots();
         }
 
-        this.renderWebview();
+        if (this.plots.length === 0 && this.panel) {
+            // No plots for this session — close the panel entirely
+            this.outputChannel.appendLine('No plots for new session; closing panel');
+            this.panel.dispose();
+        } else {
+            this.renderWebview();
+        }
     }
 
     /** Load plots from the current session's history file into memory. */

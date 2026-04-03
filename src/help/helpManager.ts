@@ -53,6 +53,13 @@ export class HelpManager implements vscode.Disposable {
         this.initPanel(panel);
     }
 
+    /** Close the help panel if it is open. */
+    public closePanel(): void {
+        if (this.panel) {
+            this.panel.dispose();
+        }
+    }
+
     public showHelp(focus: boolean = true): void {
         const viewColumn = this.getViewColumn();
 

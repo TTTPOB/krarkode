@@ -124,6 +124,9 @@ export function activate(context: vscode.ExtensionContext): void {
             // On window reload we reconnect to the same session and state is kept.
             plotManager?.switchSession(entry?.name);
             helpService?.switchSession(entry?.name);
+            if (helpService && !helpService.hasEntries) {
+                helpManager?.closePanel();
+            }
             dataExplorerManager?.switchSession(entry?.name);
             // Re-arm the data explorer reopen trigger for the new session
             pendingDataExplorerReopen = true;
