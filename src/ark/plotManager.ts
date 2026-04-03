@@ -182,7 +182,10 @@ export class PlotManager implements vscode.Disposable {
         }
         this.updateWebviewState();
         this.scheduleSavePlotHistory();
-        if (!preRender?.data) {
+        if (!preRender?.data && this.lastRenderSize) {
+            // Only render immediately if we already know the panel size.
+            // For newly-created panels, the webview will send a resize
+            // message once it has measured its actual layout dimensions.
             this.scheduleRender(true);
         }
     }
@@ -629,7 +632,12 @@ export class PlotManager implements vscode.Disposable {
             return;
         }
 
-        const renderSize = this.lastRenderSize ?? { width: 800, height: 600, dpr: 1 };
+        if (!this.lastRenderSize) {
+            // No size from webview yet — skip render and wait for resize message
+            getLogger().log('ui', LogCategory.Plot, 'debug', 'Skipping render: no webview size available yet');
+            return;
+        }
+        const renderSize = this.lastRenderSize;
         const format = plot.renderFormat ?? (plot.mimeType === 'image/svg+xml' ? 'svg' : 'png');
         const { size, pixelRatio } = this.buildRenderRequest(renderSize, format);
         const plotId = plot.id;

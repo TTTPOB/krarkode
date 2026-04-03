@@ -128,10 +128,19 @@
         window.addEventListener('message', handleMessage);
         vscode.postMessage({ message: 'ready' });
 
-        // Initial resize report after DOM settles
-        setTimeout(() => postResizeMessage(true), 0);
+        // Use ResizeObserver to reliably detect when the panel has its final layout.
+        // setTimeout(0) can fire before VS Code finishes laying out a newly-created panel,
+        // producing a tiny height measurement that results in a narrow first render.
+        let observer: ResizeObserver | undefined;
+        if (largePlotEl) {
+            observer = new ResizeObserver(() => {
+                postResizeMessage(true);
+            });
+            observer.observe(largePlotEl);
+        }
 
         return () => {
+            observer?.disconnect();
             window.removeEventListener('message', handleMessage);
         };
     });
