@@ -96,6 +96,7 @@
         padding: 3px 0;
         border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
         cursor: pointer;
+        font-family: var(--vscode-editor-font-family);
     }
 
     .variable-row:hover {
@@ -129,7 +130,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-family: var(--vscode-editor-font-family);
     }
 
     .cell-type {
