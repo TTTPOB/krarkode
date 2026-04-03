@@ -139,6 +139,20 @@ export class ArkLanguageService implements vscode.Disposable {
             this.client = await this.createClient(port, documentSelector, workspaceFolder);
             this.updateLspTrace();
         } catch (err) {
+            // When restart() is in flight it sets isIntentionallyRestarting and
+            // SIGKILL's the current sidecar.  The in-flight startLanguageService
+            // will see the process die and land here — that is expected, not an
+            // error the user should see.
+            if (this.isIntentionallyRestarting) {
+                const message = err instanceof Error ? err.message : 'Unknown error';
+                getLogger().log(
+                    'lsp',
+                    LogCategory.Logging,
+                    'info',
+                    this.formatLogMessage(`Ark LSP start aborted (restart in progress): ${message}`, 'lsp'),
+                );
+                return;
+            }
             const message = err instanceof Error ? err.message : 'Unknown error';
             getLogger().log(
                 'lsp',
@@ -362,7 +376,13 @@ export class ArkLanguageService implements vscode.Disposable {
                 }
             });
 
-            proc.on('exit', (code) => {
+            // Use 'close' instead of 'exit': the 'exit' event fires when the
+            // process terminates but stdout may still have unread data in its
+            // pipe buffer.  'close' fires after all stdio streams are closed,
+            // guaranteeing readline has consumed everything.  Without this the
+            // short-lived `lsp` sidecar can exit before readline processes the
+            // lsp_port line, causing a spurious "exited with code 0" error.
+            proc.on('close', (code) => {
                 if (!resolved) {
                     resolved = true;
                     cleanup();
