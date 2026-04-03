@@ -148,7 +148,7 @@
 
 <svelte:window onresize={() => postResizeMessage()} onkeydown={handleKeydown} />
 
-<div class="plot-area" style:height={plotStore.largePlotHeight} style:flex-grow={plotStore.largePlotHeight ? '0' : undefined}>
+<div class="plot-area" style:height={plotStore.largePlotHeight} style:flex={plotStore.largePlotHeight ? 'none' : undefined}>
     {#if !plotStore.fullWindow}
         <Toolbar {sendCommand} />
     {/if}
