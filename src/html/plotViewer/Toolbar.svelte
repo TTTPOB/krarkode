@@ -31,14 +31,14 @@
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">
+        <button onclick={() => sendCommand('toggleLayout')} title="Toggle thumbnail layout">Thumbnail Layout: {plotStore.layout}</button>
+    </div>
+    <div class="toolbar-separator"></div>
+    <div class="toolbar-group">
         <button onclick={() => sendCommand('zoomOut')} title="Zoom out (-)">&#8722;</button>
         <span class="zoom-info">{plotStore.zoomText}</span>
         <button onclick={() => sendCommand('zoomIn')} title="Zoom in (+)">+</button>
         <button onclick={() => sendCommand('zoomReset')} title="Reset zoom to 100%">100%</button>
-    </div>
-    <div class="toolbar-separator"></div>
-    <div class="toolbar-group">
-        <button onclick={() => sendCommand('toggleLayout')} title="Toggle thumbnail layout">Thumbnail Layout: {plotStore.layout}</button>
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">
