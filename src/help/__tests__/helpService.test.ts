@@ -27,6 +27,18 @@ const { mockExecuteCommand, MockEventEmitter } = vi.hoisted(() => {
     };
 });
 
+vi.mock('../../ark/sessionRegistry', () => ({
+    getActiveSessionName: () => undefined,
+    getSessionDir: () => '/tmp/test-session',
+}));
+
+vi.mock('../../logging/logger', () => ({
+    getLogger: () => ({
+        log: vi.fn(),
+    }),
+    LogCategory: { Help: 'Help' },
+}));
+
 vi.mock('vscode', () => ({
     commands: {
         executeCommand: mockExecuteCommand,

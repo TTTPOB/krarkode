@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { ArkSidecarManager } from '../ark/sidecarManager';
 import { DataExplorerSession, DEFAULT_FORMAT_OPTIONS } from './dataExplorerSession';
@@ -9,6 +11,7 @@ import {
     TableSchema,
 } from './protocol';
 import { DataExplorerMessageHandler, type DataExplorerPanelContext } from './dataExplorerMessageHandler';
+import { getActiveSessionName, getSessionDir } from '../ark/sessionRegistry';
 
 type RowRangeRequest = {
     startIndex: number;
@@ -16,6 +19,8 @@ type RowRangeRequest = {
 };
 
 const INITIAL_ROW_BLOCK_SIZE = 200;
+/** How long to wait for R session to reconnect before disposing restored panels. */
+const RESTORE_TIMEOUT_MS = 60_000;
 
 class DataExplorerPanel implements vscode.Disposable {
     private readonly panel: vscode.WebviewPanel;
@@ -31,23 +36,35 @@ class DataExplorerPanel implements vscode.Disposable {
     private pendingRanges: RowRangeRequest[] = [];
     private requestInFlight = false;
     private disposed = false;
+    /** Display name of the dataset (used for persistence and reconnect matching). */
+    public displayName: string | undefined;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly sidecarManager: ArkSidecarManager,
         private readonly commId: string,
         private readonly outputChannel: vscode.OutputChannel,
+        existingPanel?: vscode.WebviewPanel,
     ) {
-        this.panel = vscode.window.createWebviewPanel(
-            'krarkodeDataExplorer',
-            'Data Explorer',
-            { viewColumn: vscode.ViewColumn.Active, preserveFocus: true },
-            {
+        if (existingPanel) {
+            this.panel = existingPanel;
+            // Restored panel shell — set proper webview options
+            this.panel.webview.options = {
                 enableScripts: true,
-                retainContextWhenHidden: true,
                 localResourceRoots: [extensionUri],
-            },
-        );
+            };
+        } else {
+            this.panel = vscode.window.createWebviewPanel(
+                'krarkodeDataExplorer',
+                'Data Explorer',
+                { viewColumn: vscode.ViewColumn.Active, preserveFocus: true },
+                {
+                    enableScripts: true,
+                    retainContextWhenHidden: true,
+                    localResourceRoots: [extensionUri],
+                },
+            );
+        }
 
         this.panel.webview.html = this.getHtmlForWebview(this.panel.webview);
         this.session = new DataExplorerSession(sidecarManager, commId, outputChannel);
@@ -131,6 +148,7 @@ class DataExplorerPanel implements vscode.Disposable {
             const state = await this.session.getState();
             this.applyRowFilterConditionSupport(state);
             this.state = state;
+            this.displayName = state.display_name ?? this.displayName;
             this.panel.title = state.display_name ? `Data: ${state.display_name}` : 'Data Explorer';
 
             const columnCount = state.table_shape.num_columns;
@@ -295,14 +313,28 @@ class DataExplorerPanel implements vscode.Disposable {
     }
 }
 
+interface RestoredPanel {
+    panel: vscode.WebviewPanel;
+    displayName: string;
+    timeout: NodeJS.Timeout;
+}
+
+interface PersistedPanelEntry {
+    displayName: string;
+}
+
 export class DataExplorerManager implements vscode.Disposable {
     private readonly panels = new Map<string, DataExplorerPanel>();
     private readonly outputChannel = getLogger().createChannel('ui', LogCategory.DataExplorer);
+    private readonly restoredPanels = new Map<string, RestoredPanel>();
+    private sessionName: string | undefined;
 
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly sidecarManager: ArkSidecarManager,
-    ) {}
+    ) {
+        this.sessionName = getActiveSessionName();
+    }
 
     open(commId: string, data?: unknown): void {
         if (!isDataExplorerMetadata(data)) {
@@ -315,17 +347,197 @@ export class DataExplorerManager implements vscode.Disposable {
             return;
         }
 
-        this.outputChannel.appendLine(`Opening data explorer for comm ${commId}.`);
-        const panel = new DataExplorerPanel(this.extensionUri, this.sidecarManager, commId, this.outputChannel);
+        const displayName = (data as Record<string, unknown>).title as string;
+        this.outputChannel.appendLine(`Opening data explorer for comm ${commId} (${displayName}).`);
+
+        // Check if there's a restored panel waiting for this dataset
+        let existingPanel: vscode.WebviewPanel | undefined;
+        const restored = this.restoredPanels.get(displayName);
+        if (restored) {
+            this.outputChannel.appendLine(
+                `Reconnecting restored panel for "${displayName}" to comm ${commId}.`,
+            );
+            clearTimeout(restored.timeout);
+            existingPanel = restored.panel;
+            this.restoredPanels.delete(displayName);
+        }
+
+        const panel = new DataExplorerPanel(
+            this.extensionUri,
+            this.sidecarManager,
+            commId,
+            this.outputChannel,
+            existingPanel,
+        );
+        panel.displayName = displayName;
         this.panels.set(commId, panel);
+        this.scheduleSavePanelList();
+    }
+
+    /**
+     * Restore a panel that VS Code deserialized after window reload.
+     * Shows a placeholder until the R session reconnects and sends comm_open.
+     */
+    restorePanel(panel: vscode.WebviewPanel, state: unknown): void {
+        const displayName = extractDisplayName(state);
+        if (!displayName) {
+            this.outputChannel.appendLine('Restored data explorer panel has no displayName; disposing.');
+            panel.dispose();
+            return;
+        }
+
+        this.outputChannel.appendLine(
+            `Restoring data explorer placeholder for "${displayName}".`,
+        );
+
+        // Set placeholder HTML
+        panel.webview.options = { enableScripts: false };
+        panel.title = `Data: ${displayName}`;
+        panel.webview.html = this.getPlaceholderHtml(displayName);
+
+        // Set up timeout to dispose if session doesn't reconnect
+        const timeout = setTimeout(() => {
+            if (this.restoredPanels.has(displayName)) {
+                this.outputChannel.appendLine(
+                    `Restore timeout for "${displayName}"; disposing placeholder.`,
+                );
+                this.restoredPanels.delete(displayName);
+                panel.dispose();
+            }
+        }, RESTORE_TIMEOUT_MS);
+
+        panel.onDidDispose(() => {
+            clearTimeout(timeout);
+            this.restoredPanels.delete(displayName);
+        });
+
+        this.restoredPanels.set(displayName, { panel, displayName, timeout });
+    }
+
+    /** Switch to a different session's data explorer state. */
+    switchSession(newSessionName: string | undefined): void {
+        if (newSessionName && newSessionName === this.sessionName) {
+            return;
+        }
+        // Save current session's panel list before switching
+        this.savePanelListSync();
+
+        // Dispose all restored placeholder panels from previous session
+        for (const [, restored] of this.restoredPanels) {
+            clearTimeout(restored.timeout);
+            restored.panel.dispose();
+        }
+        this.restoredPanels.clear();
+
+        this.sessionName = newSessionName;
+        // Note: live panels (this.panels) are tied to comm channels which
+        // are invalidated on session switch. The sidecar layer handles
+        // their lifecycle — we just update persistence.
     }
 
     dispose(): void {
+        this.savePanelListSync();
         for (const panel of this.panels.values()) {
             panel.dispose();
         }
         this.panels.clear();
+        for (const [, restored] of this.restoredPanels) {
+            clearTimeout(restored.timeout);
+            restored.panel.dispose();
+        }
+        this.restoredPanels.clear();
         this.outputChannel.dispose();
+    }
+
+    // -- Panel list persistence --
+
+    private getPanelListPath(): string | undefined {
+        if (!this.sessionName) {
+            return undefined;
+        }
+        return path.join(getSessionDir(this.sessionName), 'data-explorer.json');
+    }
+
+    private saveTimeout?: NodeJS.Timeout;
+
+    private scheduleSavePanelList(): void {
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+        }
+        this.saveTimeout = setTimeout(() => {
+            this.saveTimeout = undefined;
+            this.savePanelListSync();
+        }, 500);
+    }
+
+    private savePanelListSync(): void {
+        const listPath = this.getPanelListPath();
+        if (!listPath) {
+            return;
+        }
+        try {
+            const entries: PersistedPanelEntry[] = [];
+            for (const panel of this.panels.values()) {
+                if (panel.displayName) {
+                    entries.push({ displayName: panel.displayName });
+                }
+            }
+            if (entries.length === 0) {
+                if (fs.existsSync(listPath)) {
+                    fs.unlinkSync(listPath);
+                }
+                return;
+            }
+            fs.writeFileSync(listPath, JSON.stringify(entries));
+        } catch (err) {
+            getLogger().log('ui', LogCategory.DataExplorer, 'warn',
+                `Failed to save data explorer panel list: ${String(err)}`);
+        }
+    }
+
+    private getPlaceholderHtml(displayName: string): string {
+        const escaped = displayName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data: ${escaped}</title>
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: var(--vscode-font-family, sans-serif);
+            background: var(--vscode-editor-background);
+            color: var(--vscode-editor-foreground);
+        }
+        .placeholder {
+            text-align: center;
+            opacity: 0.7;
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--vscode-editorWidget-border, #555);
+            border-top-color: var(--vscode-textLink-foreground, #007acc);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="placeholder">
+        <div class="spinner"></div>
+        <div>Waiting for R session to reconnect…</div>
+        <div style="margin-top:4px;font-size:0.9em;opacity:0.6">${escaped}</div>
+    </div>
+</body>
+</html>`;
     }
 }
 
@@ -335,4 +547,15 @@ function isDataExplorerMetadata(value: unknown): boolean {
     }
     const record = value as Record<string, unknown>;
     return typeof record.title === 'string' && record.title.length > 0;
+}
+
+function extractDisplayName(state: unknown): string | undefined {
+    if (typeof state !== 'object' || state === null) {
+        return undefined;
+    }
+    const record = state as Record<string, unknown>;
+    if (typeof record.displayName === 'string' && record.displayName.length > 0) {
+        return record.displayName;
+    }
+    return undefined;
 }

@@ -288,6 +288,8 @@ export const ROW_FILTER_SECTION_MAP: Record<RowFilterType, 'compare' | 'between'
 // VS Code API helper
 declare const acquireVsCodeApi: () => {
     postMessage: (message: unknown) => void;
+    setState: (state: unknown) => void;
+    getState: () => unknown;
 };
 
 let vsCodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;

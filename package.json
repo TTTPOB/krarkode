@@ -40,7 +40,8 @@
     "onLanguage:r",
     "onLanguage:rmd",
     "onWebviewPanel:arkPlotManager",
-    "onWebviewPanel:krarkode.help"
+    "onWebviewPanel:krarkode.help",
+    "onWebviewPanel:krarkodeDataExplorer"
   ],
   "main": "./dist/extension.js",
   "contributes": {

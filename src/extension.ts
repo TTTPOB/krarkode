@@ -124,6 +124,7 @@ export function activate(context: vscode.ExtensionContext): void {
             // On window reload we reconnect to the same session and state is kept.
             plotManager?.switchSession(entry?.name);
             helpService?.switchSession(entry?.name);
+            dataExplorerManager?.switchSession(entry?.name);
         }
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);
@@ -293,6 +294,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
     dataExplorerManager = new DataExplorerManager(context.extensionUri, sidecarManager);
     context.subscriptions.push(dataExplorerManager);
+
+    // Register serializer so VS Code restores data explorer panels on reload
+    context.subscriptions.push(
+        vscode.window.registerWebviewPanelSerializer('krarkodeDataExplorer', {
+            async deserializeWebviewPanel(panel: vscode.WebviewPanel, state: unknown): Promise<void> {
+                dataExplorerManager?.restorePanel(panel, state);
+            },
+        }),
+    );
+
     context.subscriptions.push(
         sidecarManager.onDidOpenDataExplorerComm((e) => {
             dataExplorerManager?.open(e.commId, e.data);

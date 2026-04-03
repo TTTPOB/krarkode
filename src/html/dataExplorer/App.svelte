@@ -254,6 +254,10 @@
                 columns: dataStore.visibleSchema.length,
             });
             tableController.scheduleTableLayoutDiagnostics('init');
+            // Persist display name so serializer can restore this panel
+            if (msg.state.display_name) {
+                vscode.setState({ displayName: msg.state.display_name });
+            }
         },
         onRows: (message) => rowDataController.handleRows(message),
         onError: (message) => {
@@ -283,6 +287,8 @@
         const handleClick = (e: MouseEvent) => windowEventsController.handleDocumentClick(e);
         document.addEventListener('click', handleClick);
         vscode.postMessage({ type: 'ready' });
+        // Tell VS Code to persist this panel across reloads
+        vscode.setState({ restored: true });
         log('Data explorer initialized.');
         updateTableAreaTop();
 
