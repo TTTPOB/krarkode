@@ -231,6 +231,18 @@ pub(crate) async fn run_plot_watcher(
                                                 warn!(error = %e, "Failed to send comm_open");
                                             }
                                         }
+                                    } else if command == "execute_request" {
+                                        if let Some(code) = json.get("code").and_then(|c| c.as_str()) {
+                                            debug!(
+                                                code_len = code.len(),
+                                                "Forwarding execute_request to shell"
+                                            );
+                                            let execute_request = ExecuteRequest::new(code.to_string());
+                                            let message = JupyterMessage::new(execute_request, None);
+                                            if let Err(e) = shell.send(message).await {
+                                                warn!(error = %e, "Failed to send execute_request");
+                                            }
+                                        }
                                     } else if command == "comm_close" {
                                         if let Some(comm_id) = json.get("comm_id").and_then(|s| s.as_str()) {
                                             let data = json.get("data").and_then(|d| d.as_object()).cloned().unwrap_or_default();

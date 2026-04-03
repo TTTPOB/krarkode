@@ -89,6 +89,7 @@ const SESSION_DIR = '/mock/sessions';
 function makeSidecarManager(): ArkSidecarManager {
     return {
         sendRpcRequest: vi.fn(),
+        sendExecuteRequest: vi.fn(),
     } as unknown as ArkSidecarManager;
 }
 

@@ -148,6 +148,28 @@ export class ArkSidecarManager implements vscode.Disposable {
         }
     }
 
+    /**
+     * Send an execute_request directly to the kernel shell socket,
+     * bypassing the terminal. Useful for background code execution
+     * that should not interfere with the user's active terminal.
+     */
+    public sendExecuteRequest(code: string): void {
+        if (!this.proc) {
+            return;
+        }
+        const msg = { command: 'execute_request', code };
+        try {
+            this.proc.stdin.write(JSON.stringify(msg) + '\n');
+        } catch (error) {
+            getLogger().log(
+                'sidecar',
+                LogCategory.Comm,
+                'error',
+                this.formatLogMessage(`Failed to send execute_request: ${error}`),
+            );
+        }
+    }
+
     public sendCommClose(commId: string, data: unknown = {}): void {
         if (!this.proc) {
             return;

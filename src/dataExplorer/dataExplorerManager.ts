@@ -417,6 +417,8 @@ export class DataExplorerManager implements vscode.Disposable {
     /**
      * Re-open restored data explorer panels by executing View() in R.
      * Called when the kernel becomes idle after session reconnect.
+     * Sends execute_request through the sidecar so it runs in the background
+     * without interfering with the user's active terminal.
      */
     reopenRestoredPanels(): void {
         if (this.restoredPanels.size === 0) {
@@ -427,9 +429,7 @@ export class DataExplorerManager implements vscode.Disposable {
             `Kernel ready — requesting View() for ${names.length} restored panel(s): ${names.join(', ')}`,
         );
         for (const displayName of names) {
-            // Execute View(name) in R to trigger comm_open from the kernel.
-            // Use the registered command so it goes through the standard code execution path.
-            void vscode.commands.executeCommand('krarkode.runCommand', `View(${displayName})`);
+            this.sidecarManager.sendExecuteRequest(`View(${displayName})`);
         }
     }
 
