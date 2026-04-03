@@ -39,9 +39,9 @@
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 6px 12px;
-        border-bottom: 1px solid var(--vscode-panel-border);
-        background: var(--vscode-editor-background);
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--vscode-editorWidget-border);
+        background: var(--vscode-sideBar-background);
         flex-wrap: wrap;
         flex-shrink: 0;
     }
@@ -55,25 +55,25 @@
     .toolbar-separator {
         width: 1px;
         height: 20px;
-        background: var(--vscode-panel-border);
+        background: var(--vscode-editorWidget-border);
         margin: 0 4px;
     }
 
     .toolbar button {
-        background: var(--vscode-button-secondaryBackground);
-        color: var(--vscode-button-secondaryForeground);
+        background: var(--vscode-button-background);
+        color: var(--vscode-button-foreground);
         border: none;
-        padding: 3px 8px;
+        padding: 4px 10px;
         cursor: pointer;
         border-radius: 3px;
-        font-size: 12px;
+        font-size: 0.9em;
         display: flex;
         align-items: center;
         gap: 4px;
     }
 
     .toolbar button:hover:not(:disabled) {
-        background: var(--vscode-button-secondaryHoverBackground);
+        background: var(--vscode-button-hoverBackground);
     }
 
     .toolbar button:disabled {
@@ -84,16 +84,17 @@
     .toolbar button.active {
         background: var(--vscode-button-background);
         color: var(--vscode-button-foreground);
+        outline: 1px solid var(--vscode-focusBorder);
     }
 
     .nav-info {
-        font-size: 12px;
+        font-size: 0.9em;
         min-width: 60px;
         text-align: center;
     }
 
     .zoom-info {
-        font-size: 11px;
+        font-size: 0.85em;
         min-width: 45px;
         text-align: center;
     }
