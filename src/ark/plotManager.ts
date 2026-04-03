@@ -230,6 +230,7 @@ export class PlotManager implements vscode.Disposable {
         });
         this.updateWebviewState();
         this.scheduleRender(true);
+        this.scheduleSavePlotHistory();
     }
 
     public async savePlot(): Promise<void> {
@@ -438,6 +439,7 @@ export class PlotManager implements vscode.Disposable {
                             });
                             this.updateWebviewState();
                             this.scheduleRender(true);
+                            this.scheduleSavePlotHistory();
                             break;
                         case 'save':
                             void this.savePlot();
@@ -740,7 +742,12 @@ export class PlotManager implements vscode.Disposable {
                 return;
             }
             const content = fs.readFileSync(historyPath, 'utf8');
-            const data = JSON.parse(content) as { plots: PlotEntry[]; currentIndex: number };
+            const data = JSON.parse(content) as {
+                plots: PlotEntry[];
+                currentIndex: number;
+                zoom?: number;
+                fit?: boolean;
+            };
             if (!Array.isArray(data.plots)) {
                 return;
             }
@@ -755,8 +762,14 @@ export class PlotManager implements vscode.Disposable {
                     Math.max(0, data.currentIndex ?? this.plots.length - 1),
                     this.plots.length - 1,
                 );
+                if (typeof data.zoom === 'number') {
+                    this.currentZoom = data.zoom;
+                }
+                if (typeof data.fit === 'boolean') {
+                    this.fitToWindow = data.fit;
+                }
                 this.outputChannel.appendLine(
-                    `Restored ${this.plots.length} plots from history (active: ${this.currentIndex + 1})`,
+                    `Restored ${this.plots.length} plots from history (active: ${this.currentIndex + 1}, zoom: ${this.fitToWindow ? 'fit' : this.currentZoom + '%'})`,
                 );
             }
         } catch (err) {
@@ -781,6 +794,8 @@ export class PlotManager implements vscode.Disposable {
             const data = {
                 plots: this.plots,
                 currentIndex: this.currentIndex,
+                zoom: this.currentZoom,
+                fit: this.fitToWindow,
             };
             fs.writeFileSync(historyPath, JSON.stringify(data));
         } catch (err) {
