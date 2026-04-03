@@ -35,6 +35,24 @@ export class HelpManager implements vscode.Disposable {
         this.registerCommands();
     }
 
+    /**
+     * Restore a panel that VS Code deserialized after window reload.
+     */
+    public restorePanel(panel: vscode.WebviewPanel): void {
+        if (this.panel) {
+            panel.dispose();
+            return;
+        }
+        panel.webview.options = {
+            enableScripts: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(this.extensionUri, 'dist', 'html', 'help'),
+                vscode.Uri.joinPath(this.extensionUri, 'resources'),
+            ],
+        };
+        this.initPanel(panel);
+    }
+
     public showHelp(focus: boolean = true): void {
         const viewColumn = this.getViewColumn();
 
@@ -42,7 +60,7 @@ export class HelpManager implements vscode.Disposable {
             // Don't override user's manual panel placement
             this.panel.reveal(undefined, focus);
         } else {
-            this.panel = vscode.window.createWebviewPanel(
+            const panel = vscode.window.createWebviewPanel(
                 'krarkode.help',
                 HELP_VIEW_TITLE,
                 { viewColumn, preserveFocus: !focus },
@@ -56,27 +74,36 @@ export class HelpManager implements vscode.Disposable {
                     ],
                 },
             );
-
-            this.panel.onDidDispose(
-                () => {
-                    this.panel = undefined;
-                    this.isFirstLoad = true;
-                },
-                null,
-                this.disposables,
-            );
-
-            this.panel.webview.onDidReceiveMessage(
-                (message) => {
-                    this.handleMessage(message);
-                },
-                null,
-                this.disposables,
-            );
-
-            this.panel.webview.html = this.getWebviewHtml();
+            this.initPanel(panel);
         }
 
+        this.updateNavigationState();
+        this.updateContent();
+    }
+
+    /** Wire up event handlers and render HTML for the given panel. */
+    private initPanel(panel: vscode.WebviewPanel): void {
+        this.panel = panel;
+        this.isFirstLoad = true;
+
+        this.panel.onDidDispose(
+            () => {
+                this.panel = undefined;
+                this.isFirstLoad = true;
+            },
+            null,
+            this.disposables,
+        );
+
+        this.panel.webview.onDidReceiveMessage(
+            (message) => {
+                this.handleMessage(message);
+            },
+            null,
+            this.disposables,
+        );
+
+        this.panel.webview.html = this.getWebviewHtml();
         this.updateNavigationState();
         this.updateContent();
     }
@@ -311,6 +338,8 @@ export class HelpManager implements vscode.Disposable {
     <script nonce="${nonce}">
         try {
             const vscode = acquireVsCodeApi();
+            // Tell VS Code to persist this panel across reloads
+            vscode.setState({ restored: true });
             const contentDiv = document.getElementById('content');
             const btnBack = document.getElementById('btn-back');
             const btnForward = document.getElementById('btn-forward');

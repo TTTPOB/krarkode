@@ -1,7 +1,11 @@
 import * as crypto from 'crypto';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { HelpEntry, createHelpEntry } from './helpEntry';
 import { MAX_HISTORY_ENTRIES } from './helpIds';
+import { getActiveSessionName, getSessionDir } from '../ark/sessionRegistry';
+import { getLogger, LogCategory } from '../logging/logger';
 
 export interface IKrarkodeHelpService {
     readonly helpEntries: HelpEntry[];
@@ -29,6 +33,8 @@ export class HelpService implements IKrarkodeHelpService {
     private readonly helpEntriesStack: HelpEntry[] = [];
     private currentIndex = -1;
     private baseUrl?: string;
+    private sessionName: string | undefined;
+    private saveTimeout?: NodeJS.Timeout;
 
     private readonly _onDidChangeHelpEntry = new vscode.EventEmitter<void>();
     public readonly onDidChangeHelpEntry = this._onDidChangeHelpEntry.event;
@@ -36,7 +42,11 @@ export class HelpService implements IKrarkodeHelpService {
     constructor(
         private readonly extensionUri: vscode.Uri,
         private readonly sendRpcRequest: (request: HelpRpcRequest) => void,
-    ) {}
+    ) {
+        // Load persisted help state for the current session
+        this.sessionName = getActiveSessionName();
+        this.loadHelpState();
+    }
 
     public get helpEntries(): HelpEntry[] {
         return this.helpEntriesStack;
@@ -274,9 +284,119 @@ export class HelpService implements IKrarkodeHelpService {
         }
 
         this._onDidChangeHelpEntry.fire();
+        this.scheduleSaveHelpState();
+    }
+
+    /**
+     * Switch to a different session's help state.
+     * Saves current session state, loads new session state.
+     */
+    public switchSession(newSessionName: string | undefined): void {
+        if (newSessionName && newSessionName === this.sessionName) {
+            return;
+        }
+        // Save current session
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+            this.saveTimeout = undefined;
+        }
+        this.saveHelpStateSync();
+
+        // Clear in-memory state
+        this.helpEntriesStack.length = 0;
+        this.currentIndex = -1;
+        this.baseUrl = undefined;
+
+        // Load new session
+        this.sessionName = newSessionName;
+        if (newSessionName) {
+            this.loadHelpState();
+        }
+
+        this._onDidChangeHelpEntry.fire();
+    }
+
+    // -- Help state persistence --
+
+    private getHelpStatePath(): string | undefined {
+        if (!this.sessionName) {
+            return undefined;
+        }
+        return path.join(getSessionDir(this.sessionName), 'help-state.json');
+    }
+
+    private loadHelpState(): void {
+        const statePath = this.getHelpStatePath();
+        if (!statePath) {
+            return;
+        }
+        try {
+            if (!fs.existsSync(statePath)) {
+                return;
+            }
+            const content = fs.readFileSync(statePath, 'utf8');
+            const data = JSON.parse(content) as {
+                title?: string;
+                content?: string;
+                kind?: string;
+                scrollPosition?: number;
+            };
+            if (data.content) {
+                const entry = createHelpEntry('', data.title, data.content, data.kind ?? 'html', 'help');
+                entry.scrollPosition = data.scrollPosition ?? 0;
+                this.helpEntriesStack.push(entry);
+                this.currentIndex = 0;
+                getLogger().log('ui', LogCategory.Help, 'debug',
+                    `Restored help state for session "${this.sessionName}": "${data.title}"`,
+                );
+            }
+        } catch (err) {
+            getLogger().log('ui', LogCategory.Help, 'warn', `Failed to load help state: ${String(err)}`);
+        }
+    }
+
+    private scheduleSaveHelpState(): void {
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+        }
+        this.saveTimeout = setTimeout(() => {
+            this.saveTimeout = undefined;
+            this.saveHelpStateSync();
+        }, 500);
+    }
+
+    private saveHelpStateSync(): void {
+        const statePath = this.getHelpStatePath();
+        if (!statePath) {
+            return;
+        }
+        try {
+            const entry = this.currentHelpEntry;
+            if (!entry || entry.entryType === 'welcome' || !entry.content) {
+                // Remove stale state file if nothing to save
+                if (fs.existsSync(statePath)) {
+                    fs.unlinkSync(statePath);
+                }
+                return;
+            }
+            const data = {
+                title: entry.title,
+                content: entry.content,
+                kind: entry.kind,
+                scrollPosition: entry.scrollPosition,
+            };
+            fs.writeFileSync(statePath, JSON.stringify(data));
+        } catch (err) {
+            getLogger().log('ui', LogCategory.Help, 'warn', `Failed to save help state: ${String(err)}`);
+        }
     }
 
     public dispose(): void {
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+            this.saveTimeout = undefined;
+            this.saveHelpStateSync();
+        }
         this._onDidChangeHelpEntry.dispose();
     }
 }

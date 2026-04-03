@@ -39,7 +39,8 @@
   "activationEvents": [
     "onLanguage:r",
     "onLanguage:rmd",
-    "onWebviewPanel:arkPlotManager"
+    "onWebviewPanel:arkPlotManager",
+    "onWebviewPanel:krarkode.help"
   ],
   "main": "./dist/extension.js",
   "contributes": {

@@ -120,9 +120,10 @@ export function activate(context: vscode.ExtensionContext): void {
             variablesService?.disconnect(reason);
             // Clear plot state from the previous session to prevent cross-session leakage
             plotBackend?.resetForNewSession(reason);
-            // Only clear plot history when actually switching sessions —
-            // on window reload we reconnect to the same session and should keep persisted plots
+            // Switch per-session panel state — saves current session, loads new one.
+            // On window reload we reconnect to the same session and state is kept.
             plotManager?.switchSession(entry?.name);
+            helpService?.switchSession(entry?.name);
         }
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);
@@ -239,6 +240,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
     helpManager = new HelpManager(context.extensionUri, helpService);
     context.subscriptions.push(helpManager);
+
+    // Register serializer so VS Code restores the help panel on reload
+    context.subscriptions.push(
+        vscode.window.registerWebviewPanelSerializer('krarkode.help', {
+            async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown): Promise<void> {
+                helpManager?.restorePanel(panel);
+            },
+        }),
+    );
 
     context.subscriptions.push(
         vscode.commands.registerCommand('krarkode.help.open', () => {
