@@ -112,11 +112,10 @@
         display: grid;
         grid-template-columns: minmax(120px, 2fr) minmax(80px, 1fr) minmax(80px, 1fr) minmax(100px, 2fr) 24px;
         padding: 4px 0;
-        font-size: 0.85em;
         font-weight: bold;
-        opacity: 0.7;
-        border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
         background-color: var(--vscode-sideBarSectionHeader-background);
+        color: var(--vscode-sideBarSectionHeader-foreground);
+        border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
     }
 
     .header-cell {

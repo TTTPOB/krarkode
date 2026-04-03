@@ -29,10 +29,9 @@
 <style>
     .group-header {
         padding: 4px 8px;
+        font-size: 0.85em;
         font-weight: bold;
-        background-color: var(--vscode-sideBarSectionHeader-background);
-        color: var(--vscode-sideBarSectionHeader-foreground);
-        cursor: pointer;
+        opacity: 0.7;
         display: flex;
         align-items: center;
     }
