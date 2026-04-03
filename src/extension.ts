@@ -60,6 +60,15 @@ export function activate(context: vscode.ExtensionContext): void {
     plotManager = new PlotManager(plotBackend);
     context.subscriptions.push(plotManager);
 
+    // Register serializer so VS Code restores the plot panel on reload
+    context.subscriptions.push(
+        vscode.window.registerWebviewPanelSerializer('arkPlotManager', {
+            async deserializeWebviewPanel(panel: vscode.WebviewPanel, _state: unknown): Promise<void> {
+                plotManager?.restorePanel(panel);
+            },
+        }),
+    );
+
     // Connect sidecar events to HTML viewer
     context.subscriptions.push(
         sidecarManager.onDidShowHtmlFile((params) => {
@@ -113,7 +122,7 @@ export function activate(context: vscode.ExtensionContext): void {
             plotBackend?.resetForNewSession(reason);
             // Only clear plot history when actually switching sessions —
             // on window reload we reconnect to the same session and should keep persisted plots
-            plotManager?.clearHistoryIfSessionChanged(entry?.name);
+            plotManager?.switchSession(entry?.name);
         }
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);

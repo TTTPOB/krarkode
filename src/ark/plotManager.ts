@@ -7,7 +7,7 @@ import type { PlotRenderResult } from './arkCommBackend';
 import * as util from '../util';
 import { getNonce } from '../util';
 import { getLogger, LogCategory } from '../logging/logger';
-import { getSessionsDir } from './sessionRegistry';
+import { getActiveSessionName, getSessionDir, getSessionsDir } from './sessionRegistry';
 
 interface PlotEntry {
     id: string;
@@ -47,8 +47,8 @@ export class PlotManager implements vscode.Disposable {
     private webviewReady = false;
     private saveTimeout?: NodeJS.Timeout;
     private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Plot);
-    /** Session name that owns the current plot history — used to avoid clearing on reconnect. */
-    private historySessionName: string | undefined;
+    /** Current R session name — determines per-session storage directory. */
+    private sessionName: string | undefined;
 
     constructor(renderSource?: DynamicPlotSource) {
         this.maxHistory = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;
@@ -200,7 +200,7 @@ export class PlotManager implements vscode.Disposable {
         this.outputChannel.appendLine(`Clearing plot history (${this.plots.length} plots)`);
         this.plots.length = 0;
         this.currentIndex = -1;
-        this.historySessionName = undefined;
+        this.sessionName = undefined;
         if (this.renderTimeout) {
             clearTimeout(this.renderTimeout);
             this.renderTimeout = undefined;
@@ -210,23 +210,80 @@ export class PlotManager implements vscode.Disposable {
     }
 
     /**
-     * Clear plot history only if the session actually changed.
-     * On window reload we reconnect to the same session — in that case
-     * the persisted history should be kept, not wiped.
+     * Switch to a different session's plot history.
+     * Saves current session state, loads new session state.
+     * On window reload we reconnect to the same session — history is kept.
      */
-    public clearHistoryIfSessionChanged(sessionName: string | undefined): void {
-        if (sessionName && sessionName === this.historySessionName) {
+    public switchSession(newSessionName: string | undefined): void {
+        if (newSessionName && newSessionName === this.sessionName) {
             this.outputChannel.appendLine(
-                `Reconnecting to same session "${sessionName}" — keeping ${this.plots.length} persisted plots`,
+                `Reconnecting to same session "${newSessionName}" — keeping ${this.plots.length} persisted plots`,
             );
             return;
         }
         this.outputChannel.appendLine(
-            `Session changed from "${this.historySessionName ?? '(none)'}" to "${sessionName ?? '(none)'}" — clearing history`,
+            `Session changed from "${this.sessionName ?? '(none)'}" to "${newSessionName ?? '(none)'}"`,
         );
-        this.clearHistory();
-        this.historySessionName = sessionName;
-        this.scheduleSavePlotHistory();
+        // Save current session's state before switching
+        if (this.saveTimeout) {
+            clearTimeout(this.saveTimeout);
+            this.saveTimeout = undefined;
+        }
+        this.savePlotHistorySync();
+
+        // Clear in-memory state
+        this.plots.length = 0;
+        this.currentIndex = -1;
+        if (this.renderTimeout) {
+            clearTimeout(this.renderTimeout);
+            this.renderTimeout = undefined;
+        }
+
+        // Load new session's state
+        this.sessionName = newSessionName;
+        if (newSessionName) {
+            this.loadSessionPlots();
+        }
+
+        this.renderWebview();
+    }
+
+    /** Load plots from the current session's history file into memory. */
+    private loadSessionPlots(): void {
+        const historyPath = this.getPlotHistoryPath();
+        try {
+            if (!fs.existsSync(historyPath)) {
+                return;
+            }
+            const content = fs.readFileSync(historyPath, 'utf8');
+            const data = JSON.parse(content) as {
+                plots: PlotEntry[];
+                currentIndex: number;
+                zoom?: number;
+            };
+            if (!Array.isArray(data.plots)) {
+                return;
+            }
+            for (const entry of data.plots) {
+                if (entry.id && entry.base64Data && entry.mimeType) {
+                    this.plots.push(entry);
+                }
+            }
+            if (this.plots.length > 0) {
+                this.currentIndex = Math.min(
+                    Math.max(0, data.currentIndex ?? this.plots.length - 1),
+                    this.plots.length - 1,
+                );
+                if (typeof data.zoom === 'number') {
+                    this.currentZoom = data.zoom;
+                }
+                this.outputChannel.appendLine(
+                    `Loaded ${this.plots.length} plots for session "${this.sessionName}" (active: ${this.currentIndex + 1}, zoom: ${this.currentZoom}%)`,
+                );
+            }
+        } catch (err) {
+            getLogger().log('ui', LogCategory.Plot, 'warn', `Failed to load session plots: ${String(err)}`);
+        }
     }
 
     public previousPlot(): void {
@@ -369,6 +426,29 @@ export class PlotManager implements vscode.Disposable {
         this.outputChannel.dispose();
     }
 
+    /**
+     * Restore a panel that VS Code deserialized after window reload.
+     * The webview shell already exists; we just wire up event handlers
+     * and set the HTML content. Plot data is loaded from the per-session
+     * history file during construction.
+     */
+    public restorePanel(panel: vscode.WebviewPanel): void {
+        if (this.panel) {
+            panel.dispose();
+            return;
+        }
+        panel.webview.options = {
+            enableScripts: true,
+            localResourceRoots: [
+                vscode.Uri.joinPath(getExtensionContext().extensionUri, 'dist', 'html', 'plotViewer'),
+            ],
+        };
+        this.initPanel(panel);
+        this.outputChannel.appendLine(
+            `Restored plot panel from serializer (${this.plots.length} plots loaded)`,
+        );
+    }
+
     private showPanel(): void {
         const configured = util.config().get<string>('krarkode.plot.viewColumn');
         if (configured === 'Disable') {
@@ -378,7 +458,7 @@ export class PlotManager implements vscode.Disposable {
         const viewColumn = this.asViewColumn(configured, vscode.ViewColumn.Two);
 
         if (!this.panel) {
-            this.panel = vscode.window.createWebviewPanel(
+            const panel = vscode.window.createWebviewPanel(
                 'arkPlotManager',
                 'Ark Plots',
                 { preserveFocus: true, viewColumn },
@@ -390,115 +470,122 @@ export class PlotManager implements vscode.Disposable {
                     ],
                 },
             );
-
-            this.panel.onDidDispose(() => {
-                this.panel = undefined;
-                this.webviewReady = false;
-            });
-
-            this.panel.webview.onDidReceiveMessage(
-                (message: {
-                    message: string;
-                    command?: string;
-                    plotId?: string;
-                    value?: number;
-                    width?: number;
-                    height?: number;
-                    dpr?: number;
-                    userTriggered?: boolean;
-                }) => {
-                    if (message.message === 'ready') {
-                        // Svelte app mounted — send all existing plots and state
-                        this.webviewReady = true;
-                        for (let i = 0; i < this.plots.length; i++) {
-                            const plot = this.plots[i];
-                            this.postWebviewMessage({
-                                message: 'addPlot',
-                                plotId: plot.id,
-                                base64Data: plot.base64Data,
-                                mimeType: plot.mimeType,
-                                isActive: i === this.currentIndex,
-                            });
-                        }
-                        this.updateWebviewState();
-                        return;
-                    }
-                    if (message.message === 'resize') {
-                        if (typeof message.width === 'number' && typeof message.height === 'number') {
-                            this.handleResize({
-                                width: message.width,
-                                height: message.height,
-                                dpr: typeof message.dpr === 'number' ? message.dpr : 1,
-                                userTriggered: !!message.userTriggered,
-                            });
-                        }
-                        return;
-                    }
-                    if (message.message !== 'command' || !message.command) {
-                        return;
-                    }
-                    switch (message.command) {
-                        case 'previous':
-                            this.previousPlot();
-                            break;
-                        case 'next':
-                            this.nextPlot();
-                            break;
-                        case 'zoomIn':
-                            this.setZoom(this.currentZoom + 25);
-                            break;
-                        case 'zoomOut':
-                            this.setZoom(this.currentZoom - 25);
-                            break;
-                        case 'zoomReset':
-                            this.setZoom(100);
-                            break;
-                        case 'save':
-                            void this.savePlot();
-                            break;
-                        case 'openInBrowser':
-                            void this.openInBrowser();
-                            break;
-                        case 'clear':
-                            this.clearHistory();
-                            break;
-                        case 'goTo':
-                            if (message.plotId) {
-                                const index = this.plots.findIndex((plot) => plot.id === message.plotId);
-                                if (index >= 0) {
-                                    this.currentIndex = index;
-                                    this.focusPlotByIndex(this.currentIndex);
-                                    this.scheduleSavePlotHistory();
-                                }
-                            }
-                            break;
-                        case 'hide':
-                            if (message.plotId) {
-                                this.hidePlot(message.plotId);
-                            }
-                            break;
-                        case 'toggleFullWindow':
-                            this.fullWindow = !this.fullWindow;
-                            this.postWebviewMessage({
-                                message: 'toggleFullWindow',
-                                useFullWindow: this.fullWindow,
-                            });
-                            this.updateWebviewState();
-                            break;
-                        case 'toggleLayout':
-                            this.cyclePreviewLayout();
-                            break;
-                    }
-                },
-            );
-
-            this.renderWebview();
+            this.initPanel(panel);
         }
 
         // Only use configured viewColumn for initial creation;
         // don't override user's manual panel placement
-        this.panel.reveal(undefined, true);
+        this.panel!.reveal(undefined, true);
         this.updateWebviewState();
+    }
+
+    /** Wire up event handlers and render HTML for the given panel. */
+    private initPanel(panel: vscode.WebviewPanel): void {
+        this.panel = panel;
+        this.webviewReady = false;
+
+        this.panel.onDidDispose(() => {
+            this.panel = undefined;
+            this.webviewReady = false;
+        });
+
+        this.panel.webview.onDidReceiveMessage(
+            (message: {
+                message: string;
+                command?: string;
+                plotId?: string;
+                value?: number;
+                width?: number;
+                height?: number;
+                dpr?: number;
+                userTriggered?: boolean;
+            }) => {
+                if (message.message === 'ready') {
+                    // Svelte app mounted — send all existing plots and state
+                    this.webviewReady = true;
+                    for (let i = 0; i < this.plots.length; i++) {
+                        const plot = this.plots[i];
+                        this.postWebviewMessage({
+                            message: 'addPlot',
+                            plotId: plot.id,
+                            base64Data: plot.base64Data,
+                            mimeType: plot.mimeType,
+                            isActive: i === this.currentIndex,
+                        });
+                    }
+                    this.updateWebviewState();
+                    return;
+                }
+                if (message.message === 'resize') {
+                    if (typeof message.width === 'number' && typeof message.height === 'number') {
+                        this.handleResize({
+                            width: message.width,
+                            height: message.height,
+                            dpr: typeof message.dpr === 'number' ? message.dpr : 1,
+                            userTriggered: !!message.userTriggered,
+                        });
+                    }
+                    return;
+                }
+                if (message.message !== 'command' || !message.command) {
+                    return;
+                }
+                switch (message.command) {
+                    case 'previous':
+                        this.previousPlot();
+                        break;
+                    case 'next':
+                        this.nextPlot();
+                        break;
+                    case 'zoomIn':
+                        this.setZoom(this.currentZoom + 25);
+                        break;
+                    case 'zoomOut':
+                        this.setZoom(this.currentZoom - 25);
+                        break;
+                    case 'zoomReset':
+                        this.setZoom(100);
+                        break;
+                    case 'save':
+                        void this.savePlot();
+                        break;
+                    case 'openInBrowser':
+                        void this.openInBrowser();
+                        break;
+                    case 'clear':
+                        this.clearHistory();
+                        break;
+                    case 'goTo':
+                        if (message.plotId) {
+                            const index = this.plots.findIndex((plot) => plot.id === message.plotId);
+                            if (index >= 0) {
+                                this.currentIndex = index;
+                                this.focusPlotByIndex(this.currentIndex);
+                                this.scheduleSavePlotHistory();
+                            }
+                        }
+                        break;
+                    case 'hide':
+                        if (message.plotId) {
+                            this.hidePlot(message.plotId);
+                        }
+                        break;
+                    case 'toggleFullWindow':
+                        this.fullWindow = !this.fullWindow;
+                        this.postWebviewMessage({
+                            message: 'toggleFullWindow',
+                            useFullWindow: this.fullWindow,
+                        });
+                        this.updateWebviewState();
+                        break;
+                    case 'toggleLayout':
+                        this.cyclePreviewLayout();
+                        break;
+                }
+            },
+        );
+
+        this.renderWebview();
     }
 
     private renderWebview(): void {
@@ -749,11 +836,22 @@ export class PlotManager implements vscode.Disposable {
 
     // -- Plot history persistence --
 
-    private getPlotHistoryPath(): string {
+    private getPlotHistoryPath(session?: string): string {
+        const name = session ?? this.sessionName;
+        if (name) {
+            return path.join(getSessionDir(name), 'plot-history.json');
+        }
+        // Fallback to shared dir (used during migration or before session is known)
         return path.join(getSessionsDir(), 'plot-history.json');
     }
 
     private loadPlotHistory(): void {
+        // Determine session name from globalState (persists across reloads)
+        this.sessionName = getActiveSessionName();
+
+        // Migration: move legacy shared plot-history.json to per-session dir
+        this.migrateLegacyPlotHistory();
+
         const historyPath = this.getPlotHistoryPath();
         try {
             if (!fs.existsSync(historyPath)) {
@@ -764,8 +862,6 @@ export class PlotManager implements vscode.Disposable {
                 plots: PlotEntry[];
                 currentIndex: number;
                 zoom?: number;
-                fit?: boolean;
-                sessionName?: string;
             };
             if (!Array.isArray(data.plots)) {
                 return;
@@ -776,7 +872,6 @@ export class PlotManager implements vscode.Disposable {
                     this.plots.push(entry);
                 }
             }
-            this.historySessionName = data.sessionName;
             if (this.plots.length > 0) {
                 this.currentIndex = Math.min(
                     Math.max(0, data.currentIndex ?? this.plots.length - 1),
@@ -786,11 +881,51 @@ export class PlotManager implements vscode.Disposable {
                     this.currentZoom = data.zoom;
                 }
                 this.outputChannel.appendLine(
-                    `Restored ${this.plots.length} plots from history (session: "${this.historySessionName ?? 'unknown'}", active: ${this.currentIndex + 1}, zoom: ${this.currentZoom}%)`,
+                    `Restored ${this.plots.length} plots from history (session: "${this.sessionName ?? 'unknown'}", active: ${this.currentIndex + 1}, zoom: ${this.currentZoom}%)`,
                 );
             }
         } catch (err) {
             getLogger().log('ui', LogCategory.Plot, 'warn', `Failed to load plot history: ${String(err)}`);
+        }
+    }
+
+    /**
+     * Migrate legacy shared plot-history.json to per-session directory.
+     * The old format stored sessionName inside the JSON; the new format
+     * uses the directory path to scope per session.
+     * TODO: Remove this migration in a future release.
+     */
+    private migrateLegacyPlotHistory(): void {
+        const legacyPath = path.join(getSessionsDir(), 'plot-history.json');
+        try {
+            if (!fs.existsSync(legacyPath)) {
+                return;
+            }
+            const content = fs.readFileSync(legacyPath, 'utf8');
+            const data = JSON.parse(content) as {
+                plots: PlotEntry[];
+                currentIndex: number;
+                zoom?: number;
+                sessionName?: string;
+            };
+            if (!Array.isArray(data.plots) || data.plots.length === 0) {
+                fs.unlinkSync(legacyPath);
+                return;
+            }
+            const targetSession = data.sessionName;
+            if (targetSession) {
+                const targetPath = path.join(getSessionDir(targetSession), 'plot-history.json');
+                if (!fs.existsSync(targetPath)) {
+                    const { sessionName: _, ...rest } = data;
+                    fs.writeFileSync(targetPath, JSON.stringify(rest));
+                    this.outputChannel.appendLine(
+                        `Migrated ${data.plots.length} plots from legacy location to session "${targetSession}"`,
+                    );
+                }
+            }
+            fs.unlinkSync(legacyPath);
+        } catch (err) {
+            getLogger().log('ui', LogCategory.Plot, 'warn', `Failed to migrate legacy plot history: ${String(err)}`);
         }
     }
 
@@ -806,13 +941,15 @@ export class PlotManager implements vscode.Disposable {
     }
 
     private savePlotHistorySync(): void {
+        if (!this.sessionName) {
+            return; // No session — nowhere to save
+        }
         try {
             const historyPath = this.getPlotHistoryPath();
             const data = {
                 plots: this.plots,
                 currentIndex: this.currentIndex,
                 zoom: this.currentZoom,
-                sessionName: this.historySessionName,
             };
             fs.writeFileSync(historyPath, JSON.stringify(data));
         } catch (err) {

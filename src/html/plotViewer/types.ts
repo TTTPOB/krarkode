@@ -96,6 +96,8 @@ export type OutMessage = ResizeMessage | CommandMessage | ReadyMessage;
 
 declare function acquireVsCodeApi(): {
     postMessage: (message: unknown) => void;
+    setState: (state: unknown) => void;
+    getState: () => unknown;
 };
 
 let vsCodeApi: ReturnType<typeof acquireVsCodeApi> | null = null;

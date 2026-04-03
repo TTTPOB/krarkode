@@ -38,7 +38,8 @@
   ],
   "activationEvents": [
     "onLanguage:r",
-    "onLanguage:rmd"
+    "onLanguage:rmd",
+    "onWebviewPanel:arkPlotManager"
   ],
   "main": "./dist/extension.js",
   "contributes": {

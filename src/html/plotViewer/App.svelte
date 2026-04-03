@@ -127,6 +127,8 @@
     onMount(() => {
         window.addEventListener('message', handleMessage);
         vscode.postMessage({ message: 'ready' });
+        // Tell VS Code to persist this panel across reloads
+        vscode.setState({ restored: true });
 
         // Use ResizeObserver to reliably detect when the panel has its final layout.
         // setTimeout(0) can fire before VS Code finishes laying out a newly-created panel,
