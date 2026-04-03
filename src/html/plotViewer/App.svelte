@@ -22,8 +22,11 @@
             newWidth = window.innerWidth;
             newHeight = window.innerHeight;
         } else if (largePlotEl) {
-            newWidth = largePlotEl.clientWidth;
-            newHeight = largePlotEl.clientHeight;
+            const style = getComputedStyle(largePlotEl);
+            const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+            const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+            newWidth = largePlotEl.clientWidth - padX;
+            newHeight = largePlotEl.clientHeight - padY;
         } else {
             return;
         }
