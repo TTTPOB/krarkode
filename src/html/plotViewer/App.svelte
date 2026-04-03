@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { onMount, tick } from 'svelte';
     import { plotStore } from './stores';
     import { type InboundMessage, type CommandMessage, type ResizeMessage, getVsCodeApi } from './types';
     import Toolbar from './Toolbar.svelte';
@@ -8,6 +8,9 @@
     import SmallPlots from './SmallPlots.svelte';
 
     const vscode = getVsCodeApi();
+
+    let showEscHint = $state(false);
+    let escHintTimeout: ReturnType<typeof setTimeout> | undefined;
 
     let largePlotEl: HTMLDivElement | undefined = $state();
     let oldWidth = -1;
@@ -82,8 +85,19 @@
                 plotStore.toggleFullWindow(msg.useFullWindow);
                 if (msg.useFullWindow) {
                     window.scrollTo(0, 0);
+                    showEscHint = true;
+                    clearTimeout(escHintTimeout);
+                    escHintTimeout = setTimeout(() => { showEscHint = false; }, 3000);
+                } else {
+                    showEscHint = false;
                 }
-                postResizeMessage(true);
+                // Wait for DOM to reflect the layout change before measuring
+                tick().then(() => {
+                    // Reset cached dimensions to force a resize message
+                    oldWidth = -1;
+                    oldHeight = -1;
+                    postResizeMessage(true);
+                });
                 break;
             case 'setZoom':
                 plotStore.setZoom(msg.zoom);
@@ -112,6 +126,7 @@
             event.preventDefault();
             sendCommand('save');
         } else if (event.key === 'Escape' && plotStore.fullWindow) {
+            showEscHint = false;
             sendCommand('toggleFullWindow');
         }
     }
@@ -166,6 +181,10 @@
         fullWindow={plotStore.fullWindow}
         bind:element={largePlotEl}
     />
+
+    {#if plotStore.fullWindow && showEscHint}
+        <div class="esc-hint-overlay">Press Esc to exit</div>
+    {/if}
 </div>
 
 {#if !plotStore.fullWindow}
@@ -231,5 +250,29 @@
         min-height: 0;
         display: flex;
         flex-direction: column;
+    }
+
+    .esc-hint-overlay {
+        position: fixed;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: color-mix(in srgb, var(--vscode-editor-background) 85%, transparent);
+        backdrop-filter: blur(8px);
+        color: var(--vscode-foreground);
+        padding: 6px 16px;
+        border-radius: 4px;
+        font-size: 0.85em;
+        opacity: 0.8;
+        z-index: 100;
+        pointer-events: none;
+        animation: esc-hint-fade 3s ease-out forwards;
+    }
+
+    @keyframes esc-hint-fade {
+        0% { opacity: 0; }
+        10% { opacity: 0.8; }
+        70% { opacity: 0.8; }
+        100% { opacity: 0; }
     }
 </style>
