@@ -134,7 +134,13 @@
         let observer: ResizeObserver | undefined;
         if (largePlotEl) {
             observer = new ResizeObserver(() => {
-                postResizeMessage(true);
+                // Suppress resize messages while the user is dragging the resize handle.
+                // The drag handler sends a single resize on drag-end, which avoids
+                // flooding the extension with intermediate renders that race and leave
+                // the final image sized for a stale intermediate dimension.
+                if (!plotStore.handlerDragging) {
+                    postResizeMessage(true);
+                }
             });
             observer.observe(largePlotEl);
         }
