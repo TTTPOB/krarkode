@@ -111,7 +111,9 @@ export function activate(context: vscode.ExtensionContext): void {
             variablesService?.disconnect(reason);
             // Clear plot state from the previous session to prevent cross-session leakage
             plotBackend?.resetForNewSession(reason);
-            plotManager?.clearHistory();
+            // Only clear plot history when actually switching sessions —
+            // on window reload we reconnect to the same session and should keep persisted plots
+            plotManager?.clearHistoryIfSessionChanged(entry?.name);
         }
         if (entry && sidecarManager) {
             sidecarManager.attach(entry.connectionFilePath);

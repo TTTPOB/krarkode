@@ -47,6 +47,8 @@ export class PlotManager implements vscode.Disposable {
     private webviewReady = false;
     private saveTimeout?: NodeJS.Timeout;
     private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Plot);
+    /** Session name that owns the current plot history — used to avoid clearing on reconnect. */
+    private historySessionName: string | undefined;
 
     constructor(renderSource?: DynamicPlotSource) {
         this.maxHistory = util.config().get<number>('krarkode.plot.maxHistory') ?? 50;
@@ -198,11 +200,32 @@ export class PlotManager implements vscode.Disposable {
         this.outputChannel.appendLine(`Clearing plot history (${this.plots.length} plots)`);
         this.plots.length = 0;
         this.currentIndex = -1;
+        this.historySessionName = undefined;
         if (this.renderTimeout) {
             clearTimeout(this.renderTimeout);
             this.renderTimeout = undefined;
         }
         this.renderWebview();
+        this.scheduleSavePlotHistory();
+    }
+
+    /**
+     * Clear plot history only if the session actually changed.
+     * On window reload we reconnect to the same session — in that case
+     * the persisted history should be kept, not wiped.
+     */
+    public clearHistoryIfSessionChanged(sessionName: string | undefined): void {
+        if (sessionName && sessionName === this.historySessionName) {
+            this.outputChannel.appendLine(
+                `Reconnecting to same session "${sessionName}" — keeping ${this.plots.length} persisted plots`,
+            );
+            return;
+        }
+        this.outputChannel.appendLine(
+            `Session changed from "${this.historySessionName ?? '(none)'}" to "${sessionName ?? '(none)'}" — clearing history`,
+        );
+        this.clearHistory();
+        this.historySessionName = sessionName;
         this.scheduleSavePlotHistory();
     }
 
@@ -742,6 +765,7 @@ export class PlotManager implements vscode.Disposable {
                 currentIndex: number;
                 zoom?: number;
                 fit?: boolean;
+                sessionName?: string;
             };
             if (!Array.isArray(data.plots)) {
                 return;
@@ -752,6 +776,7 @@ export class PlotManager implements vscode.Disposable {
                     this.plots.push(entry);
                 }
             }
+            this.historySessionName = data.sessionName;
             if (this.plots.length > 0) {
                 this.currentIndex = Math.min(
                     Math.max(0, data.currentIndex ?? this.plots.length - 1),
@@ -761,7 +786,7 @@ export class PlotManager implements vscode.Disposable {
                     this.currentZoom = data.zoom;
                 }
                 this.outputChannel.appendLine(
-                    `Restored ${this.plots.length} plots from history (active: ${this.currentIndex + 1}, zoom: ${this.currentZoom}%)`,
+                    `Restored ${this.plots.length} plots from history (session: "${this.historySessionName ?? 'unknown'}", active: ${this.currentIndex + 1}, zoom: ${this.currentZoom}%)`,
                 );
             }
         } catch (err) {
@@ -787,6 +812,7 @@ export class PlotManager implements vscode.Disposable {
                 plots: this.plots,
                 currentIndex: this.currentIndex,
                 zoom: this.currentZoom,
+                sessionName: this.historySessionName,
             };
             fs.writeFileSync(historyPath, JSON.stringify(data));
         } catch (err) {
