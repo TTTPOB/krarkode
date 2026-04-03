@@ -44,6 +44,7 @@ export class PlotManager implements vscode.Disposable {
     private lastRenderSize: { width: number; height: number; dpr: number } | undefined;
     private readonly disposables: vscode.Disposable[] = [];
     private maxHistory: number;
+    private webviewReady = false;
     private readonly outputChannel = getLogger().createChannel('ui', LogCategory.Plot);
 
     constructor(renderSource?: DynamicPlotSource) {
@@ -121,7 +122,7 @@ export class PlotManager implements vscode.Disposable {
         const hadPanel = !!this.panel;
         this.showPanel();
 
-        if (this.panel && hadPanel) {
+        if (this.panel && hadPanel && this.webviewReady) {
             this.postWebviewMessage({
                 message: 'addPlot',
                 plotId: entry.id,
@@ -165,7 +166,7 @@ export class PlotManager implements vscode.Disposable {
         const hadPanel = !!this.panel;
         this.showPanel();
 
-        if (this.panel && hadPanel) {
+        if (this.panel && hadPanel && this.webviewReady) {
             this.postWebviewMessage({
                 message: 'addPlot',
                 plotId: entry.id,
@@ -353,6 +354,7 @@ export class PlotManager implements vscode.Disposable {
 
             this.panel.onDidDispose(() => {
                 this.panel = undefined;
+                this.webviewReady = false;
             });
 
             this.panel.webview.onDidReceiveMessage(
@@ -368,6 +370,7 @@ export class PlotManager implements vscode.Disposable {
                 }) => {
                     if (message.message === 'ready') {
                         // Svelte app mounted — send all existing plots and state
+                        this.webviewReady = true;
                         for (let i = 0; i < this.plots.length; i++) {
                             const plot = this.plots[i];
                             this.postWebviewMessage({
@@ -473,8 +476,8 @@ export class PlotManager implements vscode.Disposable {
             return;
         }
 
-        // Set the HTML shell; the Svelte app will send 'ready' once mounted,
-        // and the handler will send all existing plots and state.
+        // Reset ready flag — the new Svelte app will send 'ready' once mounted.
+        this.webviewReady = false;
         this.panel.webview.html = this.renderHtml();
     }
 
@@ -661,7 +664,7 @@ export class PlotManager implements vscode.Disposable {
     }
 
     private updateWebviewState(): void {
-        if (!this.panel) {
+        if (!this.panel || !this.webviewReady) {
             return;
         }
 

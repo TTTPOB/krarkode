@@ -25,6 +25,16 @@ class PlotStore {
     zoomText = $derived(this.fit ? 'Fit' : `${this.zoom}%`);
 
     addPlot(id: string, base64Data: string, mimeType: string, isActive: boolean): void {
+        // Guard against duplicates (e.g. messages arriving before 'ready' handshake)
+        const existing = this.plots.findIndex((p) => p.id === id);
+        if (existing >= 0) {
+            this.plots[existing].base64Data = base64Data;
+            this.plots[existing].mimeType = mimeType;
+            if (isActive) {
+                this.currentIndex = existing;
+            }
+            return;
+        }
         this.plots.push({ id, base64Data, mimeType });
         if (isActive) {
             this.currentIndex = this.plots.length - 1;
