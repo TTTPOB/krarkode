@@ -92,11 +92,11 @@
         return Math.max(MIN_COLUMN_WIDTH, Math.round(width));
     }
 
-    function getSortIndicator(columnIndex: number): string {
+    function getSortDirection(columnIndex: number): 'asc' | 'desc' | null {
         if (!activeSort || activeSort.columnIndex !== columnIndex) {
-            return '';
+            return null;
         }
-        return activeSort.direction === 'asc' ? '^' : 'v';
+        return activeSort.direction;
     }
 
     function buildColumnTemplate(widths: number[], leftSpacer: number, rightSpacer: number): string {
@@ -202,7 +202,9 @@
                     <div class="header-content">
                         <div class="header-label-row">
                             <span class="header-label" title={getColumnLabel(column)}>{getColumnLabel(column)}</span>
-                            <span class="sort-indicator">{getSortIndicator(column.column_index)}</span>
+                            {#if getSortDirection(column.column_index)}
+                                <span class="sort-indicator codicon codicon-chevron-{getSortDirection(column.column_index) === 'asc' ? 'up' : 'down'}"></span>
+                            {/if}
                         </div>
                         <div
                             class={`header-actions${showHeaderActionLabels ? '' : ' header-actions-compact'}`}
@@ -512,8 +514,10 @@
     }
 
     .sort-indicator {
-        font-size: 0.85em;
+        font-size: 14px;
         opacity: 0.85;
+        display: inline-flex;
+        align-items: center;
     }
 
     .table-cell:last-child {
