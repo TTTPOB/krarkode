@@ -49,18 +49,6 @@
         "path": "./syntaxes/r.tmLanguage.json"
       }
     ],
-    "configurationDefaults": {
-      "editor.tokenColorCustomizations": {
-        "textMateRules": [
-          {
-            "scope": "entity.name.function.call.r",
-            "settings": {
-              "foreground": "#4EC9B0"
-            }
-          }
-        ]
-      }
-    },
     "viewsContainers": {
       "activitybar": [
         {
