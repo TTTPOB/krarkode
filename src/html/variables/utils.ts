@@ -38,6 +38,15 @@ export function formatLength(variable: Variable): string {
     return `${variable.length} items`;
 }
 
+/**
+ * Strip trailing dimension info like " [10]" or " [10, 2]" from display_type.
+ * Ark includes dimensions in display_type (e.g. "integer [10]", "data.frame [10, 2]")
+ * but we now show dimensions in a separate column.
+ */
+export function cleanDisplayType(displayType: string): string {
+    return displayType.replace(/\s*\[[\d, ?]+\]$/, '');
+}
+
 export function formatBytes(size: number): string {
     if (size < 1024) {
         return `${size} B`;

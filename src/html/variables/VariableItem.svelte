@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Variable } from './types';
     import { variablesStore } from './stores/variablesStore.svelte';
-    import { getIconForKind, buildDimensionsText } from './utils';
+    import { getIconForKind, buildDimensionsText, cleanDisplayType } from './utils';
     import VariableItem from './VariableItem.svelte';
 
     let {
@@ -44,7 +44,7 @@
         <span class="var-icon">{getIconForKind(variable.kind)}</span>
         <span class="var-label" title={variable.display_name}>{variable.display_name}</span>
     </div>
-    <div class="cell-type" title={variable.display_type}>{variable.display_type}</div>
+    <div class="cell-type" title={variable.display_type}>{cleanDisplayType(variable.display_type)}</div>
     <div class="cell-dims">{dimensions}</div>
     <div class="cell-value" title={variable.display_value}>{variable.display_value}</div>
     <div class="cell-action">
