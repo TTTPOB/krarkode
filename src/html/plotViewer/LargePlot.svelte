@@ -4,12 +4,10 @@
     let {
         plot,
         fullWindow,
-        explicitHeight,
         element = $bindable<HTMLDivElement | undefined>(),
     }: {
         plot: PlotInfo | undefined;
         fullWindow: boolean;
-        explicitHeight: string | null;
         element?: HTMLDivElement;
     } = $props();
 </script>
@@ -18,8 +16,6 @@
     bind:this={element}
     class="large-plot"
     class:full-window={fullWindow}
-    style:height={explicitHeight}
-    style:flex-grow={explicitHeight ? '0' : undefined}
 >
     {#if plot?.base64Data}
         <img

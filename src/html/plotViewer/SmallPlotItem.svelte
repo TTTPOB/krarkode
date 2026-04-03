@@ -17,7 +17,13 @@
 
     $effect(() => {
         if (active && wrapperEl) {
-            wrapperEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+            // Only scroll horizontally within the thumbnail strip —
+            // never scroll the outer page vertically.
+            const parent = wrapperEl.parentElement;
+            if (parent) {
+                const left = wrapperEl.offsetLeft - parent.offsetLeft - parent.clientWidth / 2 + wrapperEl.clientWidth / 2;
+                parent.scrollTo({ left, behavior: 'smooth' });
+            }
         }
     });
 </script>

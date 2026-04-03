@@ -148,16 +148,17 @@
 
 <svelte:window onresize={() => postResizeMessage()} onkeydown={handleKeydown} />
 
-{#if !plotStore.fullWindow}
-    <Toolbar {sendCommand} />
-{/if}
+<div class="plot-area" style:height={plotStore.largePlotHeight} style:flex-grow={plotStore.largePlotHeight ? '0' : undefined}>
+    {#if !plotStore.fullWindow}
+        <Toolbar {sendCommand} />
+    {/if}
 
-<LargePlot
-    plot={plotStore.activePlot}
-    fullWindow={plotStore.fullWindow}
-    explicitHeight={plotStore.largePlotHeight}
-    bind:element={largePlotEl}
-/>
+    <LargePlot
+        plot={plotStore.activePlot}
+        fullWindow={plotStore.fullWindow}
+        bind:element={largePlotEl}
+    />
+</div>
 
 {#if !plotStore.fullWindow}
     <DragHandler
@@ -203,9 +204,24 @@
         overflow-y: auto;
     }
 
+    :global(#svelte-root) {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 0;
+        min-height: 0;
+    }
+
     :global(body.fullWindow) {
         overflow-x: hidden;
         overflow-y: hidden;
         height: 100vh;
+    }
+
+    .plot-area {
+        position: relative;
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
     }
 </style>
