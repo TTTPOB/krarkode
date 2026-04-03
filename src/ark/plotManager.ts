@@ -662,7 +662,10 @@ export class PlotManager implements vscode.Disposable {
         const zoomScale = this.currentZoom / 100;
         const width = Math.max(1, Math.round(renderSize.width * zoomScale));
         const height = Math.max(1, Math.round(renderSize.height * zoomScale));
-        const pixelRatio = format === 'png' ? Math.max(0.1, renderSize.dpr) : 1;
+        // When zooming out (zoomScale < 1), boost DPR so the rendered pixel count
+        // stays close to the display area, keeping the image crisp despite stretch.
+        const baseDpr = format === 'png' ? Math.max(0.1, renderSize.dpr) : 1;
+        const pixelRatio = zoomScale < 1 ? baseDpr / zoomScale : baseDpr;
         return {
             size: { width, height },
             pixelRatio,
