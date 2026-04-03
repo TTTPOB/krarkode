@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Variable } from './types';
     import { variablesStore } from './stores/variablesStore.svelte';
-    import { getIconForKind, buildDimensionsText, cleanDisplayType, buildDataFrameSchema } from './utils';
+    import { getIconForKind, buildDimensionsText, cleanDisplayType, buildDataFrameSchema, formatVectorValue } from './utils';
     import VariableItem from './VariableItem.svelte';
 
     let {
@@ -24,8 +24,13 @@
     let isLoading = $derived(variablesStore.isLoading(path));
     let dimensions = $derived(buildDimensionsText(variable));
     let isDataFrame = $derived(variable.kind === 'table' || variable.kind === 'dataframe');
+    let isVector = $derived(variable.kind === 'collection');
     let displayValue = $derived(
-        isDataFrame && children ? buildDataFrameSchema(children) : variable.display_value,
+        isDataFrame && children
+            ? buildDataFrameSchema(children)
+            : isVector
+              ? formatVectorValue(variable.display_value, variable.display_type)
+              : variable.display_value,
     );
     let paddingLeft = $derived(8 + depth * 14);
 

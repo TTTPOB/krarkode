@@ -104,6 +104,21 @@ export function cleanDisplayType(displayType: string): string {
     return displayType.replace(/\s*\[[\d, ?]+\]$/, '');
 }
 
+/**
+ * Format vector display_value with pipe separators.
+ * Ark uses space-separated values; we use " | " for readability.
+ * For character vectors (quoted strings), split on `" "` boundaries.
+ */
+export function formatVectorValue(displayValue: string, displayType: string): string {
+    const t = cleanDisplayType(displayType).toLowerCase();
+    if (t.startsWith('char') || t.startsWith('chr')) {
+        // Character vectors: elements are quoted, split on '" "' boundary
+        return displayValue.replace(/" "/g, '" | "');
+    }
+    // Numeric/logical/other vectors: space-separated elements
+    return displayValue.replace(/ /g, ' | ');
+}
+
 export function formatBytes(size: number): string {
     if (size < 1024) {
         return `${size} B`;
