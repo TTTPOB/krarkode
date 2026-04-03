@@ -28,6 +28,12 @@ export function getSessionsDir(): string {
     return baseDir;
 }
 
+export function getSessionDir(sessionName: string): string {
+    const dir = path.join(getSessionsDir(), sessionName);
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+}
+
 export function getRegistryPath(): string {
     return path.join(getSessionsDir(), 'registry.json');
 }
