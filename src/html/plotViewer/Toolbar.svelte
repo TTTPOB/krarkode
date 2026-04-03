@@ -6,6 +6,21 @@
     }: {
         sendCommand: (cmd: string) => void;
     } = $props();
+
+    let showEscHint = $state(false);
+    let escHintTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    function handleFullPanel() {
+        sendCommand('toggleFullWindow');
+        if (!plotStore.fullWindow) {
+            // Will enter full window mode
+            showEscHint = true;
+            clearTimeout(escHintTimeout);
+            escHintTimeout = setTimeout(() => { showEscHint = false; }, 3000);
+        } else {
+            showEscHint = false;
+        }
+    }
 </script>
 
 <div class="toolbar">
@@ -23,8 +38,14 @@
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">
-        <button onclick={() => sendCommand('toggleLayout')} title="Toggle thumbnail layout">Layout: {plotStore.layout}</button>
-        <button class:active={plotStore.fullWindow} onclick={() => sendCommand('toggleFullWindow')} title="Toggle full window">Full</button>
+        <button onclick={() => sendCommand('toggleLayout')} title="Toggle thumbnail layout">Thumbnail Layout: {plotStore.layout}</button>
+    </div>
+    <div class="toolbar-separator"></div>
+    <div class="toolbar-group">
+        <button class:active={plotStore.fullWindow} onclick={handleFullPanel} title="Toggle full panel (Esc to exit)">Show in Full Panel</button>
+        {#if showEscHint}
+            <span class="esc-hint">Press Esc to exit</span>
+        {/if}
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">
@@ -99,5 +120,17 @@
         font-size: 0.85em;
         min-width: 45px;
         text-align: center;
+    }
+
+    .esc-hint {
+        font-size: 0.8em;
+        opacity: 0.7;
+        white-space: nowrap;
+        animation: fade-in 0.2s ease-in;
+    }
+
+    @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 0.7; }
     }
 </style>
