@@ -92,8 +92,8 @@
     <div class="table-header">
         <div class="header-cell">NAME</div>
         <div class="header-cell">TYPE</div>
-        <div class="header-cell">DIMENSIONS</div>
-        <div class="header-cell">VALUE/PREVIEW</div>
+        <div class="header-cell">DIM</div>
+        <div class="header-cell">VAL/PREVIEW</div>
         <div class="header-cell"></div>
     </div>
     {#if variablesStore.filteredDataVars.length > 0}
