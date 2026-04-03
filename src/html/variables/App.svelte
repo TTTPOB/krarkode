@@ -75,6 +75,13 @@
 {:else if variablesStore.variables.length === 0}
     <div class="empty-state">No variables</div>
 {:else}
+    <div class="table-header">
+        <div class="header-cell">NAME</div>
+        <div class="header-cell">TYPE</div>
+        <div class="header-cell">DIMENSIONS</div>
+        <div class="header-cell">VALUE/PREVIEW</div>
+        <div class="header-cell"></div>
+    </div>
     {#if variablesStore.filteredDataVars.length > 0}
         <VariableGroup title="DATA" variables={variablesStore.filteredDataVars} {onView} {onToggle} />
     {/if}
@@ -99,5 +106,27 @@
     .empty-state {
         padding: 10px;
         opacity: 0.7;
+    }
+
+    .table-header {
+        display: grid;
+        grid-template-columns: minmax(120px, 2fr) minmax(80px, 1fr) minmax(80px, 1fr) minmax(100px, 2fr) 24px;
+        padding: 4px 0;
+        font-size: 0.85em;
+        font-weight: bold;
+        opacity: 0.7;
+        border-bottom: 1px solid var(--vscode-tree-tableColumnsBorder);
+        background-color: var(--vscode-sideBarSectionHeader-background);
+    }
+
+    .header-cell {
+        padding: 0 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .header-cell:first-child {
+        padding-left: 8px;
     }
 </style>

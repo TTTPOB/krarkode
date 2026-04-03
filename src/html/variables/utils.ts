@@ -21,29 +21,11 @@ export function getIconForKind(kind: string): string {
     }
 }
 
-export function isComplexVariable(variable: Variable): boolean {
-    return variable.has_children || ['table', 'map', 'collection', 'class'].includes(variable.kind);
-}
-
-export function buildMetaText(variable: Variable): string | undefined {
-    const parts: string[] = [];
-    if (variable.type_info && variable.type_info !== variable.display_type) {
-        parts.push(variable.type_info);
+export function buildDimensionsText(variable: Variable): string {
+    if (variable.length <= 0) {
+        return '';
     }
-
-    if (variable.length > 0) {
-        parts.push(formatLength(variable));
-    }
-
-    if (variable.size > 0) {
-        parts.push(formatBytes(variable.size));
-    }
-
-    if (parts.length === 0) {
-        return undefined;
-    }
-
-    return parts.join(' \u2022 ');
+    return formatLength(variable);
 }
 
 export function formatLength(variable: Variable): string {
