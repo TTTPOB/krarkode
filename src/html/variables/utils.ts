@@ -71,7 +71,7 @@ export function buildDimensionsText(variable: Variable): string {
 function buildDataFrameDimensions(variable: Variable): string {
     const match = variable.display_type.match(/\[(\d+),\s*(\d+)\]$/);
     if (match) {
-        return `${match[1]} rows × ${match[2]} cols`;
+        return `r: ${match[1]}, c: ${match[2]}`;
     }
     // Fallback: only column count from length
     if (variable.length > 0) {
