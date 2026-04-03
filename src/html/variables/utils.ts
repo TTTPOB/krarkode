@@ -78,7 +78,7 @@ export function formatLength(variable: Variable): string {
 export function buildDataFrameSchema(children: Variable[]): string {
     return children
         .map((col) => `${col.display_name}: ${abbreviateType(col.display_type)}`)
-        .join(', ');
+        .join(' | ');
 }
 
 /**
