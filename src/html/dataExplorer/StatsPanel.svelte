@@ -216,7 +216,7 @@
     }
 
     .panel-pin[aria-pressed='true'] {
-        color: var(--vscode-button-background);
+        color: var(--vscode-editor-foreground);
     }
 
     .panel-pin .codicon {
