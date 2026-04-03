@@ -42,12 +42,10 @@
         background: color-mix(in srgb, var(--vscode-sideBar-background) 85%, transparent);
         backdrop-filter: blur(8px);
         flex-wrap: wrap;
-        position: absolute;
+        position: sticky;
         top: 0;
-        left: 0;
-        right: 0;
         z-index: 10;
-        border-radius: 0 0 6px 6px;
+        flex-shrink: 0;
     }
 
     .toolbar-group {
