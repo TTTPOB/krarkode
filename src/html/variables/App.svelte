@@ -15,6 +15,18 @@
 
     const vscode = getVsCodeApi();
 
+    function autoInspectDataFrames() {
+        for (const v of variablesStore.variables) {
+            if ((v.kind === 'table' || v.kind === 'dataframe') && v.has_children) {
+                const path = [v.access_key];
+                const needsInspect = variablesStore.toggleExpanded(path);
+                if (needsInspect) {
+                    vscode.postMessage({ type: 'inspect', path });
+                }
+            }
+        }
+    }
+
     function handleMessage(event: MessageEvent) {
         const message = event.data;
         if (message.type !== 'update') {
@@ -24,9 +36,11 @@
         switch (varEvent.method) {
             case 'refresh':
                 variablesStore.handleRefresh(varEvent.params as RefreshParams);
+                autoInspectDataFrames();
                 break;
             case 'update':
                 variablesStore.handleUpdate(varEvent.params);
+                autoInspectDataFrames();
                 break;
             case 'inspect':
                 variablesStore.handleInspect(varEvent.params as InspectResult);
