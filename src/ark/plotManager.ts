@@ -432,6 +432,7 @@ export class PlotManager implements vscode.Disposable {
                             break;
                         case 'zoomFit':
                             this.fitToWindow = true;
+                            this.currentZoom = 100;
                             this.postWebviewMessage({
                                 message: 'setZoom',
                                 zoom: this.currentZoom,
