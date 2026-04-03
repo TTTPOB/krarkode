@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { Variable } from './types';
     import { variablesStore } from './stores/variablesStore.svelte';
-    import { getIconForKind, buildDimensionsText, cleanDisplayType, buildDataFrameSchema, formatVectorValue } from './utils';
+    import { getIconForKind, buildDimensionsText, cleanDisplayType, buildDataFrameSchema, formatVectorValue, formatFloatPrecision } from './utils';
     import VariableItem from './VariableItem.svelte';
 
     let {
@@ -25,13 +25,13 @@
     let dimensions = $derived(buildDimensionsText(variable));
     let isDataFrame = $derived(variable.kind === 'table' || variable.kind === 'dataframe');
     let isVector = $derived(variable.kind === 'collection');
-    let displayValue = $derived(
-        isDataFrame && children
-            ? buildDataFrameSchema(children)
-            : isVector
-              ? formatVectorValue(variable.display_value, variable.display_type)
-              : variable.display_value,
-    );
+    let displayValue = $derived.by(() => {
+        if (isDataFrame && children) {
+            return buildDataFrameSchema(children);
+        }
+        const val = formatFloatPrecision(variable.display_value, variable.display_type);
+        return isVector ? formatVectorValue(val, variable.display_type) : val;
+    });
     let paddingLeft = $derived(8 + depth * 14);
 
     function handleRowClick() {

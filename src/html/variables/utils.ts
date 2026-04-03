@@ -105,6 +105,23 @@ export function cleanDisplayType(displayType: string): string {
 }
 
 /**
+ * Reformat float numbers in a display_value string to 3 significant figures.
+ * Only applies to numeric types (double, numeric, complex).
+ */
+export function formatFloatPrecision(displayValue: string, displayType: string): string {
+    const t = cleanDisplayType(displayType).toLowerCase();
+    if (!t.startsWith('dbl') && !t.startsWith('double') && !t.startsWith('num') && !t.startsWith('complex')) {
+        return displayValue;
+    }
+    // Match numbers with decimal points or scientific notation
+    return displayValue.replace(/-?\d+\.?\d*(?:e[+-]?\d+)?/gi, (match) => {
+        const num = parseFloat(match);
+        if (isNaN(num)) return match;
+        return num.toPrecision(3);
+    });
+}
+
+/**
  * Format vector display_value with pipe separators.
  * Ark uses space-separated values; we use " | " for readability.
  * For character vectors (quoted strings), split on `" "` boundaries.
