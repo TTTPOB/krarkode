@@ -5,6 +5,7 @@ import * as vscode from 'vscode';
 import { getExtensionContext } from '../context';
 import type { PlotRenderResult } from './arkCommBackend';
 import * as util from '../util';
+import { getNonce } from '../util';
 import { getLogger, LogCategory } from '../logging/logger';
 
 interface PlotEntry {
@@ -98,7 +99,8 @@ export class PlotManager implements vscode.Disposable {
                     this.postWebviewMessage({
                         message: 'updatePlot',
                         plotId: existing.id,
-                        data: this.plotToHtml(this.plots[existingIndex]),
+                        base64Data: this.plots[existingIndex].base64Data,
+                        mimeType: this.plots[existingIndex].mimeType,
                     });
                     this.focusPlotByIndex(existingIndex);
                 }
@@ -123,7 +125,8 @@ export class PlotManager implements vscode.Disposable {
             this.postWebviewMessage({
                 message: 'addPlot',
                 plotId: entry.id,
-                data: this.plotToHtml(entry),
+                base64Data: entry.base64Data,
+                mimeType: entry.mimeType,
                 isActive: true,
             });
             this.focusPlotByIndex(this.currentIndex);
@@ -166,7 +169,8 @@ export class PlotManager implements vscode.Disposable {
             this.postWebviewMessage({
                 message: 'addPlot',
                 plotId: entry.id,
-                data: this.plotToHtml(entry),
+                base64Data: entry.base64Data,
+                mimeType: entry.mimeType,
                 isActive: true,
             });
             this.focusPlotByIndex(this.currentIndex);
@@ -362,6 +366,21 @@ export class PlotManager implements vscode.Disposable {
                     dpr?: number;
                     userTriggered?: boolean;
                 }) => {
+                    if (message.message === 'ready') {
+                        // Svelte app mounted — send all existing plots and state
+                        for (let i = 0; i < this.plots.length; i++) {
+                            const plot = this.plots[i];
+                            this.postWebviewMessage({
+                                message: 'addPlot',
+                                plotId: plot.id,
+                                base64Data: plot.base64Data,
+                                mimeType: plot.mimeType,
+                                isActive: i === this.currentIndex,
+                            });
+                        }
+                        this.updateWebviewState();
+                        return;
+                    }
                     if (message.message === 'resize') {
                         if (typeof message.width === 'number' && typeof message.height === 'number') {
                             this.handleResize({
@@ -454,11 +473,9 @@ export class PlotManager implements vscode.Disposable {
             return;
         }
 
+        // Set the HTML shell; the Svelte app will send 'ready' once mounted,
+        // and the handler will send all existing plots and state.
         this.panel.webview.html = this.renderHtml();
-        this.updateWebviewState();
-        if (this.currentIndex >= 0) {
-            this.focusPlotByIndex(this.currentIndex);
-        }
     }
 
     private renderHtml(): string {
@@ -467,93 +484,28 @@ export class PlotManager implements vscode.Disposable {
             return '';
         }
 
+        const nonce = getNonce();
         const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'dist', 'html', 'plotViewer', 'index.js'),
-        );
-        const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'dist', 'html', 'plotViewer', 'style.css'),
+            vscode.Uri.joinPath(getExtensionContext().extensionUri, 'dist', 'html', 'plotViewer', 'plotViewer.js'),
         );
 
-        const plotsHtml = this.plots
-            .map((plot, index) => this.renderSmallPlot(plot, index === this.currentIndex))
-            .join('');
-        const activePlot = this.plots[this.currentIndex];
-        const activePlotHtml = activePlot ? this.plotToHtml(activePlot) : '';
-
-        const csp = `default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource}; script-src ${webview.cspSource};`;
+        // Svelte injects component styles at runtime (css: 'injected'),
+        // so 'unsafe-inline' is required for style-src.
+        const csp = `default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';`;
 
         return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="${csp}">
-    <link href="${styleUri}" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ark Plots</title>
 </head>
 <body>
-    <div id="toolbar">
-        <div class="toolbar-group">
-            <button data-cmd="previous" title="Previous plot (Left Arrow)">◀ Prev</button>
-            <span class="nav-info">0 / 0</span>
-            <button data-cmd="next" title="Next plot (Right Arrow)">Next ▶</button>
-        </div>
-        <div class="toolbar-separator"></div>
-        <div class="toolbar-group">
-            <button data-cmd="zoomOut" title="Zoom out (-)">−</button>
-            <span class="zoom-info">Fit</span>
-            <button data-cmd="zoomIn" title="Zoom in (+)">+</button>
-            <button data-cmd="zoomReset" title="Reset zoom to 100%">100%</button>
-            <button data-cmd="zoomFit" title="Fit to window">Fit</button>
-        </div>
-        <div class="toolbar-separator"></div>
-        <div class="toolbar-group">
-            <button data-cmd="toggleLayout" title="Toggle thumbnail layout">Layout</button>
-            <button data-cmd="toggleFullWindow" title="Toggle full window">Full</button>
-        </div>
-        <div class="toolbar-separator"></div>
-        <div class="toolbar-group">
-            <button data-cmd="save" title="Save plot to file">Save</button>
-            <button data-cmd="clear" title="Clear all plots">Clear</button>
-        </div>
-    </div>
-    <div id="largePlot" class="${this.fitToWindow ? 'fit-to-window' : ''}">
-        ${activePlotHtml}
-    </div>
-    <div id="handler"></div>
-    <div id="smallPlots" class="${this.previewLayout}">
-        ${plotsHtml}
-    </div>
-    <script src="${scriptUri}"></script>
+    <div id="svelte-root"></div>
+    <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
-    }
-
-    private renderSmallPlot(plot: PlotEntry, isActive: boolean): string {
-        const escapedId = PlotManager.escapeAttr(plot.id);
-        return `<div class="wrapper${isActive ? ' active' : ''}" data-plot-id="${escapedId}">
-    <div class="plotContent">${this.plotToHtml(plot)}</div>
-    <button class="hidePlot" title="Hide plot">×</button>
-</div>`;
-    }
-
-    private static readonly ALLOWED_MIME_TYPES = new Set([
-        'image/png',
-        'image/svg+xml',
-        'image/jpeg',
-        'image/gif',
-    ]);
-
-    private static escapeAttr(value: string): string {
-        return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
-
-    private plotToHtml(plot: PlotEntry): string {
-        if (!plot.base64Data) {
-            return '<div class="no-plot">Rendering plot...</div>';
-        }
-        const mime = PlotManager.ALLOWED_MIME_TYPES.has(plot.mimeType) ? plot.mimeType : 'image/png';
-        const dataUri = `data:${mime};base64,${plot.base64Data}`;
-        return `<img src="${PlotManager.escapeAttr(dataUri)}" alt="${PlotManager.escapeAttr(`Plot ${plot.id}`)}">`;
     }
 
     private focusPlotByIndex(index: number): void {
@@ -686,7 +638,8 @@ export class PlotManager implements vscode.Disposable {
             this.postWebviewMessage({
                 message: 'updatePlot',
                 plotId,
-                data: this.plotToHtml(updated),
+                base64Data: updated.base64Data,
+                mimeType: updated.mimeType,
             });
         } catch (err) {
             getLogger().log('ui', LogCategory.Plot, 'error', `Failed to render plot ${plotId}: ${String(err)}`);
