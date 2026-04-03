@@ -55,15 +55,34 @@ function getIconForRType(displayType: string): string {
 }
 
 export function buildDimensionsText(variable: Variable): string {
+    if (variable.kind === 'table' || variable.kind === 'dataframe') {
+        return buildDataFrameDimensions(variable);
+    }
     if (variable.length <= 0) {
         return '';
     }
     return formatLength(variable);
 }
 
+/**
+ * Parse row × column dimensions from a dataframe's display_type.
+ * Ark formats dataframe display_type as e.g. "data.frame [150, 5]".
+ */
+function buildDataFrameDimensions(variable: Variable): string {
+    const match = variable.display_type.match(/\[(\d+),\s*(\d+)\]$/);
+    if (match) {
+        return `${match[1]} rows × ${match[2]} cols`;
+    }
+    // Fallback: only column count from length
+    if (variable.length > 0) {
+        return `${variable.length} cols`;
+    }
+    return '';
+}
+
 export function formatLength(variable: Variable): string {
     if (variable.kind === 'table') {
-        return `${variable.length} columns`;
+        return `${variable.length} cols`;
     }
     if (variable.kind === 'map') {
         return `${variable.length} entries`;
