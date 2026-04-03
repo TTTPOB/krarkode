@@ -71,29 +71,21 @@ export class VariablesManager implements vscode.WebviewViewProvider, vscode.Disp
         const scriptUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, 'dist', 'html', 'variables', 'variables.js'),
         );
-        const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this._extensionUri, 'dist', 'html', 'variables', 'variables.css'),
-        );
 
         const nonce = getNonce();
 
+        // Svelte injects component styles at runtime (css: 'injected'),
+        // so 'unsafe-inline' is needed for style-src.
         return `<!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <link href="${styleUri}" rel="stylesheet">
                 <title>Variables</title>
             </head>
             <body>
-                <div class="toolbar">
-                    <div class="filter-container">
-                        <input type="text" id="filter-input" placeholder="filter">
-                    </div>
-                </div>
-                <div id="error-banner" class="error-banner hidden"></div>
-                <div id="variables-list"></div>
+                <div id="svelte-root"></div>
                 <script nonce="${nonce}" src="${scriptUri}"></script>
             </body>
             </html>`;
