@@ -14,6 +14,7 @@
     function handleMouseDown() {
         dragging = true;
         document.body.style.cursor = 'ns-resize';
+        document.body.style.userSelect = 'none';
         onDragStart();
     }
 
@@ -33,6 +34,7 @@
         if (dragging) {
             dragging = false;
             document.body.style.cursor = '';
+            document.body.style.userSelect = '';
             onDragEnd();
         }
     }
