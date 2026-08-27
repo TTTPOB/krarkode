@@ -155,6 +155,20 @@ describe('PlotManager.switchSession', () => {
         expect(manager.getPlotCount()).toBe(2);
     });
 
+    test('limits plots loaded from session persistence', () => {
+        const maxHistory = 2;
+        manager.setMaxHistory(maxHistory);
+        setSessionPlots('s2', [
+            { id: 'p1', base64Data: 'AAAA', mimeType: 'image/png' },
+            { id: 'p2', base64Data: 'BBBB', mimeType: 'image/png' },
+            { id: 'p3', base64Data: 'CCCC', mimeType: 'image/png' },
+        ]);
+
+        manager.switchSession('s2');
+
+        expect(manager.getPlotCount()).toBe(maxHistory);
+    });
+
     test('closes panel when new session has no plots', () => {
         // Simulate existing panel
         (manager as any).panel = mockPanel;

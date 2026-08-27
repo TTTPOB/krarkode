@@ -277,11 +277,10 @@ export class PlotManager implements vscode.Disposable {
                     this.plots.push(entry);
                 }
             }
+            const evictedCount = this.trimPlotHistory().length;
             if (this.plots.length > 0) {
-                this.currentIndex = Math.min(
-                    Math.max(0, data.currentIndex ?? this.plots.length - 1),
-                    this.plots.length - 1,
-                );
+                const restoredIndex = (data.currentIndex ?? data.plots.length - 1) - evictedCount;
+                this.currentIndex = Math.min(Math.max(0, restoredIndex), this.plots.length - 1);
                 if (typeof data.zoom === 'number') {
                     this.currentZoom = data.zoom;
                 }
