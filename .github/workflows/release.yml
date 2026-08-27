@@ -3,7 +3,7 @@ name: release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
 
 env:
   NODE_VERSION: 22
@@ -69,6 +69,8 @@ jobs:
     needs: [package]
     permissions:
       contents: write
+      id-token: write
+    environment: vscode-marketplace
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -80,6 +82,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
       - uses: actions/download-artifact@v4
         with:
           path: vsix-artifacts
@@ -87,10 +96,8 @@ jobs:
       - name: Publish to VS Code Marketplace
         run: |
           for f in vsix-artifacts/krarkode-*/*.vsix; do
-            pnpm exec vsce publish --packagePath "$f"
+            pnpm exec vsce publish --azure-credential --packagePath "$f"
           done
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
 
       - name: Create GitHub Release
         run: |
