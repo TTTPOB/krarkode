@@ -211,3 +211,66 @@ describe('PlotManager.switchSession', () => {
         expect(mockPanel.dispose).toHaveBeenCalledOnce();
     });
 });
+
+describe('PlotManager history limit', () => {
+    let manager: PlotManager;
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        mockFs.existsSync.mockReturnValue(false);
+        manager = new PlotManager();
+        manager.setMaxHistory(2);
+        (manager as any).panel = mockPanel;
+        (manager as any).webviewReady = true;
+    });
+
+    test('notifies the webview when adding a static plot evicts an old plot', () => {
+        (manager as any).plots.push(
+            { id: 'oldest', base64Data: 'AAAA', mimeType: 'image/png', timestamp: 1 },
+            { id: 'current', base64Data: 'BBBB', mimeType: 'image/png', timestamp: 2 },
+        );
+        (manager as any).currentIndex = 1;
+
+        manager.addPlot('CCCC');
+
+        expect(manager.getPlotCount()).toBe(2);
+        expect(mockPanel.webview.postMessage).toHaveBeenCalledWith({
+            message: 'hidePlot',
+            plotId: 'oldest',
+        });
+        expect(mockPanel.webview.postMessage).toHaveBeenCalledWith(
+            expect.objectContaining({
+                message: 'addPlot',
+                base64Data: 'CCCC',
+                isActive: true,
+            }),
+        );
+    });
+
+    test('notifies the webview when adding a dynamic plot evicts an old plot', () => {
+        (manager as any).plots.push(
+            { id: 'oldest', base64Data: 'AAAA', mimeType: 'image/png', timestamp: 1 },
+            { id: 'current', base64Data: 'BBBB', mimeType: 'image/png', timestamp: 2 },
+        );
+        (manager as any).currentIndex = 1;
+
+        (manager as any).addDynamicPlot('new-dynamic', {
+            data: 'CCCC',
+            mimeType: 'image/png',
+            format: 'png',
+        });
+
+        expect(manager.getPlotCount()).toBe(2);
+        expect(mockPanel.webview.postMessage).toHaveBeenCalledWith({
+            message: 'hidePlot',
+            plotId: 'oldest',
+        });
+        expect(mockPanel.webview.postMessage).toHaveBeenCalledWith({
+            message: 'addPlot',
+            plotId: 'new-dynamic',
+            base64Data: 'CCCC',
+            mimeType: 'image/png',
+            isActive: true,
+        });
+    });
+});

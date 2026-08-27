@@ -64,19 +64,27 @@ export class PlotManager implements vscode.Disposable {
 
     public setMaxHistory(value: number): void {
         this.maxHistory = Math.max(1, value);
-        // Trim excess plots if new limit is lower
-        while (this.plots.length > this.maxHistory) {
-            this.plots.shift();
-            if (this.currentIndex > 0) {
-                this.currentIndex--;
-            }
-        }
+        this.trimPlotHistory();
         if (this.currentIndex >= this.plots.length) {
             this.currentIndex = this.plots.length - 1;
         }
         if (this.panel) {
             this.renderWebview();
         }
+    }
+
+    private trimPlotHistory(): string[] {
+        const evictedPlotIds: string[] = [];
+        while (this.plots.length > this.maxHistory) {
+            const evictedPlot = this.plots.shift();
+            if (evictedPlot) {
+                evictedPlotIds.push(evictedPlot.id);
+            }
+            if (this.currentIndex > 0) {
+                this.currentIndex--;
+            }
+        }
+        return evictedPlotIds;
     }
 
     public addPlot(base64Data: string, mimeType: string = 'image/png', displayId?: string): void {
@@ -115,19 +123,16 @@ export class PlotManager implements vscode.Disposable {
         }
 
         this.plots.push(entry);
-
-        while (this.plots.length > this.maxHistory) {
-            this.plots.shift();
-            if (this.currentIndex > 0) {
-                this.currentIndex--;
-            }
-        }
+        const evictedPlotIds = this.trimPlotHistory();
 
         this.currentIndex = this.plots.length - 1;
         const hadPanel = !!this.panel;
         this.showPanel();
 
         if (this.panel && hadPanel && this.webviewReady) {
+            for (const plotId of evictedPlotIds) {
+                this.postWebviewMessage({ message: 'hidePlot', plotId });
+            }
             this.postWebviewMessage({
                 message: 'addPlot',
                 plotId: entry.id,
@@ -160,19 +165,16 @@ export class PlotManager implements vscode.Disposable {
         };
 
         this.plots.push(entry);
-
-        while (this.plots.length > this.maxHistory) {
-            this.plots.shift();
-            if (this.currentIndex > 0) {
-                this.currentIndex--;
-            }
-        }
+        const evictedPlotIds = this.trimPlotHistory();
 
         this.currentIndex = this.plots.length - 1;
         const hadPanel = !!this.panel;
         this.showPanel();
 
         if (this.panel && hadPanel && this.webviewReady) {
+            for (const plotId of evictedPlotIds) {
+                this.postWebviewMessage({ message: 'hidePlot', plotId });
+            }
             this.postWebviewMessage({
                 message: 'addPlot',
                 plotId: entry.id,
